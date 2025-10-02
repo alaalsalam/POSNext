@@ -127,60 +127,152 @@ export const toggleManualOffline = async () => {
 	return memory.manual_offline
 }
 
-// Load items from server (returns data for worker to cache)
-export const cacheItemsFromServer = async (posProfile) => {
+// Load items from server in batches (streams to IndexedDB without retaining in memory)
+export const cacheItemsFromServer = async (posProfile, onProgress = null) => {
 	try {
-		console.log('Fetching items from server...')
+		console.log('Fetching items from server in batches...')
 
-		const response = await call('pos_next.api.items.get_items', {
-			pos_profile: posProfile,
-			start: 0,
-			limit: 9999 // Get all items
-		})
+		const BATCH_SIZE = 1000 // Fetch 1000 items per batch
+		let totalCount = 0
+		let start = 0
+		let hasMore = true
+		let batchNumber = 1
 
-		if (response.message && Array.isArray(response.message)) {
-			const items = response.message
+		while (hasMore) {
+			const response = await call('pos_next.api.items.get_items', {
+				pos_profile: posProfile,
+				start: start,
+				limit: BATCH_SIZE
+			})
 
-			// Process items to add searchable fields
-			const processedItems = items.map(item => ({
-				...item,
-				barcodes: item.item_barcode
-					? Array.isArray(item.item_barcode)
-						? item.item_barcode.map(b => b.barcode).filter(Boolean)
-						: [item.item_barcode]
-					: []
-			}))
+			const items = response?.message || response || []
 
-			console.log(`Fetched ${processedItems.length} items from server`)
-			return { items: processedItems }
+			if (items.length > 0) {
+				// Process items to add searchable fields
+				const processedItems = items.map(item => ({
+					...item,
+					barcodes: item.item_barcode
+						? Array.isArray(item.item_barcode)
+							? item.item_barcode.map(b => b.barcode).filter(Boolean)
+							: [item.item_barcode]
+						: []
+				}))
+
+				// Cache this batch immediately to IndexedDB
+				await db.items.bulkPut(processedItems)
+
+				totalCount += processedItems.length
+
+				console.log(`✓ Batch ${batchNumber}: Fetched and cached ${processedItems.length} items (Total: ${totalCount})`)
+
+				// Call progress callback if provided
+				if (onProgress) {
+					onProgress({
+						type: 'items',
+						batch: batchNumber,
+						batchSize: processedItems.length,
+						total: totalCount,
+						progress: items.length < BATCH_SIZE ? 100 : null
+					})
+				}
+
+				// Check if there are more items
+				if (items.length < BATCH_SIZE) {
+					hasMore = false
+				} else {
+					start += BATCH_SIZE
+					batchNumber++
+				}
+			} else {
+				hasMore = false
+			}
 		}
 
-		return { items: [] }
+		console.log(`✓ Completed: Fetched and cached ${totalCount} items in ${batchNumber} batches`)
+
+		// Update metadata to mark cache as fresh
+		const now = Date.now()
+		await setSetting('items_last_sync', now)
+		await setSetting('cache_ready', true)
+
+		// Update in-memory cache
+		memory.items_last_sync = now
+		memory.cache_ready = true
+
+		console.log(`✓ Cache metadata updated: items_last_sync=${new Date(now).toISOString()}`)
+
+		return { totalCount }
 	} catch (error) {
 		console.error('Error fetching items from server:', error)
 		throw error
 	}
 }
 
-// Load customers from server (returns data for worker to cache)
-export const cacheCustomersFromServer = async (posProfile) => {
+// Load customers from server in batches (streams to IndexedDB without retaining in memory)
+export const cacheCustomersFromServer = async (posProfile, onProgress = null) => {
 	try {
-		console.log('Fetching customers from server...')
+		console.log('Fetching customers from server in batches...')
 
-		const response = await call('pos_next.api.customers.get_customers', {
-			pos_profile: posProfile,
-			start: 0,
-			limit: 9999 // Get all customers
-		})
+		const BATCH_SIZE = 1000 // Fetch 1000 customers per batch
+		let totalCount = 0
+		let start = 0
+		let hasMore = true
+		let batchNumber = 1
 
-		if (response.message && Array.isArray(response.message)) {
-			const customers = response.message
+		while (hasMore) {
+			const response = await call('pos_next.api.customers.get_customers', {
+				pos_profile: posProfile,
+				start: start,
+				limit: BATCH_SIZE
+			})
 
-			console.log(`Fetched ${customers.length} customers from server`)
-			return { customers }
+			const customers = response?.message || response || []
+
+			if (customers.length > 0) {
+				// Cache this batch immediately to IndexedDB
+				await db.customers.bulkPut(customers)
+
+				totalCount += customers.length
+
+				console.log(`✓ Batch ${batchNumber}: Fetched and cached ${customers.length} customers (Total: ${totalCount})`)
+
+				// Call progress callback if provided
+				if (onProgress) {
+					onProgress({
+						type: 'customers',
+						batch: batchNumber,
+						batchSize: customers.length,
+						total: totalCount,
+						progress: customers.length < BATCH_SIZE ? 100 : null
+					})
+				}
+
+				// Check if there are more customers
+				if (customers.length < BATCH_SIZE) {
+					hasMore = false
+				} else {
+					start += BATCH_SIZE
+					batchNumber++
+				}
+			} else {
+				hasMore = false
+			}
 		}
 
-		return { customers: [] }
+		console.log(`✓ Completed: Fetched and cached ${totalCount} customers in ${batchNumber} batches`)
+
+		// Update metadata to mark cache as fresh
+		const now = Date.now()
+		await setSetting('customers_last_sync', now)
+		await setSetting('cache_ready', true)
+
+		// Update in-memory cache
+		memory.customers_last_sync = now
+		memory.cache_ready = true
+
+		console.log(`✓ Cache metadata updated: customers_last_sync=${new Date(now).toISOString()}`)
+
+		return { totalCount }
 	} catch (error) {
 		console.error('Error fetching customers from server:', error)
 		throw error

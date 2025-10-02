@@ -65,11 +65,13 @@
 
 				<!-- Customers List - Optimized rendering -->
 				<div class="max-h-96 overflow-y-auto" style="will-change: scroll-position;">
-					<div v-if="loading" class="text-center py-8">
+					<div v-if="loading || isSearchingAsync" class="text-center py-8">
 						<div
 							class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"
 						></div>
-						<p class="mt-2 text-sm text-gray-500">Loading customers...</p>
+						<p class="mt-2 text-sm text-gray-500">
+							{{ isSearchingAsync ? 'Searching...' : 'Loading customers...' }}
+						</p>
 					</div>
 
 					<div
@@ -200,14 +202,23 @@ const { filteredCustomers, loading, selectedIndex, searchTerm, allCustomers, rec
 
 // Local state
 const showCreateDialog = ref(false)
+const asyncResults = ref([])
+const isSearchingAsync = ref(false)
 
 const show = computed({
 	get: () => props.modelValue,
 	set: (val) => emit("update:modelValue", val),
 })
 
-// Alias for template compatibility
-const customers = computed(() => filteredCustomers.value)
+// Alias for template compatibility - use async results for large datasets
+const customers = computed(() => {
+	// If allCustomers is empty (large dataset), use async results
+	if (allCustomers.value.length === 0 && asyncResults.value.length > 0) {
+		return asyncResults.value
+	}
+	// Otherwise use fast in-memory filtered results
+	return filteredCustomers.value
+})
 
 // Show recent customers label
 const showingRecent = computed(() => !searchTerm.value && customers.value.length > 0)
@@ -223,10 +234,35 @@ watch(show, (newVal) => {
 })
 
 // Handle search input with instant reactivity
-function handleSearchInput(event) {
+let searchTimeout = null
+async function handleSearchInput(event) {
 	const value = event.target.value
-	console.log('🔍 Search input:', value) // Debug log
 	customerStore.setSearchTerm(value)
+
+	// If we have in-memory data, use the fast computed
+	if (allCustomers.value.length > 0) {
+		return
+	}
+
+	// For large datasets, use async IndexedDB search
+	if (value.trim().length >= 2) {
+		// Debounce async search
+		clearTimeout(searchTimeout)
+		searchTimeout = setTimeout(async () => {
+			isSearchingAsync.value = true
+			try {
+				const results = await customerStore.searchCustomersAsync(value.trim(), 50)
+				asyncResults.value = results
+			} catch (error) {
+				console.error('Async search error:', error)
+				asyncResults.value = []
+			} finally {
+				isSearchingAsync.value = false
+			}
+		}, 150)
+	} else {
+		asyncResults.value = []
+	}
 }
 
 // Keyboard navigation

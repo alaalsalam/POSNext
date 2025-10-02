@@ -139,6 +139,14 @@ class OfflineWorkerClient {
 		return this.sendMessage('SET_MANUAL_OFFLINE', { value })
 	}
 
+	async getCachedCustomersCount() {
+		return this.sendMessage('GET_CUSTOMERS_COUNT')
+	}
+
+	async getCachedItemsCount() {
+		return this.sendMessage('GET_ITEMS_COUNT')
+	}
+
 	terminate() {
 		if (this.worker) {
 			this.worker.terminate()

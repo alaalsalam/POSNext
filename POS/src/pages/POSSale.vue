@@ -455,8 +455,7 @@ import InvoiceHistoryDialog from "@/components/sale/InvoiceHistoryDialog.vue"
 import CreateCustomerDialog from "@/components/sale/CreateCustomerDialog.vue"
 import { printInvoiceByName } from "@/utils/printInvoice"
 import { saveDraft, getDraftsCount, deleteDraft } from "@/utils/draftManager"
-import { offlineWorker } from "@/utils/offline/workerClient"
-import { cacheItemsFromServer, cacheCustomersFromServer } from "@/utils/offline"
+import { cacheItemsFromServer, cacheCustomersFromServer } from "@/utils/offline/cache"
 
 const router = useRouter()
 const { currentProfile, currentShift, hasOpenShift, checkOpeningShift } = useShift()
@@ -571,16 +570,15 @@ onMounted(async () => {
 						})
 
 						try {
-							// Fetch from server (main thread - uses window.frappe.call)
-							const [itemsData, customersData] = await Promise.all([
-								cacheItemsFromServer(currentProfile.value.name),
-								cacheCustomersFromServer(currentProfile.value.name)
-							])
-
-							// Cache via worker (background thread)
+							// Fetch and cache in batches directly to IndexedDB
+							// No need to pass data back - it's already cached during fetch
 							await Promise.all([
-								offlineWorker.cacheItems(itemsData.items || []),
-								offlineWorker.cacheCustomers(customersData.customers || [])
+								cacheItemsFromServer(currentProfile.value.name, (progress) => {
+									console.log(`Items progress: ${progress.total} loaded`)
+								}),
+								cacheCustomersFromServer(currentProfile.value.name, (progress) => {
+									console.log(`Customers progress: ${progress.total} loaded`)
+								})
 							])
 
 							toast.create({

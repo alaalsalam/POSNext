@@ -107,17 +107,19 @@
 			</div>
 		</div>
 
-		<!-- Loading State -->
-		<div v-if="loading" class="flex-1 flex items-center justify-center p-3">
+		<!-- Loading State (includes async search) -->
+		<div v-if="loading || isSearchingAsync" class="flex-1 flex items-center justify-center p-3">
 			<div class="text-center py-8">
 				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-				<p class="mt-3 text-xs text-gray-500">Loading items...</p>
+				<p class="mt-3 text-xs text-gray-500">
+					{{ isSearchingAsync ? 'Searching items...' : 'Loading items...' }}
+				</p>
 			</div>
 		</div>
 
 		<!-- Empty State -->
 		<div
-			v-else-if="!filteredItems || filteredItems.length === 0"
+			v-else-if="!items || items.length === 0"
 			class="flex-1 flex items-center justify-center p-3"
 		>
 			<div class="text-center py-8">
@@ -145,7 +147,7 @@
 		<div v-else-if="viewMode === 'grid'" class="flex-1 overflow-y-auto p-3">
 			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
 				<div
-					v-for="item in filteredItems"
+					v-for="item in items"
 					:key="item.item_code"
 					@click="handleItemClick(item)"
 					class="relative bg-white border border-gray-200 rounded-lg p-2.5 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all"
@@ -215,7 +217,7 @@
 					</thead>
 					<tbody class="bg-white divide-y divide-gray-200">
 						<tr
-							v-for="item in filteredItems"
+							v-for="item in items"
 							:key="item.item_code"
 							@click="handleItemClick(item)"
 							class="cursor-pointer hover:bg-blue-50 transition-colors"
@@ -240,14 +242,14 @@
 						</tr>
 					</tbody>
 				</table>
-				<div v-if="filteredItems.length === 0" class="text-center py-8 text-gray-500">No items found</div>
+				<div v-if="items.length === 0" class="text-center py-8 text-gray-500">No items found</div>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue"
+import { ref, computed, onMounted, watch } from "vue"
 import { toast } from "frappe-ui"
 import { formatCurrency as formatCurrencyUtil } from "@/utils/currency"
 import { useItemSearchStore } from "@/stores/itemSearch"
@@ -269,10 +271,22 @@ const emit = defineEmits(["item-selected"])
 
 // Use Pinia store
 const itemStore = useItemSearchStore()
-const { filteredItems, searchTerm, selectedItemGroup, itemGroups, loading } = storeToRefs(itemStore)
+const { filteredItems, searchTerm, selectedItemGroup, itemGroups, loading, allItems } = storeToRefs(itemStore)
 
-// Local state
+// Local state for async search (large datasets)
+const asyncResults = ref([])
+const isSearchingAsync = ref(false)
 const viewMode = ref('grid')
+
+// Computed items - use async results for large datasets, otherwise use fast filtered
+const items = computed(() => {
+	// If allItems is empty (large dataset), use async results
+	if (allItems.value.length === 0 && asyncResults.value.length > 0) {
+		return asyncResults.value
+	}
+	// Otherwise use fast in-memory filtered results
+	return filteredItems.value
+})
 
 // Watch for cart items and pos profile changes
 watch(() => props.cartItems, (newCartItems) => {
@@ -293,10 +307,35 @@ onMounted(() => {
 })
 
 // Handle search input with instant reactivity
-function handleSearchInput(event) {
+let searchTimeout = null
+async function handleSearchInput(event) {
 	const value = event.target.value
-	console.log('🔍 Item search:', value) // Debug log
 	itemStore.setSearchTerm(value)
+
+	// If we have in-memory data, use the fast computed
+	if (allItems.value.length > 0) {
+		return
+	}
+
+	// For large datasets, use async IndexedDB search
+	if (value.trim().length > 0) {
+		// Debounce async search
+		clearTimeout(searchTimeout)
+		searchTimeout = setTimeout(async () => {
+			isSearchingAsync.value = true
+			try {
+				const results = await itemStore.searchItemsAsync(value.trim(), 100)
+				asyncResults.value = results
+			} catch (error) {
+				console.error('Async item search error:', error)
+				asyncResults.value = []
+			} finally {
+				isSearchingAsync.value = false
+			}
+		}, 200)
+	} else {
+		asyncResults.value = []
+	}
 }
 
 function handleItemClick(item) {
@@ -307,12 +346,13 @@ function handleBarcodeSearch() {
 	if (!searchTerm.value.trim()) return
 
 	// If only one item matches, auto-select it
-	if (filteredItems.value.length === 1) {
-		emit("item-selected", filteredItems.value[0])
+	const currentItems = items.value
+	if (currentItems.length === 1) {
+		emit("item-selected", currentItems[0])
 		itemStore.clearSearch()
 		toast.create({
 			title: "Item Added",
-			text: `${filteredItems.value[0].item_name} added to cart`,
+			text: `${currentItems[0].item_name} added to cart`,
 			icon: "check",
 			iconClasses: "text-green-600",
 		})

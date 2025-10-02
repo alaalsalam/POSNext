@@ -63,10 +63,17 @@ export const useCustomerSearchStore = defineStore('customerSearch', () => {
 		return 0 // No match
 	}
 
-	// Getters - ULTRA OPTIMIZED for zero delay
+	// Getters - ULTRA OPTIMIZED for zero delay with IndexedDB fallback for large datasets
 	const filteredCustomers = computed(() => {
 		const startTime = performance.now()
 		const term = searchTerm.value.trim()
+
+		// For in-memory datasets, use fast synchronous search
+		// For large datasets (when allCustomers is empty), components should use searchCustomersAsync
+		if (allCustomers.value.length === 0) {
+			// Return empty - components must use searchCustomersAsync for large datasets
+			return []
+		}
 
 		// Show recent/frequent customers when no search term (CACHED)
 		if (!term) {
@@ -107,7 +114,7 @@ export const useCustomerSearchStore = defineStore('customerSearch', () => {
 			return cachedResult
 		}
 
-		// Ultra-fast search with early exit
+		// Ultra-fast search with early exit (only for in-memory datasets)
 		const results = []
 		const maxResults = 50
 		let scanned = 0
@@ -195,35 +202,100 @@ export const useCustomerSearchStore = defineStore('customerSearch', () => {
 	})
 
 	// Actions
-	async function loadAllCustomers(posProfile) {
+	async function loadAllCustomers(posProfile, onProgress = null) {
 		if (!posProfile) {
 			return
 		}
 
 		loading.value = true
 		try {
-			// Try to get from worker cache first
-			const cachedCustomers = await offlineWorker.searchCachedCustomers('', 9999)
+			// Check if already cached
+			const cachedCount = await offlineWorker.getCachedCustomersCount()
 
-			if (cachedCustomers && cachedCustomers.length > 0) {
-				allCustomers.value = cachedCustomers
-				console.log(`✓ Loaded ${cachedCustomers.length} customers for instant search`)
-			} else if (!isOffline()) {
-				// Fetch from server if cache is empty
-				const response = await call('pos_next.api.customers.get_customers', {
-					pos_profile: posProfile,
-					search_term: '',
-					start: 0,
-					limit: 9999,
-				})
-				const list = response?.message || response || []
-				allCustomers.value = list
+			if (cachedCount > 0) {
+				console.log(`✓ Found ${cachedCount} customers in cache`)
 
-				// Cache for future use
-				if (list.length) {
-					await offlineWorker.cacheCustomers(list)
+				// Smart strategy: Load into memory if < 10K, otherwise use IndexedDB
+				if (cachedCount < 10000) {
+					const customers = await offlineWorker.searchCachedCustomers('', cachedCount)
+					allCustomers.value = customers || []
+					console.log(`✓ Loaded ${allCustomers.value.length} customers into memory for fast search`)
+				} else {
+					// Large dataset - use IndexedDB for search
+					allCustomers.value = []
+					console.log(`✓ Large dataset (${cachedCount}) - using IndexedDB for search`)
 				}
-				console.log(`✓ Loaded ${list.length} customers for instant search`)
+			} else if (!isOffline()) {
+				// Fetch from server in batches
+				console.log('📥 Fetching customers in batches from server...')
+
+				const BATCH_SIZE = 1000
+				let start = 0
+				let hasMore = true
+				let batchNumber = 1
+				let totalCount = 0
+				let smallDataset = null // Only allocate if needed
+
+				while (hasMore) {
+					const response = await call('pos_next.api.customers.get_customers', {
+						pos_profile: posProfile,
+						search_term: '',
+						start: start,
+						limit: BATCH_SIZE
+					})
+
+					const customers = response?.message || response || []
+
+					if (customers.length > 0) {
+						// Cache this batch to IndexedDB immediately
+						await offlineWorker.cacheCustomers(customers)
+						totalCount += customers.length
+
+						// Only accumulate for small datasets (< 10K)
+						if (totalCount <= 10000) {
+							if (!smallDataset) smallDataset = []
+							smallDataset.push(...customers)
+						} else if (smallDataset) {
+							// Just crossed threshold - discard accumulated array
+							smallDataset = null
+							console.log(`⚠️ Dataset exceeds 10K - switching to IndexedDB mode`)
+						}
+
+						console.log(`✓ Batch ${batchNumber}: Cached ${customers.length} customers (Total: ${totalCount})`)
+
+						// Report progress
+						if (onProgress) {
+							onProgress({
+								type: 'customers',
+								batch: batchNumber,
+								batchSize: customers.length,
+								total: totalCount,
+								progress: customers.length < BATCH_SIZE ? 100 : null
+							})
+						}
+
+						// Check if there are more
+						if (customers.length < BATCH_SIZE) {
+							hasMore = false
+						} else {
+							start += BATCH_SIZE
+							batchNumber++
+						}
+					} else {
+						hasMore = false
+					}
+				}
+
+				console.log(`✓ Completed: Cached ${totalCount} customers`)
+
+				// Smart strategy: Load into memory if < 10K
+				if (totalCount < 10000 && smallDataset) {
+					allCustomers.value = smallDataset
+					console.log(`✓ Loaded ${totalCount} customers into memory for fast search`)
+				} else {
+					allCustomers.value = []
+					console.log(`✓ Large dataset (${totalCount}) - using IndexedDB for search`)
+				}
 			}
 
 			// Clear caches when new data is loaded
@@ -312,6 +384,24 @@ export const useCustomerSearchStore = defineStore('customerSearch', () => {
 		}
 	}
 
+	// Async search for large datasets using IndexedDB
+	async function searchCustomersAsync(term, limit = 50) {
+		try {
+			const startTime = performance.now()
+
+			// Use IndexedDB search via offlineWorker
+			const results = await offlineWorker.searchCachedCustomers(term, limit)
+
+			const elapsed = performance.now() - startTime
+			console.log(`⚡ IndexedDB search: ${results.length} results in ${elapsed.toFixed(3)}ms (search: "${term}")`)
+
+			return results || []
+		} catch (error) {
+			console.error('Error in async customer search:', error)
+			return []
+		}
+	}
+
 	return {
 		// State
 		allCustomers,
@@ -334,5 +424,6 @@ export const useCustomerSearchStore = defineStore('customerSearch', () => {
 		resetSelectedIndex,
 		trackCustomerSelection,
 		loadCustomerHistory,
+		searchCustomersAsync,
 	}
 })

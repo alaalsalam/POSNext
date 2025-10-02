@@ -68,8 +68,14 @@
 						v-if="customerSearch.trim().length >= 2"
 						class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden"
 					>
+						<!-- Loading indicator -->
+						<div v-if="isSearching" class="px-3 py-4 text-center">
+							<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+							<p class="text-xs text-gray-600 mt-2">Searching...</p>
+						</div>
+
 						<!-- Customer Results -->
-						<div v-if="customerResults.length > 0" class="max-h-64 overflow-y-auto">
+						<div v-else-if="customerResults.length > 0" class="max-h-64 overflow-y-auto">
 							<button
 								v-for="(cust, index) in customerResults"
 								:key="cust.name"
@@ -90,7 +96,7 @@
 						</div>
 
 						<!-- No Results + Create New Option -->
-						<div v-else-if="customerSearch.trim().length >= 2">
+						<div v-else-if="customerSearch.trim().length >= 2 && !isSearching">
 							<div class="px-3 py-2 text-center text-xs font-medium text-gray-700 border-b border-gray-100">
 								No results for "{{ customerSearch }}"
 							</div>
@@ -393,38 +399,81 @@ const emit = defineEmits([
 ])
 
 const customerSearch = ref("")
-const allCustomers = ref([])
 const customersLoaded = ref(false)
 const selectedIndex = ref(-1)
 const availableOffers = ref([])
 const availableGiftCards = ref([])
+const isSearching = ref(false)
 
-// Load customers into memory on mount for instant filtering
-// Load customers resource
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const customersResource = createResource({
-	url: "pos_next.api.customers.get_customers",
-	makeParams() {
-		return {
-			search_term: "",  // Empty to get all customers
-			pos_profile: props.posProfile,
-			limit: 9999  // Get all customers
+// For large datasets, we use IndexedDB-based async search instead of loading all into memory
+// Check if customers are cached on mount
+async function initializeCustomers() {
+	try {
+		const count = await offlineWorker.getCachedCustomersCount()
+		if (count > 0) {
+			console.log(`✓ Found ${count} customers in cache - using async search`)
+			customersLoaded.value = true
+		} else {
+			// Load from server in batches
+			await loadCustomersInBatches()
 		}
-	},
-	auto: true,  // Auto-load on mount
-	async onSuccess(data) {
-		const customers = data?.message || data || []
-		allCustomers.value = customers
-		customersLoaded.value = true
-		console.log(`✓ Loaded ${customers.length} customers for instant search`)
-
-		// Also cache in worker for offline support
-		await offlineWorker.cacheCustomers(customers)
-	},
-	onError(error) {
-		console.error("Error loading customers:", error)
+	} catch (error) {
+		console.error("Error initializing customers:", error)
+		customersLoaded.value = true // Set to true to avoid loading spinner
 	}
-})
+}
+
+async function loadCustomersInBatches() {
+	try {
+		console.log('📥 Loading customers in batches...')
+		const BATCH_SIZE = 1000
+		let start = 0
+		let hasMore = true
+		let totalLoaded = 0
+
+		while (hasMore) {
+			const response = await createResource({
+				url: "pos_next.api.customers.get_customers",
+				makeParams() {
+					return {
+						search_term: "",
+						pos_profile: props.posProfile,
+						start: start,
+						limit: BATCH_SIZE
+					}
+				}
+			}).submit()
+
+			const customers = response?.message || response || []
+
+			if (customers.length > 0) {
+				// Cache batch immediately
+				await offlineWorker.cacheCustomers(customers)
+				totalLoaded += customers.length
+				console.log(`✓ Cached batch: ${customers.length} customers (Total: ${totalLoaded})`)
+
+				if (customers.length < BATCH_SIZE) {
+					hasMore = false
+				} else {
+					start += BATCH_SIZE
+				}
+			} else {
+				hasMore = false
+			}
+		}
+
+		console.log(`✓ Completed: Loaded ${totalLoaded} customers`)
+		customersLoaded.value = true
+	} catch (error) {
+		console.error("Error loading customers in batches:", error)
+		customersLoaded.value = true
+	}
+}
+
+// Initialize on mount
+if (props.posProfile) {
+	initializeCustomers()
+}
 
 // Load offers resource
 const offersResource = createResource({
@@ -498,30 +547,40 @@ function checkOfferEligibility(offer) {
 	return true
 }
 
-// Direct computed results - zero latency filtering!
-const customerResults = computed(() => {
-	const searchValue = customerSearch.value.trim().toLowerCase()
+// Async search results for large datasets
+const customerResults = ref([])
+let searchDebounceTimer = null
+
+// Watch search term and trigger async search
+watch(customerSearch, async (newValue) => {
+	const searchValue = newValue.trim()
 
 	if (searchValue.length < 2) {
-		return []
+		customerResults.value = []
+		return
 	}
 
-	// Instant in-memory filter
-	return allCustomers.value.filter(cust => {
-		const name = (cust.customer_name || '').toLowerCase()
-		const mobile = (cust.mobile_no || '').toLowerCase()
-		const id = (cust.name || '').toLowerCase()
-
-		return name.includes(searchValue) ||
-		       mobile.includes(searchValue) ||
-		       id.includes(searchValue)
-	}).slice(0, 20)
+	// Debounce search for better performance
+	clearTimeout(searchDebounceTimer)
+	searchDebounceTimer = setTimeout(async () => {
+		isSearching.value = true
+		try {
+			// Use async IndexedDB search for large datasets
+			const results = await offlineWorker.searchCachedCustomers(searchValue, 20)
+			customerResults.value = results || []
+		} catch (error) {
+			console.error('Error searching customers:', error)
+			customerResults.value = []
+		} finally {
+			isSearching.value = false
+		}
+	}, 150) // 150ms debounce
 })
 
 // Reset selection when results change
 watch(customerResults, () => {
 	selectedIndex.value = -1
-})
+}, { deep: true })
 
 const totalQuantity = computed(() => {
 	return props.items.reduce((sum, item) => sum + (item.quantity || 0), 0)

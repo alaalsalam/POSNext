@@ -255,6 +255,30 @@ async function isCacheReady() {
 	}
 }
 
+// Get customers count
+async function getCustomersCount() {
+	try {
+		const db = await initDB()
+		const count = await db.customers.count()
+		return count
+	} catch (error) {
+		console.error('Worker: Error getting customers count:', error)
+		return 0
+	}
+}
+
+// Get items count
+async function getItemsCount() {
+	try {
+		const db = await initDB()
+		const count = await db.items.count()
+		return count
+	} catch (error) {
+		console.error('Worker: Error getting items count:', error)
+		return 0
+	}
+}
+
 // Get cache stats
 async function getCacheStats() {
 	try {
@@ -357,6 +381,14 @@ self.onmessage = async (event) => {
 			case 'SET_MANUAL_OFFLINE':
 				manualOffline = payload.value
 				result = { success: true, manualOffline }
+				break
+
+			case 'GET_CUSTOMERS_COUNT':
+				result = await getCustomersCount()
+				break
+
+			case 'GET_ITEMS_COUNT':
+				result = await getItemsCount()
 				break
 
 			default:
