@@ -69,7 +69,7 @@
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
 									</svg>
 									{{ __('Sales Person') }}
-									<span class="text-red-500">*</span>
+									<span class="text-[10px] text-purple-500">({{ __('Optional') }})</span>
 									<!-- Refresh: re-fetch sales persons from server -->
 									<button
 										@click.prevent="refreshSalesPersons"
@@ -127,13 +127,6 @@
 										</div>
 									</div>
 								</div>
-								<!-- Validation message -->
-								<div v-if="!isSalesPersonValid" class="mt-1 text-xs text-red-600 flex items-center gap-1">
-									<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-										<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-									</svg>
-									{{ __('Sales person is required') }}
-								</div>
 							</div>
 						</template>
 
@@ -146,7 +139,7 @@
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
 									</svg>
 									{{ __('Sales Persons') }}
-									<span class="text-red-500">*</span>
+									<span class="text-[10px] text-purple-500">({{ __('Optional') }})</span>
 									<!-- Refresh: re-fetch sales persons from server -->
 									<button
 										@click.prevent="refreshSalesPersons"
@@ -213,14 +206,6 @@
 										{{ salesPersons.length === 0 ? __('No sales persons available') : __('All sales persons selected') }}
 									</div>
 								</div>
-							</div>
-
-							<!-- Validation message -->
-							<div v-if="!isSalesPersonValid" class="mt-1 text-xs text-red-600 flex items-center gap-1">
-								<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-								</svg>
-								{{ __('Sales person is required') }}
 							</div>
 
 							<!-- Selected Sales Persons (chips) -->
@@ -1484,19 +1469,9 @@ const totalSalesAllocation = computed(() => {
 	)
 })
 
-// Computed: Validation - sales person is required when enabled and online
+// Computed: sales person selection is optional when enabled.
 const isSalesPersonValid = computed(() => {
-	// If sales persons feature is disabled, always valid
-	if (!settingsStore.enableSalesPersons) {
-		return true
-	}
-	// Skip validation when offline — sales persons can't be fetched,
-	// don't block the sale. Team data is omitted from offline invoices.
-	if (props.isOffline) {
-		return true
-	}
-	// At least one sales person must be selected
-	return selectedSalesPersons.value.length > 0
+	return true
 })
 
 // Helper functions for sales persons
@@ -2382,7 +2357,26 @@ function clearAll() {
 	customAmount.value = ""
 }
 
+function ensureDefaultPaymentBeforeComplete() {
+	if (paymentEntries.value.length > 0) return
+	if (props.allowPartialPayment) return
+
+	const method = getDefaultNonWalletMethod()
+	if (!method) return
+
+	const payableAmount = roundCurrency(
+		Math.max(0, roundCurrency(props.grandTotal) - (writeOffAmount.value || 0)),
+	)
+	if (payableAmount <= 0) return
+
+	_upsertPaymentEntry(method, payableAmount)
+	lastSelectedMethod.value = method
+	showInfo(__("Default payment added: {0}", [__(method.mode_of_payment)]))
+}
+
 function completePayment() {
+	ensureDefaultPaymentBeforeComplete()
+
 	log.debug("[PaymentDialog] Complete payment called:", {
 		canComplete: canComplete.value,
 		totalPaid: totalPaid.value,

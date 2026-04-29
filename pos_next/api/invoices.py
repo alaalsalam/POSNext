@@ -366,6 +366,76 @@ def _set_payment_accounts(payments, company):
             )
 
 
+def _get_default_pos_payment_method(pos_profile_doc):
+    """Return a sensible default POS payment method for one-tap checkout.
+
+    The frontend can occasionally submit a POS invoice without a payment row
+    when the cashier clicks through the payment flow too quickly. ERPNext then
+    raises "At least one mode of payment is required". For POS invoices we can
+    safely fall back to the POS Profile default, preferring Cash.
+    """
+    if not pos_profile_doc:
+        return None
+
+    payments = list(pos_profile_doc.get("payments") or [])
+    if not payments:
+        return None
+
+    for payment in payments:
+        if cint(payment.get("default")):
+            return payment
+
+    for payment in payments:
+        mode = cstr(payment.get("mode_of_payment"))
+        payment_type = cstr(payment.get("type"))
+        if mode.lower() == "cash" or payment_type.lower() == "cash":
+            return payment
+
+    return payments[0]
+
+
+def _ensure_default_pos_payment(invoice_doc, pos_profile_doc):
+    """Ensure a POS Sales Invoice has at least one payment row."""
+    if invoice_doc.doctype != DOCTYPE_SALES_INVOICE:
+        return
+    if not cint(invoice_doc.get("is_pos")):
+        return
+    if invoice_doc.get("payments"):
+        return
+    if invoice_doc.get("is_return"):
+        return
+
+    amount = flt(
+        invoice_doc.get("grand_total")
+        or invoice_doc.get("rounded_total")
+        or invoice_doc.get("base_grand_total")
+        or 0
+    )
+    if amount <= 0:
+        return
+
+    payment = _get_default_pos_payment_method(pos_profile_doc)
+    if not payment or not payment.get("mode_of_payment"):
+        return
+
+    mode_of_payment = payment.get("mode_of_payment")
+    payment_type = payment.get("type") or frappe.db.get_value(
+        "Mode of Payment", mode_of_payment, "type"
+    )
+    row = invoice_doc.append(
+        "payments",
+        {
+            "mode_of_payment": mode_of_payment,
+            "amount": amount,
+            "base_amount": amount,
+            "type": payment_type,
+        },
+    )
+    if payment.get("default_account"):
+        row.account = payment.get("default_account")
+    _set_payment_accounts(invoice_doc.payments, invoice_doc.company)
+
+
 # ==========================================
 # Stock Validation Functions
 # ==========================================
@@ -896,6 +966,8 @@ def update_invoice(data):
         if invoice_doc.base_grand_total is None:
             invoice_doc.base_grand_total = 0.0
 
+        _ensure_default_pos_payment(invoice_doc, pos_profile_doc)
+
         # Set accounts for payment methods before saving
         _set_payment_accounts(invoice_doc.payments, invoice_doc.company)
 
@@ -1226,6 +1298,12 @@ def submit_invoice(invoice=None, data=None):
 
     pos_profile = invoice.get("pos_profile")
     doctype = invoice.get("doctype", "Sales Invoice")
+    pos_profile_doc = None
+    if pos_profile:
+        try:
+            pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+        except Exception:
+            frappe.throw(_("Unable to load POS Profile {0}").format(pos_profile))
 
     # Normalize pricing_rules before processing
     standardize_pricing_rules(invoice.get("items"))
@@ -1378,6 +1456,9 @@ def submit_invoice(invoice=None, data=None):
         redeemed_customer_credit = data.get("redeemed_customer_credit") or invoice.get("redeemed_customer_credit")
         if redeemed_customer_credit and not invoice_doc.payments:
             invoice_doc.flags.pos_next_redeemed_customer_credit = flt(redeemed_customer_credit)
+
+        if not redeemed_customer_credit:
+            _ensure_default_pos_payment(invoice_doc, pos_profile_doc)
 
         # Save before submit
         invoice_doc.flags.ignore_permissions = True

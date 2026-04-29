@@ -489,19 +489,19 @@ def get_batch_serial_details(item_code, warehouse):
 			result["batches"] = batches
 
 		if has_serial_no:
-			# Get available serial numbers using Query Builder
-			SerialNo = DocType("Serial No")
-			serial_nos = (
-				frappe.qb.from_(SerialNo)
-				.select(
-					SerialNo.name.as_("serial_no"),
-					SerialNo.warehouse
-				)
-				.where(SerialNo.item_code == item_code)
-				.where(SerialNo.warehouse == warehouse)
-				.where(SerialNo.status == "Active")
-				.orderby(SerialNo.creation)
-				.run(as_dict=True)
+			# Use frappe.get_all instead of frappe.client.get_list from the UI.
+			# Cashier roles may not have direct Serial No list permissions, while
+			# POS must still offer available serials for the selected warehouse.
+			serial_nos = frappe.get_all(
+				"Serial No",
+				filters={
+					"item_code": item_code,
+					"warehouse": warehouse,
+					"status": "Active",
+				},
+				fields=["name as serial_no", "warehouse"],
+				order_by="creation asc",
+				limit_page_length=500,
 			)
 			result["serial_nos"] = serial_nos
 

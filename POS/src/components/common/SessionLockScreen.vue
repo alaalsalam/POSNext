@@ -70,7 +70,7 @@
 									/>
 									<button
 										type="button"
-										@click="showPassword = !showPassword"
+										@click="togglePasswordVisibility"
 										class="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none"
 										:disabled="isVerifying"
 										tabindex="-1"
@@ -143,15 +143,32 @@ const password = ref("")
 const showPassword = ref(false)
 const passwordInputRef = ref(null)
 
+function focusPasswordInput(attempt = 0) {
+	nextTick(() => {
+		const input = passwordInputRef.value
+		if (!input || isVerifying.value) return
+
+		input.focus({ preventScroll: true })
+
+		if (document.activeElement !== input && attempt < 6) {
+			window.setTimeout(() => focusPasswordInput(attempt + 1), 80)
+		}
+	})
+}
+
 // Auto-focus password input when locked
 watch(isLocked, async (locked) => {
 	if (locked) {
 		password.value = ""
 		showPassword.value = false
-		await nextTick()
-		passwordInputRef.value?.focus()
+		focusPasswordInput()
 	}
-})
+}, { immediate: true, flush: "post" })
+
+function togglePasswordVisibility() {
+	showPassword.value = !showPassword.value
+	focusPasswordInput()
+}
 
 async function handleUnlock() {
 	if (!password.value || isVerifying.value) return
@@ -168,8 +185,7 @@ async function handleUnlock() {
 	if (!result.success) {
 		// Wrong password — clear and re-focus
 		password.value = ""
-		await nextTick()
-		passwordInputRef.value?.focus()
+		focusPasswordInput()
 	}
 }
 
