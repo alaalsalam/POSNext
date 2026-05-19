@@ -7,8 +7,8 @@
 			<div class="w-16 flex-shrink-0 flex items-center justify-center">
 				<button
 					class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md flex-shrink-0 hover:from-blue-600 hover:to-blue-700 active:scale-95 transition-all"
-					:aria-label="'POS Next'"
-					:title="__('POS Next')"
+					:aria-label="'POS YemenFrappe'"
+					:title="__('POS YemenFrappe')"
 				>
 					<svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
 						<path d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM10 4h4v3h-4V4zm10 16H4V9h16v11z"/>
@@ -22,7 +22,7 @@
 				<div class="flex items-center gap-1 sm:gap-4 min-w-0 flex-1 overflow-hidden">
 					<div class="min-w-0 flex-shrink overflow-hidden">
 						<div class="flex items-center gap-1 sm:gap-2">
-							<h1 class="text-xs sm:text-base font-bold text-gray-900 truncate flex-shrink">{{ 'POS Next' }}</h1>
+							<h1 class="text-xs sm:text-base font-bold text-gray-900 truncate flex-shrink">{{ 'POS YemenFrappe' }}</h1>
 							<span class="hidden sm:inline-flex relative items-center px-1 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-bold bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-md shadow-sm hover:shadow-md transition-shadow flex-shrink-0">
 								<span class="absolute inset-0 bg-white/20 rounded-md animate-pulse"></span>
 								<span class="relative">v{{ appVersion }}</span>
@@ -182,6 +182,9 @@
 										<span class="text-gray-400">{{ __('Last Sync:') }}</span>
 										<span class="font-semibold text-[9px] sm:text-[10px]">{{ formatLastSync() }}</span>
 									</div>
+									<div v-if="cacheStaleWarning" class="rounded bg-yellow-500/20 px-2 py-1 text-yellow-200">
+										{{ cacheStaleWarning }}
+									</div>
 									<div v-if="!cacheSyncing && stockSyncActive" class="flex items-center justify-between">
 										<span class="text-gray-400">{{ __('Auto-Sync:') }}</span>
 										<span class="text-green-400 font-semibold flex items-center gap-1">
@@ -277,7 +280,7 @@ import StatusBadge from "@/components/common/StatusBadge.vue"
 import UserMenu from "@/components/common/UserMenu.vue"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue"
 import { DEFAULT_LOCALE } from "@/utils/currency"
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { version } from "../../../package.json"
 
 const showCacheTooltip = ref(false)
@@ -375,6 +378,24 @@ const props = defineProps({
 	},
 })
 
+const cacheAgeDays = computed(() => {
+	if (!props.cacheStats?.lastSync) return null
+	const lastSync = new Date(props.cacheStats.lastSync).getTime()
+	if (Number.isNaN(lastSync)) return null
+	return Math.floor((Date.now() - lastSync) / (24 * 60 * 60 * 1000))
+})
+
+const cacheStaleWarning = computed(() => {
+	if (cacheAgeDays.value === null || cacheAgeDays.value < 1) return ""
+	if (cacheAgeDays.value >= 7) {
+		return __("Cache is {0} days old. Stock and prices may be very outdated.", [cacheAgeDays.value])
+	}
+	if (cacheAgeDays.value >= 3) {
+		return __("Cache is {0} days old. Refresh before a live demo if possible.", [cacheAgeDays.value])
+	}
+	return __("Cache is 1 day old. Some stock or price data may have changed.")
+})
+
 // Cache status helpers
 function getCacheIconColor() {
 	if (!props.cacheStats || props.cacheStats.items === 0) {
@@ -382,6 +403,9 @@ function getCacheIconColor() {
 	}
 	if (props.cacheSyncing) {
 		return "text-orange-600" // Orange: Syncing in progress
+	}
+	if (cacheStaleWarning.value) {
+		return "text-yellow-600" // Yellow: Cache is stale
 	}
 	return "text-green-600" // Green: Cache ready
 }
@@ -393,6 +417,9 @@ function getCacheStatus() {
 	if (props.cacheSyncing) {
 		return __("Syncing")
 	}
+	if (cacheStaleWarning.value) {
+		return __("Stale")
+	}
 	return __("Ready")
 }
 
@@ -402,6 +429,9 @@ function getCacheStatusBadgeClass() {
 	}
 	if (props.cacheSyncing) {
 		return "bg-orange-500/20 text-orange-300"
+	}
+	if (cacheStaleWarning.value) {
+		return "bg-yellow-500/20 text-yellow-300"
 	}
 	return "bg-green-500/20 text-green-300"
 }
@@ -424,6 +454,9 @@ function getCacheAriaLabel() {
 	}
 	if (props.cacheSyncing) {
 		return __("Cache syncing")
+	}
+	if (cacheStaleWarning.value) {
+		return __("Cache stale")
 	}
 	return __("Cache ready")
 }

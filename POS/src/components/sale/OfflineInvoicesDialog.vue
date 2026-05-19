@@ -89,6 +89,13 @@
 											{{ payment.mode_of_payment }}: {{ formatCurrency(payment.amount) }}
 										</span>
 									</div>
+									<div
+										v-if="getSyncError(invoice)"
+										class="rounded-md border border-red-100 bg-red-50 px-2 py-1 text-[10px] sm:text-xs text-red-700"
+									>
+										<span class="font-semibold">{{ __('Last sync error:') }}</span>
+										{{ getSyncError(invoice) }}
+									</div>
 								</div>
 							</div>
 							<div class="flex items-center justify-end sm:justify-start gap-1 sm:gap-2">
@@ -199,6 +206,11 @@
 							<span class="font-semibold">{{ formatCurrency(payment.amount) }}</span>
 						</div>
 					</div>
+				</div>
+
+				<div v-if="getSyncError(selectedInvoice)" class="bg-red-50 border border-red-100 p-3 sm:p-4 rounded-lg">
+					<h4 class="font-semibold text-red-900 mb-2 text-sm sm:text-base">{{ __('Last Sync Error') }}</h4>
+					<p class="text-xs sm:text-sm text-red-700 break-words">{{ getSyncError(selectedInvoice) }}</p>
 				</div>
 			</div>
 		</template>
@@ -329,6 +341,10 @@ function formatDate(timestamp) {
 		return __('{0} hours ago', [Math.floor(diffInSeconds / 3600)])
 
 	return date.toLocaleDateString() + " " + date.toLocaleTimeString()
+}
+
+function getSyncError(invoice) {
+	return invoice?.last_error || invoice?.error || invoice?.data?.last_error || ""
 }
 
 function viewDetails(invoice) {

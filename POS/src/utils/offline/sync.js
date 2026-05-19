@@ -258,7 +258,11 @@ const markInvoiceSynced = async (id, serverInvoice, offlineId) => {
  */
 const handleSyncFailure = async (invoice, errorMessage) => {
 	const newRetryCount = (invoice.retry_count || 0) + 1
-	const updates = { retry_count: newRetryCount }
+	const updates = {
+		retry_count: newRetryCount,
+		last_error: errorMessage,
+		last_retry_at: Date.now(),
+	}
 
 	if (newRetryCount >= SYNC_CONFIG.MAX_RETRY_COUNT) {
 		updates.sync_failed = true

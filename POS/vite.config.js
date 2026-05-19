@@ -71,15 +71,19 @@ export default defineConfig({
 			registerType: "autoUpdate",
 			includeAssets: ["favicon.png", "icon.svg", "icon-maskable.svg"],
 			manifest: {
-				name: "POSNext",
-				short_name: "POSNext",
+				name: "POS YemenFrappe",
+				short_name: "POS YemenFrappe",
 				description:
 					"Point of Sale system with real-time billing, stock management, and offline support",
 				theme_color: "#4F46E5",
 				background_color: "#ffffff",
 				display: "standalone",
-				scope: "/assets/pos_next/pos/",
+				id: "/pos",
+				scope: "/pos",
 				start_url: "/pos",
+				lang: "ar",
+				dir: "rtl",
+				categories: ["business", "productivity"],
 				icons: [
 					{
 						src: "/assets/pos_next/pos/icon.svg",
