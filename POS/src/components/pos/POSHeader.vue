@@ -58,8 +58,44 @@
 					</div>
 				</div>
 
-				<!-- Right Side: Controls -->
-				<div class="flex items-center gap-0.5 sm:gap-1 md:gap-2 flex-shrink-0">
+					<!-- Right Side: Controls -->
+					<div class="flex items-center gap-0.5 sm:gap-1 md:gap-2 flex-shrink-0">
+					<!-- PWA Install -->
+					<div
+						v-if="canInstall || showIOSInstallHint"
+						class="relative hidden sm:block"
+					>
+						<button
+							v-if="canInstall"
+							@click="handleInstallApp"
+							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors"
+							:title="__('تثبيت التطبيق')"
+							:aria-label="__('تثبيت التطبيق')"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/>
+							</svg>
+							<span class="hidden xl:inline">{{ __('تثبيت التطبيق') }}</span>
+							<span class="xl:hidden">{{ __('Install') }}</span>
+						</button>
+						<div
+							v-else
+							class="max-w-[260px] rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-sm"
+						>
+							<div class="flex items-start gap-2">
+								<span class="font-semibold">{{ __('iPhone') }}</span>
+								<p class="leading-snug">{{ __('للتثبيت على iPhone: افتح المشاركة ثم اختر إضافة إلى الشاشة الرئيسية') }}</p>
+								<button
+									@click="dismissIOSHint"
+									class="ms-1 text-amber-700 hover:text-amber-900"
+									:aria-label="__('Close')"
+								>
+									×
+								</button>
+							</div>
+						</div>
+					</div>
+
 					<!-- WiFi/Offline Status -->
 					<button
 						@click="$emit('sync-click')"
@@ -279,12 +315,19 @@ import ActionButton from "@/components/common/ActionButton.vue"
 import StatusBadge from "@/components/common/StatusBadge.vue"
 import UserMenu from "@/components/common/UserMenu.vue"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue"
+import { usePWAInstall } from "@/composables/usePWAInstall"
 import { DEFAULT_LOCALE } from "@/utils/currency"
 import { computed, ref } from "vue"
 import { version } from "../../../package.json"
 
 const showCacheTooltip = ref(false)
 const appVersion = version
+const {
+	canInstall,
+	showIOSInstallHint,
+	promptInstall,
+	dismissIOSHint,
+} = usePWAInstall()
 
 const emit = defineEmits([
 	"sync-click",
@@ -300,6 +343,10 @@ const emit = defineEmits([
 function handleClearCacheClick() {
 	showCacheTooltip.value = false
 	emit('clear-cache')
+}
+
+async function handleInstallApp() {
+	await promptInstall()
 }
 
 function handleBlur(event) {
