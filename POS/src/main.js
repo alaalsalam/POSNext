@@ -133,10 +133,10 @@ async function initializeApp() {
 	})
 
 	// -------------------------------------------------------------------------
-	// Authentication (CSRF + User fetched in parallel for faster startup)
+	// Authentication (CSRF before user fetch to avoid noisy 400 CSRF retries)
 	// -------------------------------------------------------------------------
 
-	const csrfPromise = (async () => {
+	const csrfReady = await (async () => {
 		const existingToken = getCSRFTokenFromCookie()
 		if (existingToken) {
 			log.debug("CSRF token found in cookie")
@@ -155,7 +155,7 @@ async function initializeApp() {
 		}
 	})()
 
-	const userPromise = (async () => {
+	const user = await (async () => {
 		try {
 			if (!userResource.loading) userResource.fetch()
 			await userResource.promise
@@ -166,7 +166,7 @@ async function initializeApp() {
 		}
 	})()
 
-	const [, user] = await Promise.all([csrfPromise, userPromise])
+	log.debug("CSRF ready before user fetch:", csrfReady)
 	session.user = user
 	log.info(`User authenticated: ${session.user}`)
 

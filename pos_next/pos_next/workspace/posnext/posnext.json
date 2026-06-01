@@ -10,7 +10,7 @@
  "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
- "label": "POSNext",
+ "label": "POS YemenFrappe",
  "links": [
   {
    "hidden": 0,
@@ -254,5 +254,5 @@
    "type": "DocType"
   }
  ],
- "title": "POSNext"
+ "title": "POS YemenFrappe"
 }

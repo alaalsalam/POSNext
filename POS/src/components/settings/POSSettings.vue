@@ -574,6 +574,7 @@ import {
 	getSubsectionClasses,
 	icons,
 } from "./settingsConfig"
+import { getSetting, isOffline, setSetting } from "@/utils/offline"
 import { offlineWorker } from "@/utils/offline/workerClient"
 import { logger } from "@/utils/logger"
 import { usePOSEvents } from "@/composables/usePOSEvents"
@@ -582,7 +583,9 @@ import { useQzTray } from "@/composables/useQzTray"
 
 const log = logger.create('POSSettings')
 const { detectSettingsChanges, updateSettingsSnapshot, emitStockSyncConfigured } = usePOSEvents()
-const { showSuccess, showError } = useToast()
+const { showSuccess, showError, showWarning } = useToast()
+const settingsCacheKey = (posProfile) => `pos_settings:${posProfile || "default"}`
+const warehousesCacheKey = (posProfile) => `pos_settings_warehouses:${posProfile || "default"}`
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -646,6 +649,7 @@ const {
 	refreshPrinters: handleRefreshPrinters,
 	generateCertificate: handleSetupQzCertificate,
 	downloadCertificate: handleDownloadQzCertificate,
+	checkCertificateOnce: handleCheckQzCertificate,
 } = useQzTray()
 
 // Warehouse options
@@ -700,6 +704,7 @@ const settingsResource = createResource({
 		if (data) {
 			Object.assign(settings.value, data)
 			settings.value.pos_profile = props.posProfile
+			setSetting(settingsCacheKey(props.posProfile), { ...settings.value }).catch(() => {})
 			// Store original value
 			originalAllowNegativeStock.value = data.allow_negative_stock
 			// Update event system snapshot
@@ -708,8 +713,17 @@ const settingsResource = createResource({
 		loading.value = false
 	},
 	onError(error) {
-		loading.value = false
-		showError(__("Failed to load settings"))
+		getSetting(settingsCacheKey(props.posProfile), null).then((cachedSettings) => {
+			if (cachedSettings) {
+				Object.assign(settings.value, cachedSettings)
+				originalAllowNegativeStock.value = cachedSettings.allow_negative_stock
+				updateSettingsSnapshot(settings.value)
+				showWarning(__("Offline mode: showing cached POS settings"))
+			} else {
+				showError(__("Failed to load settings"))
+			}
+			loading.value = false
+		})
 	},
 })
 
@@ -771,6 +785,20 @@ async function loadSettings() {
 	selectedWarehouse.value = props.currentWarehouse || ""
 
 	try {
+		if (isOffline()) {
+			const cachedWarehouses = await getSetting(warehousesCacheKey(props.posProfile), null)
+			warehousesList.value = cachedWarehouses || (props.currentWarehouse ? [{ name: props.currentWarehouse, warehouse_name: props.currentWarehouse }] : [])
+			const cachedSettings = await getSetting(settingsCacheKey(props.posProfile), null)
+			if (cachedSettings) {
+				Object.assign(settings.value, cachedSettings)
+				originalAllowNegativeStock.value = cachedSettings.allow_negative_stock
+				updateSettingsSnapshot(settings.value)
+				showWarning(__("Offline mode: showing cached POS settings"))
+			}
+			loading.value = false
+			return
+		}
+
 		// Load warehouses first using call API directly
 		const warehousesData = await call(
 			"pos_next.api.pos_profile.get_warehouses",
@@ -781,12 +809,13 @@ async function loadSettings() {
 
 		// Handle frappe-ui call response format { message: [...] }
 		warehousesList.value = warehousesData?.message || warehousesData || []
+		setSetting(warehousesCacheKey(props.posProfile), warehousesList.value).catch(() => {})
 
 		// Load settings
 		settingsResource.reload()
 	} catch (error) {
 		log.error("Error loading warehouses:", error)
-		warehousesList.value = []
+		warehousesList.value = await getSetting(warehousesCacheKey(props.posProfile), [])
 		// Still load settings even if warehouses fail
 		settingsResource.reload()
 	}
@@ -795,6 +824,11 @@ async function loadSettings() {
 async function saveSettings() {
 	if (!props.posProfile) {
 		showError(__("POS Profile not found"))
+		return
+	}
+
+	if (isOffline()) {
+		showWarning(__("Settings can be viewed offline, but saving requires a network connection"))
 		return
 	}
 
@@ -890,6 +924,7 @@ watch(
 	() => settings.value.silent_print,
 	async (enabled) => {
 		if (enabled) {
+			handleCheckQzCertificate()
 			await handleQzConnect()
 		}
 	}

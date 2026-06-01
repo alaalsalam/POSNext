@@ -280,6 +280,8 @@ import { useFormatters } from "@/composables/useFormatters"
 import { DEFAULT_CURRENCY, formatCurrency as formatCurrencyUtil } from "@/utils/currency"
 import { getInvoiceStatusColor } from "@/utils/invoice"
 import { logger } from "@/utils/logger"
+import { cacheInvoiceHistory, getCachedInvoiceHistory } from "@/utils/offline/sync"
+import { isOffline } from "@/utils/offline/offlineState"
 import { hydrateLocalOnlyInvoice, isLocalOnlyInvoiceName } from "@/utils/printInvoice"
 import { Button, Dialog, call } from "frappe-ui"
 import { ref, watch, nextTick, computed } from "vue"
@@ -364,6 +366,22 @@ watch(show, async (val) => {
 	}
 })
 
+function normalizeInvoiceDetail(result) {
+	if (result && result.items) {
+		result.items = result.items.map((item) => ({
+			...item,
+			quantity: item.quantity ?? item.qty,
+		}))
+	}
+	return result
+}
+
+async function loadCachedInvoiceDetails() {
+	const cachedInvoices = await getCachedInvoiceHistory(props.posProfile, { limit: 200 })
+	const cached = (cachedInvoices || []).find((invoice) => invoice.name === props.invoiceName)
+	return cached ? normalizeInvoiceDetail(JSON.parse(JSON.stringify(cached))) : null
+}
+
 async function loadInvoiceDetails() {
 	if (!props.invoiceName) return
 
@@ -386,21 +404,23 @@ async function loadInvoiceDetails() {
 			return
 		}
 
+		if (isOffline()) {
+			const cached = await loadCachedInvoiceDetails()
+			invoiceData.value = cached
+			return
+		}
+
 		const result = await call("pos_next.api.invoices.get_invoice", {
 			invoice_name: props.invoiceName,
 		})
 
-		// Map server 'qty' to 'quantity' for internal consistency
-		if (result && result.items) {
-			result.items = result.items.map((item) => ({
-				...item,
-				quantity: item.qty,
-			}))
+		invoiceData.value = normalizeInvoiceDetail(result)
+		if (invoiceData.value) {
+			cacheInvoiceHistory([invoiceData.value], props.posProfile).catch(() => {})
 		}
-		invoiceData.value = result
 	} catch (error) {
 		log.error("Error loading invoice details:", error)
-		invoiceData.value = null
+		invoiceData.value = await loadCachedInvoiceDetails()
 	} finally {
 		loading.value = false
 	}

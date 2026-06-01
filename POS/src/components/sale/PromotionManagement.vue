@@ -710,6 +710,7 @@ import { usePOSPermissions } from "@/composables/usePermissions"
 import { useToast } from "@/composables/useToast"
 import { useItemSearchStore } from "@/stores/itemSearch"
 import { DEFAULT_CURRENCY, DEFAULT_LOCALE } from "@/utils/currency"
+import { getSetting, isOffline, setSetting } from "@/utils/offline"
 import { __ } from "@/utils/translation"
 import CouponManagement from "./CouponManagement.vue"
 import SelectInput from "../common/SelectInput.vue"
@@ -727,6 +728,9 @@ import TranslatedHTML from "../common/TranslatedHTML.vue"
 
 // Use shared toast
 const { showSuccess, showError, showWarning } = useToast()
+const promotionCacheKey = (posProfile) => `promotions:${posProfile || "default"}`
+const promotionItemGroupsCacheKey = (company) => `promotion_item_groups:${company || "default"}`
+const promotionBrandsCacheKey = "promotion_brands"
 
 // Permission checks
 const { canCreatePromotion, canEditPromotion, canDeletePromotion } =
@@ -922,7 +926,15 @@ const promotionsResource = createResource({
 	auto: false,
 	onSuccess(data) {
 		promotions.value = data || []
+		setSetting(promotionCacheKey(props.posProfile), promotions.value).catch(() => {})
 		loading.value = false
+	},
+	onError(error) {
+		getSetting(promotionCacheKey(props.posProfile), []).then((cachedPromotions) => {
+			promotions.value = cachedPromotions || []
+			loading.value = false
+			showWarning(__("Offline mode: showing cached promotions"))
+		})
 	},
 })
 
@@ -934,10 +946,13 @@ const itemGroupsResource = createResource({
 	auto: false,
 	onSuccess(data) {
 		itemGroups.value = data || []
+		setSetting(promotionItemGroupsCacheKey(props.company), itemGroups.value).catch(() => {})
 	},
 	onError(error) {
 		console.error("Error loading item groups:", error)
-		handleError(error, __("Failed to load item groups"))
+		getSetting(promotionItemGroupsCacheKey(props.company), []).then((cachedGroups) => {
+			itemGroups.value = cachedGroups || []
+		})
 	},
 })
 
@@ -946,10 +961,13 @@ const brandsResource = createResource({
 	auto: false,
 	onSuccess(data) {
 		brands.value = data || []
+		setSetting(promotionBrandsCacheKey, brands.value).catch(() => {})
 	},
 	onError(error) {
 		console.error("Error loading brands:", error)
-		handleError(error, __("Failed to load brands"))
+		getSetting(promotionBrandsCacheKey, []).then((cachedBrands) => {
+			brands.value = cachedBrands || []
+		})
 	},
 })
 
@@ -1104,6 +1122,10 @@ onMounted(() => {
 
 // Check user permissions
 async function checkPermissions() {
+	if (isOffline()) {
+		permissions.value = { create: false, write: false, delete: false }
+		return
+	}
 	try {
 		const [create, write, del] = await Promise.all([
 			canCreatePromotion(),
@@ -1159,12 +1181,23 @@ function returnToList() {
 	isCreating.value = false
 }
 
-function loadPromotions() {
+async function loadPromotions() {
 	loading.value = true
+	if (isOffline()) {
+		promotions.value = await getSetting(promotionCacheKey(props.posProfile), []) || []
+		loading.value = false
+		showWarning(__("Offline mode: showing cached promotions"))
+		return
+	}
 	promotionsResource.reload()
 }
 
-function loadData() {
+async function loadData() {
+	if (isOffline()) {
+		itemGroups.value = await getSetting(promotionItemGroupsCacheKey(props.company), []) || []
+		brands.value = await getSetting(promotionBrandsCacheKey, []) || []
+		return
+	}
 	itemGroupsResource.reload()
 	brandsResource.reload()
 }
@@ -1174,6 +1207,10 @@ function handleClose() {
 }
 
 function handleCreateNew() {
+	if (isOffline()) {
+		showWarning(__("Creating promotions requires a network connection"))
+		return
+	}
 	resetForm()
 	isCreating.value = true
 	selectedPromotion.value = null
@@ -1193,10 +1230,18 @@ function handleCancel() {
 }
 
 function handleToggle(promotion) {
+	if (isOffline()) {
+		showWarning(__("Changing promotion status requires a network connection"))
+		return
+	}
 	toggleResource.submit({ scheme_name: promotion.name })
 }
 
 function handleDelete(promotion) {
+	if (isOffline()) {
+		showWarning(__("Deleting promotions requires a network connection"))
+		return
+	}
 	promotionToDelete.value = promotion
 	showDeleteConfirm.value = true
 }
@@ -1214,6 +1259,10 @@ function cancelDelete() {
 }
 
 function handleSubmit() {
+	if (isOffline()) {
+		showWarning(__("Saving promotions requires a network connection"))
+		return
+	}
 	// Validate
 	if (!form.value.name) {
 		showWarning(__("Please enter a promotion name"))

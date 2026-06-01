@@ -152,6 +152,8 @@
 import { useToast } from "@/composables/useToast"
 import { DEFAULT_CURRENCY, DEFAULT_LOCALE, formatCurrency as formatCurrencyUtil } from "@/utils/currency"
 import { getInvoiceStatusColor } from "@/utils/invoice"
+import { cacheInvoiceHistory, getCachedInvoiceHistory } from "@/utils/offline/sync"
+import { isOffline } from "@/utils/offline/offlineState"
 import { Button, Dialog, Input, createResource } from "frappe-ui"
 import { computed, ref, watch } from "vue"
 import ReturnInvoiceDialog from "./ReturnInvoiceDialog.vue"
@@ -230,6 +232,8 @@ const invoicesResource = createResource({
 				invoices.value = newInvoices
 			}
 
+			cacheInvoiceHistory(newInvoices, props.posProfile).catch(() => {})
+
 			// Check if there are more results
 			hasMore.value = data.length === pageSize
 			isLoadingMore.value = false
@@ -237,8 +241,15 @@ const invoicesResource = createResource({
 	},
 	onError(error) {
 		console.error("Error loading invoices:", error)
-		showError(__("Failed to load invoices"))
-		isLoadingMore.value = false
+		getCachedInvoiceHistory(props.posProfile, { limit: pageSize }).then((cachedInvoices) => {
+			if (cachedInvoices && cachedInvoices.length > 0) {
+				invoices.value = cachedInvoices
+				hasMore.value = false
+			} else {
+				showError(__("Failed to load invoices"))
+			}
+			isLoadingMore.value = false
+		})
 	},
 })
 
@@ -274,16 +285,22 @@ const filteredInvoices = computed(() => {
 	)
 })
 
-function loadInvoices() {
+async function loadInvoices() {
 	if (props.posProfile) {
 		// Reset to first page for fresh load
 		page.value = 0
 		isLoadingMore.value = false
+		if (isOffline()) {
+			invoices.value = await getCachedInvoiceHistory(props.posProfile, { limit: pageSize }) || []
+			hasMore.value = false
+			return
+		}
 		invoicesResource.reload()
 	}
 }
 
 function loadMore() {
+	if (isOffline()) return
 	page.value++
 	isLoadingMore.value = true
 	invoicesResource.reload()
@@ -302,6 +319,7 @@ function printInvoice(invoice) {
 }
 
 function canCreateReturn(invoice) {
+	if (isOffline()) return false
 	// Can create return if:
 	// 1. Invoice is submitted (docstatus === 1)
 	// 2. Not already a return invoice
@@ -310,6 +328,10 @@ function canCreateReturn(invoice) {
 }
 
 function openReturnModal(invoice) {
+	if (isOffline()) {
+		showError(__("Return invoices require a network connection"))
+		return
+	}
 	selectedInvoiceForReturn.value = invoice
 	showReturnDialog.value = true
 }

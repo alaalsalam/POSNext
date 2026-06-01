@@ -13,7 +13,7 @@
 					<div class="flex-1 min-w-0 text-start">
 						<h4 class="text-sm font-bold text-amber-900">{{ __('Offline Mode') }}</h4>
 						<p class="text-xs text-amber-700 mt-1">
-							{{ __('Return invoices cannot be processed while offline. Please connect to the internet to search for invoices and create returns.') }}
+							{{ __('Returns can be prepared from cached invoices while offline. They will sync automatically when the connection returns.') }}
 						</p>
 					</div>
 				</div>
@@ -33,11 +33,10 @@
 									ref="invoiceSearchInput"
 									v-model="invoiceListFilter"
 									type="text"
-									:placeholder="isOffline ? __('Search unavailable offline') : __('Search by invoice, customer, or mobile...')"
-									:disabled="isOffline"
+									:placeholder="isOffline ? __('Search cached invoices...') : __('Search by invoice, customer, or mobile...')"
 									:class="[
 										'w-full ps-10 pe-10 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-										isOffline ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'border-gray-300'
+										isOffline ? 'bg-amber-50 border-amber-200 text-gray-700' : 'border-gray-300'
 									]"
 									@input="onSearchInput"
 									@keydown.down.prevent="navigateSuggestion(1)"
@@ -174,8 +173,8 @@
 								<div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
 									<FeatherIcon name="wifi-off" class="w-8 h-8 text-amber-500" />
 								</div>
-								<p class="text-sm font-medium text-gray-900 mb-1 text-center">{{ __('No connection') }}</p>
-								<p class="text-xs text-gray-500 text-center">{{ __('Connect to the internet to load invoices') }}</p>
+								<p class="text-sm font-medium text-gray-900 mb-1 text-center">{{ __('No cached invoices') }}</p>
+								<p class="text-xs text-gray-500 text-center">{{ __('Open invoice history once online to make returns available offline') }}</p>
 							</template>
 							<!-- Online Empty State -->
 							<template v-else>
@@ -760,6 +759,8 @@
 <script setup>
 import { useOfflineStatus } from "@/composables/useOfflineStatus"
 import { useToast } from "@/composables/useToast"
+import { getCachedInvoiceHistory, saveOfflineInvoice } from "@/utils/offline/sync"
+import { offlineWorker } from "@/utils/offline/workerClient"
 import { getPaymentIcon } from "@/utils/payment"
 import {
 	DEFAULT_CURRENCY,
@@ -913,6 +914,12 @@ const loadPaymentMethodsResource = createResource({
 	},
 	onError(error) {
 		console.error("Error loading payment methods:", error)
+		offlineWorker.getCachedPaymentMethods(props.posProfile).then((cachedMethods) => {
+			paymentMethods.value = cachedMethods || []
+			if (originalInvoice.value) {
+				initializePaymentsFromInvoice()
+			}
+		})
 	},
 })
 
@@ -1141,6 +1148,8 @@ watch(
 				// Don't show the main dialog with invoice list - go directly to return modal
 				showDialog.value = false
 				checkValidityAndOpenModal(props.preselectedInvoice.name, true)
+			} else if (isOffline.value) {
+				loadCachedReturnableInvoices()
 			} else {
 				// Normal flow - show the invoice selection dialog
 				loadInvoicesResource.reload()
@@ -1325,6 +1334,7 @@ watch(normalizedSearchTerm, (searchTerm) => {
 	}
 
 	// Early exit conditions
+	if (isOffline.value) return
 	if (!searchTerm || searchTerm.length < MIN_SERVER_SEARCH_LENGTH) return
 	if (!looksLikeInvoiceNumber(searchTerm)) return
 
@@ -1511,11 +1521,80 @@ function handleValidityResponse(validity) {
 	return false
 }
 
+async function loadCachedReturnableInvoices() {
+	const cached = await getCachedInvoiceHistory(props.posProfile, { limit: 100 })
+	invoiceList.value = (cached || []).filter((invoice) =>
+		invoice.docstatus === 1 && !invoice.is_return && (invoice.items?.length || invoice.item_count || 0) > 0,
+	)
+}
+
+async function getCachedInvoiceForReturn(invoiceName) {
+	const cached = await getCachedInvoiceHistory(props.posProfile, { limit: 200 })
+	return (cached || []).find((invoice) => invoice.name === invoiceName) || null
+}
+
+function prepareOfflineReturnFromInvoice(invoice) {
+	if (!invoice?.items?.length) {
+		showError(__("Invoice details are not cached. Open invoice details once online, then try again offline."))
+		return false
+	}
+
+	preparedReturnDoc.value = {
+		return_against: invoice.name,
+		customer: invoice.customer,
+		customer_name: invoice.customer_name,
+		company: invoice.company,
+		sales_team: invoice.sales_team || [],
+	}
+	originalInvoice.value = {
+		name: invoice.name,
+		customer: invoice.customer,
+		customer_name: invoice.customer_name,
+		company: invoice.company,
+		posting_date: invoice.posting_date,
+		grand_total: invoice.grand_total,
+		paid_amount: invoice.paid_amount,
+		outstanding_amount: invoice.outstanding_amount,
+		payments: invoice.payments || [],
+		docstatus: 1,
+		is_return: 0,
+	}
+	returnItems.value = invoice.items.map((item) => ({
+		...item,
+		name: item.name || item.sales_invoice_item,
+		quantity: Math.abs(item.quantity ?? item.qty ?? 1),
+		selected: false,
+		return_qty: Math.abs(item.quantity ?? item.qty ?? 1),
+		original_qty: Math.abs(item.quantity ?? item.qty ?? 1),
+	}))
+	returnItems.value.forEach(normalizeItemQuantity)
+	originalPaidAmount.value = invoice.paid_amount || invoice.payments?.reduce((sum, p) => sum + Math.abs(p.amount || 0), 0) || 0
+	originalOutstandingAmount.value = invoice.outstanding_amount || 0
+	isOriginalCreditSale.value = !invoice.payments?.length || originalPaidAmount.value < 0.01
+	isPartiallyPaid.value = originalPaidAmount.value > 0 && originalOutstandingAmount.value > 0
+	if (paymentMethods.value.length === 0 && props.posProfile) {
+		offlineWorker.getCachedPaymentMethods(props.posProfile).then((cachedMethods) => {
+			paymentMethods.value = cachedMethods || []
+			initializePaymentsFromInvoice()
+		})
+	} else {
+		initializePaymentsFromInvoice()
+	}
+	return true
+}
+
 /**
  * Opens return modal after fetching invoice details
  */
-function openReturnModal(invoice) {
+async function openReturnModal(invoice) {
 	submitError.value = ""
+	if (isOffline.value) {
+		const cachedInvoice = invoice.items?.length ? invoice : await getCachedInvoiceForReturn(invoice.name)
+		if (prepareOfflineReturnFromInvoice(cachedInvoice)) {
+			returnModal.visible = true
+		}
+		return
+	}
 	fetchInvoiceResource.fetch({
 		invoice_name: invoice.name,
 		pos_opening_shift: props.posOpeningShift,
@@ -1529,6 +1608,13 @@ function openReturnModal(invoice) {
  * @param {boolean} fallbackOnError - If true, opens modal directly on validity check error
  */
 async function checkValidityAndOpenModal(invoiceName, fallbackOnError = false) {
+	if (isOffline.value) {
+		const cachedInvoice = await getCachedInvoiceForReturn(invoiceName)
+		if (prepareOfflineReturnFromInvoice(cachedInvoice)) {
+			returnModal.visible = true
+		}
+		return
+	}
 	try {
 		const validity = await checkInvoiceValidityResource.fetch({
 			invoice_name: invoiceName,
@@ -1638,6 +1724,46 @@ async function handleCreateReturn() {
 	isSubmitting.value = true
 
 	try {
+		if (isOffline.value) {
+			const baseDoc = preparedReturnDoc.value || {}
+			const invoiceData = {
+				doctype: "Sales Invoice",
+				pos_profile: props.posProfile,
+				posa_pos_opening_shift: props.posOpeningShift,
+				customer: baseDoc.customer || originalInvoice.value.customer,
+				company: baseDoc.company || originalInvoice.value.company,
+				is_return: 1,
+				return_against: baseDoc.return_against || originalInvoice.value.name,
+				update_outstanding_for_self: 0,
+				is_pos: 1,
+				update_stock: 1,
+				sales_team: baseDoc.sales_team || [],
+				items: selectedItems.value.map((item) => ({
+					item_code: item.item_code,
+					item_name: item.item_name,
+					qty: -Math.abs(item.return_qty),
+					rate: item.rate,
+					warehouse: item.warehouse,
+					uom: item.uom,
+					conversion_factor: item.conversion_factor || 1,
+					sales_invoice_item: item.name,
+				})),
+				add_to_customer_balance: addToCustomerCredit.value,
+				payments: addToCustomerCredit.value
+					? []
+					: refundPayments.value.map((payment) => ({
+						mode_of_payment: payment.mode_of_payment,
+						amount: -Math.abs(payment.amount),
+					})),
+				remarks: returnReason.value || __("Offline return against {0}", [originalInvoice.value.name]),
+			}
+			const queued = await saveOfflineInvoice(invoiceData)
+			emit("return-created", { name: queued.offline_id, is_offline: true, return_against: invoiceData.return_against })
+			closeReturnModal()
+			showSuccess(__("Return saved offline and will sync when online"))
+			return
+		}
+
 		const result = await createReturnResource.submit()
 
 		// Check if result contains an error (HTTP 417 might return error in response body)

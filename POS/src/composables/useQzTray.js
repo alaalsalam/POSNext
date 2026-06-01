@@ -54,9 +54,9 @@ function _saveCertReady(value) {
 }
 
 // ── Smart certificate check ───────────────────────────────────────────
-// Only hits the server when we don't already know the cert exists.
-// Once qzCertStatus becomes "trusted" (from actual QZ handshake),
-// we persist that knowledge so future sessions skip the API call.
+// Only hit the server from an explicit QZ action. Loading POS should not
+// create a noisy 417 console error when silent printing is disabled or when
+// no QZ certificate has been generated yet.
 let _certChecked = false
 function _checkCertificateOnce() {
 	if (_certChecked) return
@@ -76,7 +76,6 @@ function _checkCertificateOnce() {
 			// Certificate doesn't exist yet — that's fine
 		})
 }
-_checkCertificateOnce()
 
 // Persist printer selection
 watch(selectedPrinter, (name) => {
@@ -97,6 +96,7 @@ export function useQzTray() {
 
 	// ── Connection ─────────────────────────────────────────────────────
 	async function handleConnect() {
+		_checkCertificateOnce()
 		const ok = await qzConnect()
 		if (ok) {
 			await refreshPrinters()
@@ -187,5 +187,6 @@ export function useQzTray() {
 		refreshPrinters,
 		generateCertificate,
 		downloadCertificate,
+		checkCertificateOnce: _checkCertificateOnce,
 	}
 }

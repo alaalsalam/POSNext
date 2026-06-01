@@ -3,6 +3,7 @@
 	<Transition name="fade">
 		<div
 			v-if="show"
+			data-testid="invoice-management-dialog"
 			class="fixed inset-0 bg-black bg-opacity-50 z-[300]"
 			@click.self="handleClose"
 		>
@@ -39,8 +40,10 @@
 								{{ __('Refresh') }}
 							</Button>
 							<button
+								data-testid="invoice-management-close"
 								@click="handleClose"
 								class="p-2 hover:bg-white/50 rounded-lg transition-colors"
+								:aria-label="__('Close')"
 							>
 								<svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -163,7 +166,7 @@
 									</svg>
 									<div class="flex-1 text-start">
 										<p class="text-sm font-medium text-yellow-800">{{ __('You are offline') }}</p>
-										<p class="text-xs text-yellow-700">{{ __('Payments cannot be added while offline. Connect to the internet to add payments.') }}</p>
+										<p class="text-xs text-yellow-700">{{ __('Payments will be saved offline and synced automatically when internet returns.') }}</p>
 									</div>
 								</div>
 
@@ -215,8 +218,8 @@
 												</div>
 												<button
 													@click="selectInvoiceForPayment(invoice)"
-													:disabled="loadingInvoiceDetails || isOffline()"
-													:title="isOffline() ? __('Payments cannot be added while offline') : ''"
+													:disabled="loadingInvoiceDetails"
+													:title="isOffline() ? __('Save payment offline') : ''"
 													class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 												>
 													<LoadingIndicator v-if="loadingInvoiceDetails" class="w-4 h-4" />
@@ -549,7 +552,7 @@
 		:customer="selectedInvoice?.customer_name || selectedInvoice?.customer"
 		:pos-profile="posProfile"
 		:currency="currency"
-		:is-offline="false"
+		:is-offline="isOffline()"
 		:allow-partial-payment="true"
 		@payment-completed="handlePaymentCompleted"
 	/>
@@ -565,13 +568,14 @@ import { getInvoiceStatusColor } from "@/utils/invoice"
 import { useFormatters } from "@/composables/useFormatters"
 import { useToast } from "@/composables/useToast"
 import { Button, call, LoadingIndicator } from "frappe-ui"
-import { computed, onMounted, ref, watch } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { isOffline } from "@/utils/offline/offlineState"
 import {
 	cacheUnpaidInvoices,
 	getCachedUnpaidInvoices,
 	cacheUnpaidSummary,
 	getCachedUnpaidSummary,
+	saveOfflinePayment,
 } from "@/utils/offline/sync"
 import { logger } from "@/utils/logger"
 
@@ -802,6 +806,21 @@ watch(activeTab, (newTab) => {
 	}
 })
 
+
+function handleEscapeKey(event) {
+	if (event.key === "Escape" && show.value) {
+		handleClose()
+	}
+}
+
+onMounted(() => {
+	window.addEventListener("keydown", handleEscapeKey)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener("keydown", handleEscapeKey)
+})
+
 // Methods
 function handleClose() {
 	show.value = false
@@ -927,6 +946,12 @@ const loadingInvoiceDetails = ref(false)
 async function selectInvoiceForPayment(invoice) {
 	loadingInvoiceDetails.value = true
 	try {
+		if (isOffline()) {
+			selectedInvoice.value = invoice
+			showPaymentDialog.value = true
+			return
+		}
+
 		// Fetch full invoice details including items for the payment dialog
 		const details = await call("pos_next.api.partial_payments.get_partial_payment_details", {
 			invoice_name: invoice.name,
@@ -947,6 +972,30 @@ async function handlePaymentCompleted(paymentData) {
 	if (!selectedInvoice.value) return
 
 	try {
+		if (isOffline()) {
+			const queued = await saveOfflinePayment({
+				invoice_name: selectedInvoice.value.name,
+				pos_profile: props.posProfile,
+				customer: selectedInvoice.value.customer || selectedInvoice.value.customer_name,
+				payments: paymentData.payments,
+				created_at: new Date().toISOString(),
+			})
+			showSuccess(__("Payment saved offline and will sync when online"))
+			const paid = Number(paymentData.paid_amount || paymentData.payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0)
+			unpaidInvoices.value = unpaidInvoices.value.map((invoice) =>
+				invoice.name === selectedInvoice.value.name
+					? {
+						...invoice,
+						paid_amount: Number(invoice.paid_amount || 0) + paid,
+						outstanding_amount: Math.max(0, Number(invoice.outstanding_amount || 0) - paid),
+						status: Number(invoice.outstanding_amount || 0) - paid <= 0.01 ? "Paid" : invoice.status,
+					}
+					: invoice,
+			)
+			selectedInvoice.value = null
+			return queued
+		}
+
 		await call("pos_next.api.partial_payments.add_payment_to_partial_invoice", {
 			invoice_name: selectedInvoice.value.name,
 			payments: paymentData.payments,

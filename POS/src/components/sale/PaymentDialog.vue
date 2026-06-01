@@ -1288,6 +1288,17 @@ const paymentMethodsResource = createResource({
 		// Identify wallet payment methods
 		identifyWalletPaymentMethods()
 	},
+	onError(error) {
+		log.warn("Payment methods API failed, using cached methods", error)
+		offlineWorker.getCachedPaymentMethods(props.posProfile).then((cachedMethods) => {
+			paymentMethods.value = cachedMethods || []
+			if (paymentMethods.value.length > 0) {
+				const defaultMethod = paymentMethods.value.find((m) => m.default)
+				lastSelectedMethod.value = defaultMethod || paymentMethods.value[0]
+			}
+			identifyWalletPaymentMethods()
+		})
+	},
 })
 
 const customerCreditResource = createResource({

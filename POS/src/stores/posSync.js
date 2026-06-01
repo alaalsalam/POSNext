@@ -20,6 +20,8 @@ import {
 	cachePaymentMethodsFromServer,
 	cacheSalesPersonsFromServer,
 	syncOfflineInvoices,
+	syncOfflinePayments,
+	getOfflinePaymentCount,
 	cacheInvoiceHistory,
 	cacheUnpaidInvoices,
 	cacheUnpaidSummary,
@@ -106,7 +108,11 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	 */
 	async function updatePendingCount() {
 		try {
-			pendingInvoicesCount.value = await offlineWorker.getOfflineInvoiceCount()
+			const [invoiceCount, paymentCount] = await Promise.all([
+				offlineWorker.getOfflineInvoiceCount(),
+				getOfflinePaymentCount(),
+			])
+			pendingInvoicesCount.value = invoiceCount + paymentCount
 		} catch (error) {
 			log.error('Failed to get pending invoice count', error)
 		}
@@ -116,16 +122,24 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	 * Sync pending invoices to the server
 	 * @throws {Error} If called while offline
 	 */
-	async function syncPending() {
+	async function syncPending(options = {}) {
 		if (isOffline.value) {
 			throw new Error("Cannot sync while offline")
 		}
 
 		isSyncing.value = true
 		try {
-			const result = await syncOfflineInvoices()
+			const invoiceResult = await syncOfflineInvoices()
+			const paymentResult = await syncOfflinePayments(options)
 			await updatePendingCount()
-			return result
+			return {
+				success: (invoiceResult.success || 0) + (paymentResult.success || 0),
+				failed: (invoiceResult.failed || 0) + (paymentResult.failed || 0),
+				skipped: invoiceResult.skipped || 0,
+				errors: [...(invoiceResult.errors || []), ...(paymentResult.errors || [])],
+				invoices: invoiceResult,
+				payments: paymentResult,
+			}
 		} catch (error) {
 			log.error('Failed to sync invoices', error)
 			throw error
@@ -196,6 +210,7 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	async function loadPendingInvoices() {
 		try {
 			pendingInvoicesList.value = await getPending()
+			await updatePendingCount()
 		} catch (error) {
 			log.error('Failed to load pending invoices', error)
 			pendingInvoicesList.value = []
@@ -222,17 +237,17 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	 * Sync all pending invoices with user feedback
 	 * @returns {Object} Sync result with success/failed counts
 	 */
-	async function syncAllPending() {
+	async function syncAllPending(options = {}) {
 		if (isOffline.value) {
 			showWarning(__("Cannot sync while offline"))
 			return { success: 0, failed: 0, errors: [] }
 		}
 
 		try {
-			const result = await syncPending()
+			const result = await syncPending(options)
 
 			if (result.success > 0) {
-				showSuccess(__('{0} invoice(s) synced successfully', [result.success]))
+				showSuccess(__('{0} offline operation(s) synced successfully', [result.success]))
 				await loadPendingInvoices()
 			}
 
@@ -241,6 +256,10 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 			log.error('Sync all pending failed', error)
 			throw error
 		}
+	}
+
+	async function retryFailedPending() {
+		return await syncAllPending({ includeFailed: true })
 	}
 
 	/**
@@ -418,6 +437,7 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 		updatePendingCount,
 		deleteOfflineInvoice,
 		syncAllPending,
+		retryFailedPending,
 		preloadDataForOffline,
 		checkOfflineCacheAvailability,
 		checkCacheReady,

@@ -806,6 +806,16 @@ def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
             payment_account = payment.get("account")
             reference_no = payment.get("reference_no")
 
+            if reference_no:
+                existing_payment = frappe.db.get_value(
+                    "Payment Entry",
+                    {"reference_no": reference_no, "docstatus": 1},
+                    "name",
+                )
+                if existing_payment:
+                    payment_entries_created.append(existing_payment)
+                    continue
+
             pe_name = create_payment_entry(
                 invoice_name=invoice_name,
                 amount=amount,

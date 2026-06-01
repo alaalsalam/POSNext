@@ -1,9 +1,11 @@
 import { createResource } from "frappe-ui"
 import { defineStore } from "pinia"
 import { computed, ref } from "vue"
+import { getSetting, setSetting } from "@/utils/offline"
 import { useBootstrapStore } from "./bootstrap"
 
 export const usePOSSettingsStore = defineStore("posSettings", () => {
+	const settingsCacheKey = (posProfile) => `pos_settings:${posProfile || "default"}`
 	// State
 	const settings = ref({
 		pos_profile: "",
@@ -250,6 +252,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			if (data) {
 				Object.assign(settings.value, data)
 				isLoaded.value = true
+				setSetting(settingsCacheKey(settings.value.pos_profile), { ...settings.value }).catch(() => {})
 			}
 			isLoading.value = false
 		},
@@ -273,6 +276,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			const preloadedSettings = bootstrapStore.getPreloadedPOSSettings()
 			if (preloadedSettings && Object.keys(preloadedSettings).length > 0) {
 				Object.assign(settings.value, preloadedSettings)
+				setSetting(settingsCacheKey(posProfile), { ...settings.value }).catch(() => {})
 				isLoaded.value = true
 				isLoading.value = false
 				return true
@@ -286,6 +290,13 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			await settingsResource.submit({ pos_profile: posProfile })
 			return true
 		} catch {
+			const cachedSettings = await getSetting(settingsCacheKey(posProfile), null)
+			if (cachedSettings) {
+				Object.assign(settings.value, cachedSettings)
+				isLoaded.value = true
+				isLoading.value = false
+				return true
+			}
 			return false
 		}
 	}
@@ -395,6 +406,13 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			await settingsResource.submit({ pos_profile: settings.value.pos_profile })
 			return true
 		} catch {
+			const cachedSettings = await getSetting(settingsCacheKey(settings.value.pos_profile), null)
+			if (cachedSettings) {
+				Object.assign(settings.value, cachedSettings)
+				isLoaded.value = true
+				isLoading.value = false
+				return true
+			}
 			return false
 		}
 	}

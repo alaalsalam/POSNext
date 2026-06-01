@@ -98,6 +98,7 @@
 
 					<!-- WiFi/Offline Status -->
 					<button
+						data-testid="offline-operations-button"
 						@click="$emit('sync-click')"
 						:class="[
 							'p-1.5 sm:p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors relative group touch-manipulation',
