@@ -1,7 +1,7 @@
 from pos_next.utils import get_build_version
 
 app_name = "pos_next"
-app_title = "POS YemenFrappe"
+app_title = "POS Trilogy"
 app_publisher = "BrainWise"
 app_description = "POS built on ERPNext that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source."
 app_email = "support@brainwise.me"
@@ -17,7 +17,7 @@ app_license = "agpl-3.0"
 # 	{
 # 		"name": "pos_next",
 # 		"logo": "/assets/pos_next/logo.png",
-# 		"title": "POS YemenFrappe",
+# 		"title": "POS Trilogy",
 # 		"route": "/pos_next",
 # 		"has_permission": "pos_next.api.permission.has_app_permission"
 # 	}
@@ -31,7 +31,7 @@ _asset_version = get_build_version()
 
 # include js, css files in header of desk.html
 # app_include_css = f"/assets/pos_next/css/pos_next.css?v={_asset_version}"
-# app_include_js = f"/assets/pos_next/js/pos_next.js?v={_asset_version}"
+app_include_js = f"/assets/pos_next/js/desk_route_redirect.js?v={_asset_version}"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/pos_next/css/pos_next.css"

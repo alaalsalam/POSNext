@@ -339,16 +339,17 @@
 										<button
 											type="button"
 											@click.stop="decrementReturnQuantity(item)"
-											:disabled="!item.selected || item.return_qty <= 1"
+											:disabled="item.return_qty <= 1"
 											class="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-lg transition-colors flex items-center justify-center border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
 										>−</button>
 										<input
-											v-model.number="item.return_qty"
+											:value="item.return_qty ?? ''"
 											:max="item.quantity"
-											:disabled="!item.selected"
-											type="number"
-											min="1"
-											step="1"
+											type="text"
+											inputmode="numeric"
+											pattern="[0-9٠-٩۰-۹]*"
+											@focus="selectItemForQuantityEdit(item)"
+											@input="updateReturnQuantity(item, $event.target.value)"
 											@change="normalizeItemQuantity(item)"
 											@blur="normalizeItemQuantity(item)"
 											class="w-12 px-1 py-1 border border-gray-300 rounded-lg text-sm text-center font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -356,7 +357,7 @@
 										<button
 											type="button"
 											@click.stop="incrementReturnQuantity(item)"
-											:disabled="!item.selected || item.return_qty >= item.quantity"
+											:disabled="item.return_qty >= item.quantity"
 											class="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-lg transition-colors flex items-center justify-center border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
 										>+</button>
 									</div>
@@ -409,25 +410,26 @@
 									<div class="flex items-center gap-2">
 										<button
 											@click.stop="decrementReturnQuantity(item)"
-											:disabled="!item.selected || item.return_qty <= 1"
+											:disabled="item.return_qty <= 1"
 											class="flex-1 h-10 rounded-lg bg-white border-2 border-gray-300 flex items-center justify-center text-gray-700 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-xl"
 										>
 											−
 										</button>
 										<input
-											v-model.number="item.return_qty"
+											:value="item.return_qty ?? ''"
 											:max="item.quantity"
-											:disabled="!item.selected"
-											type="number"
-											min="1"
-											step="1"
+											type="text"
+											inputmode="numeric"
+											pattern="[0-9٠-٩۰-۹]*"
+											@focus="selectItemForQuantityEdit(item)"
+											@input="updateReturnQuantity(item, $event.target.value)"
 											@change="normalizeItemQuantity(item)"
 											@blur="normalizeItemQuantity(item)"
 											class="w-16 h-10 px-2 border-2 border-gray-300 rounded-lg text-lg text-center font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 										/>
 										<button
 											@click.stop="incrementReturnQuantity(item)"
-											:disabled="!item.selected || item.return_qty >= item.quantity"
+											:disabled="item.return_qty >= item.quantity"
 											class="flex-1 h-10 rounded-lg bg-white border-2 border-gray-300 flex items-center justify-center text-gray-700 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-xl"
 										>
 											+
@@ -1408,6 +1410,27 @@ function normalizeItemQuantity(item) {
 	)
 }
 
+function normalizeQuantityText(value) {
+	if (value === null || value === undefined) return ""
+	const arabicDigits = "٠١٢٣٤٥٦٧٨٩"
+	const persianDigits = "۰۱۲۳۴۵۶۷۸۹"
+	return String(value)
+		.trim()
+		.replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)))
+		.replace(/[۰-۹]/g, (digit) => String(persianDigits.indexOf(digit)))
+		.replace(/[^0-9]/g, "")
+}
+
+function updateReturnQuantity(item, value) {
+	selectItemForQuantityEdit(item)
+	const normalized = normalizeQuantityText(value)
+	if (normalized === "") {
+		item.return_qty = ""
+		return
+	}
+	item.return_qty = Number.parseInt(normalized, 10)
+}
+
 function validateSelectedItems() {
 	const invalidItems = selectedItems.value.filter(
 		(item) => item.return_qty > item.quantity,
@@ -1673,6 +1696,13 @@ function toggleItemSelection(item) {
 	}
 }
 
+function selectItemForQuantityEdit(item) {
+	item.selected = true
+	if (!item.return_qty || item.return_qty <= 0) {
+		item.return_qty = Math.min(item.quantity || 1, 1)
+	}
+}
+
 function handleKeyboardShortcuts(event) {
 	if (!returnModal.visible) return
 
@@ -1696,12 +1726,14 @@ function handleKeyboardShortcuts(event) {
 }
 
 function incrementReturnQuantity(item) {
+	selectItemForQuantityEdit(item)
 	if (item.return_qty < item.quantity) {
 		item.return_qty++
 	}
 }
 
 function decrementReturnQuantity(item) {
+	selectItemForQuantityEdit(item)
 	if (item.return_qty > 1) {
 		item.return_qty--
 	}

@@ -7,7 +7,7 @@
           <FeatherIcon name="shopping-bag" class="h-7 w-7" :stroke-width="2" />
         </div>
         <h2 class="mt-5 text-3xl font-extrabold text-slate-900">
-          تسجيل الدخول إلى POS YemenFrappe
+          تسجيل الدخول إلى POS Trilogy
         </h2>
         <p class="mt-2 text-sm leading-6 text-slate-600">
           أدخل بريد مستخدم الديمو وكلمة المرور الموحدة لفتح شاشة البيع.
@@ -164,21 +164,21 @@ import { logger } from "@/utils/logger"
 const log = logger.create("Login")
 const demoPassword = "demo@2026"
 const demoAccounts = [
-	{ company: "الكافيه", email: "cafe@gmail.com", profile: "Cafe", icon: "coffee" },
-	{ company: "الشوكولاتة", email: "chocolates@gmail.com", profile: "Chocolates", icon: "gift" },
-	{ company: "الأجهزة الكهربائية", email: "Electrical@gmail.com", profile: "Electrical Appliances", icon: "zap" },
-	{ company: "الزهور", email: "flower@gmail.com", profile: "Flowers", icon: "heart" },
-	{ company: "النظارات", email: "glasses@gmail.com", profile: "Glasses", icon: "eye" },
-	{ company: "الذهب والمجوهرات", email: "gold@gmail.com", profile: "Gold and Jewelry", icon: "award" },
-	{ company: "الحلاقة والتجميل", email: "hairdressing@gmail.com", profile: "Hairdressing", icon: "scissors" },
-	{ company: "الآيس كريم", email: "icecream@gmail.com", profile: "Ice Cream", icon: "smile" },
-	{ company: "العطور", email: "perfumes@gmail.com.sa", profile: "Perfumes", icon: "star" },
-	{ company: "الصيدلية", email: "pharmacy@gmail.com", profile: "Pharmacy", icon: "plus-circle" },
-	{ company: "الجوالات", email: "phones@gmail.com", profile: "Phones", icon: "smartphone" },
-	{ company: "البيتزا", email: "pizza@gmail.com", profile: "Pizza", icon: "disc" },
-	{ company: "المطعم", email: "restaurant@gmail.com", profile: "Restaurant", icon: "shopping-cart" },
-	{ company: "السوبر ماركت", email: "supermarket@gmail.com", profile: "Super Market", icon: "shopping-bag" },
-	{ company: "الألعاب", email: "toys@gmail.com", profile: "Toys", icon: "box" },
+	{ company: "الكافيه", email: "support@trilogy-erp.com", profile: "الكافيه", icon: "coffee" },
+	{ company: "الشوكولاتة", email: "chocolates@trilogy.com.sa", profile: "الشوكولاتة", icon: "gift" },
+	{ company: "الأجهزة الكهربائية", email: "trilogy@gmail.com", profile: "الأجهزة الكهربائية", icon: "zap" },
+	{ company: "الزهور", email: "flower@trilgy.com.sa", profile: "الزهور", icon: "heart" },
+	{ company: "النظارات", email: "glasses@trilogy.com.sa", profile: "النظارات", icon: "eye" },
+	{ company: "الذهب والمجوهرات", email: "gold@gmail.com", profile: "الذهب والمجوهرات", icon: "award" },
+	{ company: "الحلاقة والتجميل", email: "hairdressing@trilogy.com.sa", profile: "صالون الحلاقة", icon: "scissors" },
+	{ company: "الآيس كريم", email: "icecream@gmail.com", profile: "الآيس كريم", icon: "smile" },
+	{ company: "العطور", email: "perfumes@gmail.com.sa", profile: "العطور", icon: "star" },
+	{ company: "الصيدلية", email: "pharmacy@trilogy.com.sa", profile: "الصيدلية", icon: "plus-circle" },
+	{ company: "الجوالات", email: "phones@gmail.com", profile: "الجوالات", icon: "smartphone" },
+	{ company: "البيتزا", email: "support@trilogy-erp.com", profile: "البيتزا", icon: "disc" },
+	{ company: "المطعم", email: "restaurant@trilogy.com.sa", profile: "المطعم", icon: "shopping-cart" },
+	{ company: "السوبر ماركت", email: "supermarket@gmail.com", profile: "السوبر ماركت", icon: "shopping-bag" },
+	{ company: "الألعاب", email: "toys@trilogy.com.sa", profile: "الألعاب", icon: "box" },
 ]
 
 const router = useRouter()

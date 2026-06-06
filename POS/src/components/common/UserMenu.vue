@@ -51,11 +51,9 @@
 					</svg>
 					<span class="flex-1">{{ __('Language') }}</span>
 					<div class="flex items-center gap-2">
-						<img
-							:src="supportedLocales[locale]?.flagUrlSvg"
-							:alt="supportedLocales[locale]?.name"
-							class="w-5 h-3.5 object-cover rounded-sm shadow-sm"
-						/>
+						<span class="inline-flex h-5 min-w-7 items-center justify-center rounded-sm bg-gray-100 px-1.5 text-[10px] font-semibold text-gray-700 shadow-sm">
+							{{ supportedLocales[locale]?.flagText || locale?.toUpperCase() }}
+						</span>
 						<svg
 							class="w-4 h-4 text-gray-400 transition-transform"
 							:class="{ 'rotate-180': showLanguageDropdown }"
@@ -82,11 +80,9 @@
 							? 'bg-blue-50 text-blue-700'
 							: 'text-gray-600 hover:bg-gray-100'"
 					>
-						<img
-							:src="config.flagUrlSvg"
-							:alt="config.name"
-							class="w-5 h-3.5 object-cover rounded-sm shadow-sm ms-6"
-						/>
+						<span class="ms-6 inline-flex h-5 min-w-7 items-center justify-center rounded-sm bg-gray-100 px-1.5 text-[10px] font-semibold text-gray-700 shadow-sm">
+							{{ config.flagText }}
+						</span>
 						<span class="flex-1">{{ config.nativeName }}</span>
 						<svg
 							v-if="locale === code"

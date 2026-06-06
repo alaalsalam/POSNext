@@ -57,9 +57,24 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-3 text-start">
-              {{ __('Opening Balance (Optional)') }}
-            </label>
+            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="text-start">
+                <label class="block text-sm font-medium text-gray-700">
+                  {{ __('Opening Balance (Optional)') }}
+                </label>
+                <p class="mt-1 text-xs text-gray-500">
+                  {{ __('Leave empty or use 0 when the cashier starts without cash.') }}
+                </p>
+              </div>
+              <div v-if="paymentMethods.length > 0" class="flex items-center gap-2">
+                <span class="rounded-md bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600">
+                  {{ __('Total') }}: {{ formatAmount(openingTotal) }}
+                </span>
+                <Button variant="subtle" theme="gray" @click="setAllOpeningBalances(0)">
+                  {{ __('All Zero') }}
+                </Button>
+              </div>
+            </div>
 
             <div v-if="dialogDataResource.loading" class="text-center py-4">
               <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
@@ -76,14 +91,22 @@
                     {{ method.mode_of_payment }}
                   </label>
                 </div>
-                <div class="w-32">
-                  <Input
-                    v-model="openingBalances[method.mode_of_payment]"
-                    type="number"
+                <div class="w-36">
+                  <input
+                    :value="openingBalances[method.mode_of_payment] ?? ''"
+                    @input="setOpeningBalance(method.mode_of_payment, $event.target.value)"
+                    type="text"
+                    inputmode="decimal"
+                    pattern="[0-9٠-٩۰-۹.,٬٫]*"
                     placeholder="0.00"
-                    step="0.01"
-                    min="0"
+                    class="block h-12 w-full rounded-lg border border-gray-300 bg-white px-3 text-end text-base font-semibold text-gray-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <div class="mt-2 grid grid-cols-4 gap-1">
+                    <button type="button" class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" @click="setOpeningBalance(method.mode_of_payment, 0)">0</button>
+                    <button type="button" class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" @click="setOpeningBalance(method.mode_of_payment, 100)">100</button>
+                    <button type="button" class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" @click="setOpeningBalance(method.mode_of_payment, 500)">500</button>
+                    <button type="button" class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" @click="setOpeningBalance(method.mode_of_payment, 1000)">1000</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -190,7 +213,7 @@
 </template>
 
 <script setup>
-import { Button, Dialog, Input } from "frappe-ui"
+import { Button, Dialog } from "frappe-ui"
 import { createResource } from "frappe-ui"
 import { computed, ref, watch } from "vue"
 import { useShift } from "../composables/useShift"
@@ -244,6 +267,14 @@ const paymentMethods = computed(() => {
 		(method) => method.parent === selectedProfile.value.name,
 	)
 })
+
+const openingTotal = computed(() =>
+	paymentMethods.value.reduce(
+		(total, method) =>
+			total + (normalizeOpeningAmount(openingBalances.value[method.mode_of_payment]) || 0),
+		0,
+	),
+)
 
 // Watch dialog open state
 // Use { immediate: true } to ensure initDialog runs even when
@@ -304,6 +335,61 @@ function selectPosProfile(profile) {
 	selectedProfile.value = profile
 }
 
+function normalizeNumericText(value) {
+	if (value === null || value === undefined) return ""
+	let text = String(value).trim()
+	if (!text) return ""
+
+	const arabicDigits = "٠١٢٣٤٥٦٧٨٩"
+	const persianDigits = "۰۱۲۳۴۵۶۷۸۹"
+	text = text.replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)))
+	text = text.replace(/[۰-۹]/g, (digit) => String(persianDigits.indexOf(digit)))
+	text = text.replace(/٫/g, ".").replace(/٬/g, "").replace(/\s/g, "")
+
+	if (!text.includes(".") && text.includes(",")) {
+		const lastComma = text.lastIndexOf(",")
+		const decimalLength = text.length - lastComma - 1
+		text =
+			decimalLength > 0 && decimalLength <= 2
+				? `${text.slice(0, lastComma).replace(/,/g, "")}.${text.slice(lastComma + 1)}`
+				: text.replace(/,/g, "")
+	} else {
+		text = text.replace(/,/g, "")
+	}
+
+	return text.replace(/[^0-9.]/g, "")
+}
+
+function normalizeOpeningAmount(value) {
+	if (value === null || value === undefined || value === "") return ""
+	const amount = Number.parseFloat(normalizeNumericText(value))
+	if (!Number.isFinite(amount) || amount < 0) return 0
+	return amount
+}
+
+function setOpeningBalance(modeOfPayment, value) {
+	openingBalances.value = {
+		...openingBalances.value,
+		[modeOfPayment]: normalizeOpeningAmount(value),
+	}
+}
+
+function setAllOpeningBalances(value) {
+	const nextBalances = {}
+	paymentMethods.value.forEach((method) => {
+		nextBalances[method.mode_of_payment] = normalizeOpeningAmount(value)
+	})
+	openingBalances.value = nextBalances
+}
+
+function formatAmount(value) {
+	return Number(value || 0).toLocaleString(undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})
+}
+
+
 async function nextStep() {
 	if (step.value === 1 && selectedProfile.value) {
 		await dialogDataResource.fetch()
@@ -317,9 +403,7 @@ async function openShift() {
 	// Prepare balance details
 	const balance_details = paymentMethods.value.map((method) => ({
 		mode_of_payment: method.mode_of_payment,
-		opening_amount: Number.parseFloat(
-			openingBalances.value[method.mode_of_payment] || 0,
-		),
+		opening_amount: normalizeOpeningAmount(openingBalances.value[method.mode_of_payment]) || 0,
 	}))
 
 	try {

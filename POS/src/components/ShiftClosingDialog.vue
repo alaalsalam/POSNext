@@ -210,14 +210,27 @@
                   <p class="text-xs md:text-sm text-gray-600">
                     {{ reconciliationMessage }}
                   </p>
+                  <p v-if="!showSuccessReport" class="mt-1 text-xs text-gray-500">
+                    {{ __('Zero is allowed. Use Match Expected when the counted amounts match the system totals.') }}
+                  </p>
                 </div>
-                <div v-if="shouldShowSummary && getTotalDifference !== 0" class="text-start sm:text-end">
-                  <div class="text-xs mb-1 text-gray-500 uppercase">{{ __('Total Variance') }}</div>
-                  <div :class="[
-                    'text-lg md:text-xl font-bold',
-                    getTotalDifference > 0 ? 'text-blue-600' : 'text-red-600'
-                  ]">
-                    {{ getTotalDifference > 0 ? '+' : '' }}{{ formatCurrency(Math.abs(getTotalDifference)) }}
+                <div class="flex flex-col items-stretch gap-2 sm:items-end">
+                  <div v-if="!showSuccessReport" class="flex flex-wrap justify-start gap-2 sm:justify-end">
+                    <Button variant="subtle" theme="gray" @click="setAllClosingAmounts(0)" :disabled="submitResource.loading">
+                      {{ __('All Zero') }}
+                    </Button>
+                    <Button variant="subtle" theme="blue" @click="setAllClosingAmountsToExpected" :disabled="submitResource.loading">
+                      {{ __('Match Expected') }}
+                    </Button>
+                  </div>
+                  <div v-if="shouldShowSummary && getTotalDifference !== 0" class="text-start sm:text-end">
+                    <div class="text-xs mb-1 text-gray-500 uppercase">{{ __('Total Variance') }}</div>
+                    <div :class="[
+                      'text-lg md:text-xl font-bold',
+                      getTotalDifference > 0 ? 'text-blue-600' : 'text-red-600'
+                    ]">
+                      {{ getTotalDifference > 0 ? '+' : '' }}{{ formatCurrency(Math.abs(getTotalDifference)) }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -244,17 +257,17 @@
 
                     <!-- Simple Input with Native Arrows -->
                     <div class="w-40 md:w-48">
-                      <Input
+                      <input
                         :id="`payment-${idx}`"
-                        :modelValue="payment.closing_amount"
-                        @update:modelValue="(value) => updateClosingAmount(payment, value)"
-                        type="number"
-                        step="10"
-                        min="0"
+                        :value="payment.closing_amount ?? ''"
+                        @input="(event) => updateClosingAmount(payment, event.target.value)"
+                        type="text"
+                        inputmode="decimal"
+                        pattern="[0-9٠-٩۰-۹.,٬٫]*"
                         placeholder="0.00"
                         :disabled="submitResource.loading"
                         :aria-label="__('Enter actual amount for {0}', [payment.mode_of_payment])"
-                        class="text-base md:text-lg text-center font-semibold"
+                        class="block h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-center text-base md:text-lg font-semibold text-gray-900 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
                   </div>
@@ -333,16 +346,16 @@
                       <label class="block text-xs font-medium text-gray-700 uppercase mb-0.5 md:mb-1">
                         {{ __('Actual Amount *') }}
                       </label>
-                      <Input
-                        :modelValue="payment.closing_amount"
-                        @update:modelValue="(value) => updateClosingAmount(payment, value)"
-                        type="number"
-                        step="0.01"
-                        min="0"
+                      <input
+                        :value="payment.closing_amount ?? ''"
+                        @input="(event) => updateClosingAmount(payment, event.target.value)"
+                        type="text"
+                        inputmode="decimal"
+                        pattern="[0-9٠-٩۰-۹.,٬٫]*"
                         placeholder="0.00"
                         :disabled="showSuccessReport || submitResource.loading"
                         :aria-label="`Enter actual amount for ${payment.mode_of_payment}`"
-                        class="text-base md:text-lg"
+                        class="block h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-base md:text-lg font-semibold text-gray-900 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
                       />
                       <div class="text-xs text-gray-500 mt-0.5 md:mt-1 hidden sm:block">
                         {{ showSuccessReport ? __('Final Amount') : __('Count & enter') }}
@@ -478,7 +491,7 @@
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 order-1 sm:order-2">
           <!-- Validation Warning (only in entry mode) -->
           <div v-if="!canSubmit && closingData && !showSuccessReport" class="text-xs md:text-sm text-yellow-600 font-medium text-center sm:text-end">
-            {{ __('Please enter all closing amounts') }}
+            {{ __('Check closing amounts before submitting') }}
           </div>
 
           <!-- Success message (shown in report view) -->
@@ -518,7 +531,7 @@
 </template>
 
 <script setup>
-import { Button, Dialog, FeatherIcon, Input } from "frappe-ui"
+import { Button, Dialog, FeatherIcon } from "frappe-ui"
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue"
 import { storeToRefs } from "pinia"
 import { useShift, shiftState } from "../composables/useShift"
@@ -612,14 +625,17 @@ async function loadClosingData() {
 
 		// Make payment_reconciliation reactive
 		if (data.payment_reconciliation) {
-			data.payment_reconciliation = data.payment_reconciliation.map((payment) =>
-				reactive({
+			data.payment_reconciliation = data.payment_reconciliation.map((payment) => {
+				const defaultClosingAmount =
+					payment.closing_amount ?? payment.expected_amount ?? payment.opening_amount ?? 0
+
+				return reactive({
 					...payment,
-					closing_amount: payment.closing_amount ?? null,
+					closing_amount: normalizeAmount(defaultClosingAmount),
 					difference: 0,
-					_touched: false,
-				}),
-			)
+					_touched: true,
+				})
+			})
 
 			// Calculate initial differences
 			data.payment_reconciliation.forEach((payment) => {
@@ -639,31 +655,83 @@ async function loadClosingData() {
 	}
 }
 
+function normalizeNumericText(value) {
+	if (value === null || value === undefined) return ""
+	let text = String(value).trim()
+	if (!text) return ""
+
+	const arabicDigits = "٠١٢٣٤٥٦٧٨٩"
+	const persianDigits = "۰۱۲۳۴۵۶۷۸۹"
+	text = text.replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)))
+	text = text.replace(/[۰-۹]/g, (digit) => String(persianDigits.indexOf(digit)))
+	text = text.replace(/٫/g, ".").replace(/٬/g, "").replace(/\s/g, "")
+
+	if (!text.includes(".") && text.includes(",")) {
+		const lastComma = text.lastIndexOf(",")
+		const decimalLength = text.length - lastComma - 1
+		text =
+			decimalLength > 0 && decimalLength <= 2
+				? `${text.slice(0, lastComma).replace(/,/g, "")}.${text.slice(lastComma + 1)}`
+				: text.replace(/,/g, "")
+	} else {
+		text = text.replace(/,/g, "")
+	}
+
+	return text.replace(/[^0-9.]/g, "")
+}
+
+function normalizeAmount(value, blankValue = 0) {
+	if (value === null || value === undefined || value === "") return blankValue
+	const normalized = normalizeNumericText(value)
+	const amount = Number.parseFloat(normalized)
+	if (!Number.isFinite(amount) || amount < 0) return 0
+	return amount
+}
+
+function ensureClosingAmount(payment) {
+	payment.closing_amount = normalizeAmount(payment.closing_amount)
+	return payment.closing_amount
+}
+
 function calculateDifference(payment) {
-	const closing = Number.parseFloat(payment.closing_amount) || 0
-	const expected = Number.parseFloat(payment.expected_amount) || 0
+	const closing = normalizeAmount(payment.closing_amount, 0) || 0
+	const expected = normalizeAmount(payment.expected_amount, 0) || 0
 	payment.difference = closing - expected
 }
 
 // New function to handle closing amount updates with proper reactivity
 function updateClosingAmount(payment, value) {
-	payment.closing_amount = value
+	payment.closing_amount = normalizeAmount(value, "")
 	payment._touched = true
 	calculateDifference(payment)
+}
+
+function setAllClosingAmounts(value) {
+	if (!closingData.value?.payment_reconciliation) return
+	closingData.value.payment_reconciliation.forEach((payment) => {
+		payment.closing_amount = normalizeAmount(value)
+		payment._touched = true
+		calculateDifference(payment)
+	})
+}
+
+function setAllClosingAmountsToExpected() {
+	if (!closingData.value?.payment_reconciliation) return
+	closingData.value.payment_reconciliation.forEach((payment) => {
+		payment.closing_amount = normalizeAmount(payment.expected_amount, 0)
+		payment._touched = true
+		calculateDifference(payment)
+	})
 }
 
 const canSubmit = computed(() => {
 	if (!closingData.value || !closingData.value.payment_reconciliation)
 		return false
 
-	// Check if all closing amounts have been manually entered
-	return closingData.value.payment_reconciliation.every(
-		(payment) =>
-			payment._touched &&
-			payment.closing_amount !== null &&
-			payment.closing_amount !== undefined &&
-			payment.closing_amount !== "",
-	)
+	return closingData.value.payment_reconciliation.every((payment) => {
+		const amount = Number.parseFloat(normalizeAmount(payment.closing_amount, 0))
+		return Number.isFinite(amount) && amount >= 0
+	})
 })
 
 async function submitClosing() {
@@ -675,6 +743,7 @@ async function submitClosing() {
 		// Ensure all differences are calculated
 		if (closingData.value.payment_reconciliation) {
 			closingData.value.payment_reconciliation.forEach((payment) => {
+				ensureClosingAmount(payment)
 				calculateDifference(payment)
 			})
 		}
@@ -799,7 +868,7 @@ const grossSales = computed(() => {
 const getTotalExpected = computed(() => {
 	if (!closingData.value || !closingData.value.payment_reconciliation) return 0
 	return closingData.value.payment_reconciliation.reduce(
-		(sum, payment) => sum + Number.parseFloat(payment.expected_amount || 0),
+		(sum, payment) => sum + normalizeAmount(payment.expected_amount, 0),
 		0,
 	)
 })
@@ -807,7 +876,7 @@ const getTotalExpected = computed(() => {
 const getTotalActual = computed(() => {
 	if (!closingData.value || !closingData.value.payment_reconciliation) return 0
 	return closingData.value.payment_reconciliation.reduce(
-		(sum, payment) => sum + Number.parseFloat(payment.closing_amount || 0),
+		(sum, payment) => sum + normalizeAmount(payment.closing_amount, 0),
 		0,
 	)
 })
@@ -818,8 +887,8 @@ const getTotalDifference = computed(() => {
 
 function getSalesForPayment(payment) {
 	return (
-		Number.parseFloat(payment.expected_amount || 0) -
-		Number.parseFloat(payment.opening_amount || 0)
+		normalizeAmount(payment.expected_amount, 0) -
+		normalizeAmount(payment.opening_amount, 0)
 	)
 }
 

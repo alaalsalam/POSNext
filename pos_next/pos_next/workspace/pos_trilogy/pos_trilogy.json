@@ -10,7 +10,7 @@
  "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
- "label": "POS YemenFrappe",
+ "label": "POS Trilogy",
  "links": [
   {
    "hidden": 0,
@@ -181,7 +181,7 @@
  "modified": "2026-04-29 18:04:46.363497",
  "modified_by": "Administrator",
  "module": "POS Next",
- "name": "POSNext",
+ "name": "POS Trilogy",
  "number_cards": [],
  "owner": "Administrator",
  "parent_page": "",
@@ -254,5 +254,5 @@
    "type": "DocType"
   }
  ],
- "title": "POS YemenFrappe"
+ "title": "POS Trilogy"
 }

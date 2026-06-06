@@ -17,16 +17,11 @@ const ALLOWED_LOCALES_KEY = "pos_next_allowed_locales"
 /** Track if initial language fetch from server has been attempted */
 let serverLanguageFetched = false
 
-// Get flag URL from flagcdn.com
-function getFlagUrl(countryCode) {
-	if (!countryCode) return null
-	return `https://flagcdn.com/h24/${countryCode.toLowerCase()}.png`
-}
-
-// Get flag SVG URL from flagcdn.com
-function getFlagUrlSvg(countryCode) {
-	if (!countryCode) return null
-	return `https://flagcdn.com/${countryCode.toLowerCase()}.svg`
+const LOCALE_FLAGS = {
+	en: "US",
+	ar: "SA",
+	id: "ID",
+	"pt-br": "BR",
 }
 
 // Supported languages configuration
@@ -167,8 +162,7 @@ export function useLocale() {
 		const config = SUPPORTED_LOCALES[locale.value] || SUPPORTED_LOCALES.en
 		return {
 			...config,
-			flagUrl: getFlagUrl(config.countryCode),
-			flagUrlSvg: getFlagUrlSvg(config.countryCode),
+			flagText: LOCALE_FLAGS[locale.value] || locale.value.toUpperCase(),
 		}
 	})
 
@@ -297,8 +291,7 @@ export function useLocale() {
 			if (allowed === null || allowed.length === 0 || allowed.includes(code)) {
 				result[code] = {
 					...config,
-					flagUrl: getFlagUrl(config.countryCode),
-					flagUrlSvg: getFlagUrlSvg(config.countryCode),
+					flagText: LOCALE_FLAGS[code] || code.toUpperCase(),
 				}
 			}
 		}

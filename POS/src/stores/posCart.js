@@ -174,6 +174,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 	const CART_RECOVERY_KEY = "pos_next_active_cart_recovery"
 	const CART_RECOVERY_TTL_MS = 24 * 60 * 60 * 1000
+	const CART_RECOVERY_ENABLED = false
 	let isRestoringCartRecovery = false
 
 	function getCartRecoveryKey(profile = posProfile.value) {
@@ -198,7 +199,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	}
 
 	function saveCartRecoverySnapshot() {
-		if (typeof window === "undefined" || isRestoringCartRecovery) return
+		if (typeof window === "undefined" || isRestoringCartRecovery || !CART_RECOVERY_ENABLED) return
 
 		try {
 			if (!invoiceItems.value?.length || !posProfile.value) {
@@ -220,7 +221,24 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		}
 	}
 
+	function clearAllCartRecoverySnapshots() {
+		if (typeof window === "undefined") return
+
+		try {
+			Object.keys(localStorage)
+				.filter((key) => key.startsWith(CART_RECOVERY_KEY))
+				.forEach((key) => localStorage.removeItem(key))
+		} catch (error) {
+			console.warn("Failed to clear POS cart recovery snapshots", error)
+		}
+	}
+
 	function restoreCartRecoverySnapshot(profile = posProfile.value) {
+		if (!CART_RECOVERY_ENABLED) {
+			clearAllCartRecoverySnapshots()
+			return false
+		}
+
 		if (typeof window === "undefined" || !profile || invoiceItems.value.length > 0) {
 			return false
 		}

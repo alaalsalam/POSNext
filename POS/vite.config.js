@@ -72,8 +72,8 @@ export default defineConfig({
 			registerType: "autoUpdate",
 			includeAssets: ["favicon.png", "icon.svg", "icon-maskable.svg"],
 			manifest: {
-				name: "POS YemenFrappe",
-				short_name: "POS YemenFrappe",
+				name: "POS Trilogy",
+				short_name: "POS Trilogy",
 				description:
 					"Point of Sale system with real-time billing, stock management, and offline support",
 				theme_color: "#4F46E5",
