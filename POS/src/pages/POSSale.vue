@@ -463,7 +463,7 @@
 						</svg>
 					</div>
 					<h3 class="mt-4 text-lg font-medium text-gray-900">
-						{{ __("Welcome to POS Trilogy") }}
+						{{ __("Welcome to {0}", [branding.appName]) }}
 					</h3>
 					<p class="mt-2 text-sm text-gray-500">
 						{{ __("Please open a shift to start making sales") }}
@@ -824,7 +824,7 @@
 								{{ __("Sign Out?") }}
 							</h3>
 							<p class="text-sm text-gray-600">
-								{{ __("You will be logged out of POS Trilogy") }}
+								{{ __("You will be logged out of {0}", [branding.appName]) }}
 							</p>
 						</div>
 
@@ -1060,6 +1060,7 @@ import { usePOSShiftStore } from "@/stores/posShift";
 import { usePOSSyncStore } from "@/stores/posSync";
 import { usePOSUIStore } from "@/stores/posUI";
 import { useBootstrapStore } from "@/stores/bootstrap";
+import { useBrandingStore } from "@/stores/branding";
 import { logger } from "@/utils/logger";
 import { shouldValidateItemStock } from "@/utils/stockValidator";
 
@@ -1074,6 +1075,7 @@ const itemStore = useItemSearchStore();
 const stockStore = useStockStore();
 const customerSearchStore = useCustomerSearchStore();
 const bootstrapStore = useBootstrapStore();
+const branding = useBrandingStore();
 // Note: settingsStore is an alias to posSettingsStore (same Pinia store singleton)
 const settingsStore = posSettingsStore;
 

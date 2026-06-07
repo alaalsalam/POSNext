@@ -1,4 +1,4 @@
-<template>
+﻿<template>
 	<div
 		class="bg-white shadow-sm sticky top-0 z-[200]"
 	>
@@ -6,11 +6,18 @@
 			<!-- POS Icon - Aligned with Management Sidebar (64px) -->
 			<div class="w-16 flex-shrink-0 flex items-center justify-center">
 				<button
-					class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md flex-shrink-0 hover:from-blue-600 hover:to-blue-700 active:scale-95 transition-all"
-					:aria-label="'POS Trilogy'"
-					:title="__('POS Trilogy')"
+					class="w-10 h-10 rounded-lg flex items-center justify-center shadow-md flex-shrink-0 active:scale-95 transition-all overflow-hidden"
+					:style="{ background: branding.headerLogo ? '#ffffff' : `linear-gradient(135deg, ${branding.primaryColor}, ${branding.secondaryColor})` }"
+					:aria-label="branding.appName"
+					:title="branding.appName"
 				>
-					<svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+					<img
+						v-if="branding.headerLogo"
+						:src="branding.headerLogo"
+						:alt="branding.appName"
+						class="w-full h-full object-contain p-1"
+					/>
+					<svg v-else class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
 						<path d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM10 4h4v3h-4V4zm10 16H4V9h16v11z"/>
 					</svg>
 				</button>
@@ -22,8 +29,11 @@
 				<div class="flex items-center gap-1 sm:gap-4 min-w-0 flex-1 overflow-hidden">
 					<div class="min-w-0 flex-shrink overflow-hidden">
 						<div class="flex items-center gap-1 sm:gap-2">
-							<h1 class="text-xs sm:text-base font-bold text-gray-900 truncate flex-shrink">{{ 'POS Trilogy' }}</h1>
-							<span class="hidden sm:inline-flex relative items-center px-1 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-bold bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-md shadow-sm hover:shadow-md transition-shadow flex-shrink-0">
+							<h1 class="text-xs sm:text-base font-bold text-gray-900 truncate flex-shrink">{{ branding.appName }}</h1>
+							<span
+								class="hidden sm:inline-flex relative items-center px-1 sm:px-2 py-0.5 text-[8px] sm:text-[10px] font-bold text-white rounded-md shadow-sm hover:shadow-md transition-shadow flex-shrink-0"
+								:style="{ background: `linear-gradient(90deg, ${branding.primaryColor}, ${branding.secondaryColor})` }"
+							>
 								<span class="absolute inset-0 bg-white/20 rounded-md animate-pulse"></span>
 								<span class="relative">v{{ appVersion }}</span>
 							</span>
@@ -69,14 +79,14 @@
 							v-if="canInstall"
 							@click="handleInstallApp"
 							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors"
-							:title="__('تثبيت التطبيق')"
-							:aria-label="__('تثبيت التطبيق')"
+							:title="branding.installButtonLabel"
+							:aria-label="branding.installButtonLabel"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/>
 							</svg>
-							<span class="hidden xl:inline">{{ __('تثبيت التطبيق') }}</span>
-							<span class="xl:hidden">{{ __('Install') }}</span>
+							<span class="hidden xl:inline">{{ branding.installButtonLabel }}</span>
+							<span class="xl:hidden">{{ branding.installButtonLabel }}</span>
 						</button>
 						<div
 							v-else
@@ -84,13 +94,13 @@
 						>
 							<div class="flex items-start gap-2">
 								<span class="font-semibold">{{ __('iPhone') }}</span>
-								<p class="leading-snug">{{ __('للتثبيت على iPhone: افتح المشاركة ثم اختر إضافة إلى الشاشة الرئيسية') }}</p>
+								<p class="leading-snug">{{ __('ظ„ظ„طھط«ط¨ظٹطھ ط¹ظ„ظ‰ iPhone: ط§ظپطھط­ ط§ظ„ظ…ط´ط§ط±ظƒط© ط«ظ… ط§ط®طھط± ط¥ط¶ط§ظپط© ط¥ظ„ظ‰ ط§ظ„ط´ط§ط´ط© ط§ظ„ط±ط¦ظٹط³ظٹط©') }}</p>
 								<button
 									@click="dismissIOSHint"
 									class="ms-1 text-amber-700 hover:text-amber-900"
 									:aria-label="__('Close')"
 								>
-									×
+									أ—
 								</button>
 							</div>
 						</div>
@@ -317,12 +327,14 @@ import StatusBadge from "@/components/common/StatusBadge.vue"
 import UserMenu from "@/components/common/UserMenu.vue"
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue"
 import { usePWAInstall } from "@/composables/usePWAInstall"
+import { useBrandingStore } from "@/stores/branding"
 import { DEFAULT_LOCALE } from "@/utils/currency"
 import { computed, ref } from "vue"
 import { version } from "../../../package.json"
 
 const showCacheTooltip = ref(false)
 const appVersion = version
+const branding = useBrandingStore()
 const {
 	canInstall,
 	showIOSInstallHint,

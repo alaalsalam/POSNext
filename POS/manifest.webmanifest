@@ -1,6 +1,6 @@
 {
-	"name": "POS Trilogy",
-	"short_name": "POS Trilogy",
+	"name": "POSNext",
+	"short_name": "POS",
 	"id": "/pos",
 	"start_url": "/pos",
 	"scope": "/pos",
@@ -9,7 +9,7 @@
 	"dir": "rtl",
 	"background_color": "#ffffff",
 	"theme_color": "#4F46E5",
-	"description": "نظام نقاط بيع قابل للتثبيت ويعمل دون اتصال بعد المزامنة الأولى.",
+	"description": "Point of Sale application with offline support.",
 	"categories": ["business", "productivity"],
 	"icons": [
 		{

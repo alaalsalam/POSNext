@@ -3,6 +3,7 @@ import { logger } from "@/utils/logger"
 import { getOfflineReceiptPayload } from "@/utils/offline/offlineReceiptCache"
 import { getOfflineInvoiceByOfflineId } from "@/utils/offline/sync"
 import { offlineWorker } from "@/utils/offline/workerClient"
+import { getRuntimeBranding } from "@/stores/branding"
 import { printHTML as qzPrintHTML } from "@/utils/qzTray"
 
 const log = logger.create("PrintInvoice")
@@ -158,6 +159,7 @@ const RECEIPT_STYLES = `
  * Inner receipt HTML (no shell). Used for local/offline invoices and QZ Tray.
  */
 export function buildReceiptHTML(invoiceData) {
+	const branding = getRuntimeBranding()
 	const items = invoiceData.items || []
 	const paidAmount = derivePaidAmount(invoiceData)
 	const itemsHtml = items
@@ -185,7 +187,7 @@ export function buildReceiptHTML(invoiceData) {
 	return `
 			<div class="receipt">
 				<div class="header">
-					<div class="company-name">${invoiceData.company || "POS Trilogy"}</div>
+					<div class="company-name">${invoiceData.company || branding.receipt_title || branding.app_name}</div>
 					<div style="font-size: 12px;">${invoiceData.header || __("TAX INVOICE")}</div>
 				</div>
 
@@ -221,8 +223,7 @@ export function buildReceiptHTML(invoiceData) {
 				</div>` : ""}
 
 				<div class="footer">
-					<div style="margin-bottom: 5px;">${invoiceData.footer || __("Thank you for your business!")}</div>
-					${invoiceData.footer ? "" : `<div style="font-size: 10px;">Powered by <a href="https://nexus.brainwise.me" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: 600;">BrainWise</a></div>`}
+					<div style="margin-bottom: 5px;">${invoiceData.footer || branding.receipt_footer || __("Thank you for your business!")}</div>
 				</div>
 			</div>`
 }

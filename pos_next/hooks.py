@@ -1,7 +1,7 @@
 from pos_next.utils import get_build_version
 
 app_name = "pos_next"
-app_title = "POS Trilogy"
+app_title = "POSNext"
 app_publisher = "BrainWise"
 app_description = "POS built on ERPNext that brings together real-time billing, stock management, multi-user access, offline mode, and direct ERP integration. Run your store or restaurant with confidence and control, while staying 100% open source."
 app_email = "support@brainwise.me"
@@ -17,7 +17,7 @@ app_license = "agpl-3.0"
 # 	{
 # 		"name": "pos_next",
 # 		"logo": "/assets/pos_next/logo.png",
-# 		"title": "POS Trilogy",
+# 		"title": "POS",
 # 		"route": "/pos_next",
 # 		"has_permission": "pos_next.api.permission.has_app_permission"
 # 	}
@@ -273,4 +273,7 @@ scheduler_events = {
 # }
 
 
-website_route_rules = [{'from_route': '/pos/<path:app_path>', 'to_route': 'pos'},]
+website_route_rules = [
+	{"from_route": "/pos/manifest.webmanifest", "to_route": "pos_manifest"},
+	{"from_route": "/pos/<path:app_path>", "to_route": "pos"},
+]

@@ -71,47 +71,7 @@ export default defineConfig({
 			injectRegister: false,
 			registerType: "autoUpdate",
 			includeAssets: ["favicon.png", "icon.svg", "icon-maskable.svg"],
-			manifest: {
-				name: "POS Trilogy",
-				short_name: "POS Trilogy",
-				description:
-					"Point of Sale system with real-time billing, stock management, and offline support",
-				theme_color: "#4F46E5",
-				background_color: "#ffffff",
-				display: "standalone",
-				id: "/pos",
-				scope: "/pos",
-				start_url: "/pos",
-				lang: "ar",
-				dir: "rtl",
-				categories: ["business", "productivity"],
-				icons: [
-					{
-						src: "/assets/pos_next/pos/icon.svg",
-						sizes: "192x192",
-						type: "image/svg+xml",
-						purpose: "any",
-					},
-					{
-						src: "/assets/pos_next/pos/icon.svg",
-						sizes: "512x512",
-						type: "image/svg+xml",
-						purpose: "any",
-					},
-					{
-						src: "/assets/pos_next/pos/icon-maskable.svg",
-						sizes: "192x192",
-						type: "image/svg+xml",
-						purpose: "maskable",
-					},
-					{
-						src: "/assets/pos_next/pos/icon-maskable.svg",
-						sizes: "512x512",
-						type: "image/svg+xml",
-						purpose: "maskable",
-					},
-				],
-			},
+			manifest: false,
 			workbox: {
 				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
 				maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 3 MB

@@ -18,6 +18,7 @@
  *   showErrorDialog.value = true
  * }
  */
+import { getRuntimeBranding } from "@/stores/branding"
 
 /**
  * Clean HTML and extra whitespace from error messages
@@ -239,8 +240,9 @@ export function parseError(error) {
  * @returns {string} - Formatted error report
  */
 export function formatErrorReport(errorContext, additionalInfo = {}) {
+	const branding = getRuntimeBranding()
 	const lines = [
-		__("Error Report - POS Trilogy"),
+		__("Error Report - {0}", [branding.app_name]),
 		"=".repeat(40),
 		__('Title: {0}', [errorContext.title]),
 		__('Type: {0}', [errorContext.type]),

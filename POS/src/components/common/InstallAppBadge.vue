@@ -18,8 +18,17 @@
 				<div class="flex items-center gap-2">
 					<!-- App Icon -->
 					<div class="flex-shrink-0">
-						<div class="w-10 h-10 rounded-lg flex items-center justify-center shadow-sm" style="background-color: #4F46E5;">
-							<svg class="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+						<div
+							class="w-10 h-10 rounded-lg flex items-center justify-center shadow-sm overflow-hidden"
+							:style="{ backgroundColor: branding.appIcon ? '#ffffff' : branding.primaryColor }"
+						>
+							<img
+								v-if="branding.appIcon"
+								:src="branding.appIcon"
+								:alt="branding.appName"
+								class="w-full h-full object-contain p-1"
+							/>
+							<svg v-else class="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 								<path fill="#ffffff" d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM10 4h4v3h-4V4zm10 16H4V9h16v11z"/>
 							</svg>
 						</div>
@@ -28,7 +37,7 @@
 					<!-- Text Content -->
 					<div class="flex-1 min-w-0 me-2">
 						<h3 id="install-banner-title" class="text-xs font-semibold mb-0.5 leading-tight" style="color: #111827;">
-							{{ __('Install POS Trilogy') }}
+							{{ __('Install {0}', [branding.appName]) }}
 						</h3>
 						<p class="text-[10px] leading-tight mb-1" style="color: #4B5563;">
 							{{ __('Faster access and offline support') }}
@@ -47,9 +56,9 @@
 						<button
 							@click="handleInstall"
 							class="px-3 py-1.5 text-xs font-medium rounded hover:opacity-90 active:opacity-80 transition-opacity touch-manipulation shadow-sm whitespace-nowrap"
-							style="background-color: #4F46E5; color: #ffffff;"
+							:style="{ backgroundColor: branding.primaryColor, color: '#ffffff' }"
 						>
-							{{  __('Install') }}
+							{{  branding.installButtonLabel }}
 						</button>
 						<button
 							@click="handleDismiss"
@@ -71,10 +80,12 @@
 
 <script setup>
 import { usePWAInstall } from "@/composables/usePWAInstall"
+import { useBrandingStore } from "@/stores/branding"
 import { computed } from "vue"
 
 const { showInstallBadge, promptInstall, dismissBadge, snoozeBadge } =
 	usePWAInstall()
+const branding = useBrandingStore()
 
 const showBadge = computed(() => showInstallBadge.value)
 

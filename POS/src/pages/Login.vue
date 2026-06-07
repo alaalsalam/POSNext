@@ -3,14 +3,24 @@
     <div class="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[420px_1fr]">
       <div class="space-y-6">
       <div class="text-center lg:text-right">
-        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md">
+        <img
+          v-if="branding.primaryLogo"
+          :src="branding.primaryLogo"
+          :alt="branding.appName"
+          class="mx-auto h-16 max-w-44 rounded object-contain"
+        />
+        <div
+          v-else
+          class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-md"
+          :style="{ backgroundColor: branding.primaryColor }"
+        >
           <FeatherIcon name="shopping-bag" class="h-7 w-7" :stroke-width="2" />
         </div>
         <h2 class="mt-5 text-3xl font-extrabold text-slate-900">
-          تسجيل الدخول إلى POS Trilogy
+          {{ branding.loginTitle }}
         </h2>
         <p class="mt-2 text-sm leading-6 text-slate-600">
-          أدخل بريد مستخدم الديمو وكلمة المرور الموحدة لفتح شاشة البيع.
+          {{ branding.loginSubtitle }}
         </p>
       </div>
 
@@ -82,6 +92,7 @@
               :loading="session.login.loading"
               variant="solid"
               class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              :style="{ backgroundColor: branding.primaryColor }"
               type="submit"
             >
               {{ session.login.loading ? 'جاري الدخول...' : 'دخول إلى شاشة البيع' }}
@@ -160,8 +171,10 @@ import { cleanupUserSession } from "../utils/sessionCleanup"
 import { ensureCSRFToken } from "../utils/csrf"
 import { offlineWorker } from "../utils/offline/workerClient"
 import { logger } from "@/utils/logger"
+import { useBrandingStore } from "@/stores/branding"
 
 const log = logger.create("Login")
+const branding = useBrandingStore()
 const demoPassword = "demo@2026"
 const demoAccounts = [
 	{ company: "الكافيه", email: "support@trilogy-erp.com", profile: "الكافيه", icon: "coffee" },

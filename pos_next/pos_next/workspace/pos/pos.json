@@ -10,7 +10,7 @@
  "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
- "label": "POS Trilogy",
+ "label": "POS",
  "links": [
   {
    "hidden": 0,
@@ -75,10 +75,20 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Configuration",
-   "link_count": 2,
+   "link_count": 3,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "POS Branding Settings",
+   "link_count": 0,
+   "link_to": "POS Branding Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -181,7 +191,7 @@
  "modified": "2026-04-29 18:04:46.363497",
  "modified_by": "Administrator",
  "module": "POS Next",
- "name": "POS Trilogy",
+ "name": "POS",
  "number_cards": [],
  "owner": "Administrator",
  "parent_page": "",
@@ -202,6 +212,14 @@
    "doc_view": "List",
    "label": "Item",
    "link_to": "Item",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "POS Branding Settings",
+   "link_to": "POS Branding Settings",
    "stats_filter": "[]",
    "type": "DocType"
   },
@@ -254,5 +272,5 @@
    "type": "DocType"
   }
  ],
- "title": "POS Trilogy"
+ "title": "POS"
 }

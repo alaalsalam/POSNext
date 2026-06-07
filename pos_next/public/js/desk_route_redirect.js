@@ -1,6 +1,6 @@
 (function () {
-  const targetRoute = 'pos-trilogy';
-  const legacyRoutes = new Set(['pos-yemenfrappe', 'pos_yemenfrappe', 'posnext']);
+  const targetRoute = 'pos';
+  const legacyRoutes = new Set(['pos-trilogy', 'pos_trilogy', 'pos-yemenfrappe', 'pos_yemenfrappe', 'posnext']);
 
   function getDeskRoute() {
     if (window.frappe && typeof frappe.get_route === 'function') {

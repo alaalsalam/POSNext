@@ -16,6 +16,7 @@ import App from "./App.vue"
 import { session, sessionUser } from "./data/session"
 import { userResource } from "./data/user"
 import router from "./router"
+import { useBrandingStore } from "./stores/branding"
 import {
 	createCSRFAwareRequest,
 	ensureCSRFToken,
@@ -126,6 +127,9 @@ async function initializeApp() {
 	for (const key in globalComponents) {
 		app.component(key, globalComponents[key])
 	}
+
+	const brandingStore = useBrandingStore()
+	await brandingStore.loadBranding()
 
 	// Disable double-tap zoom on mobile for faster touch response
 	app.directive("touch-action", {

@@ -219,3 +219,138 @@ def get_tampering_stats():
 	except Exception as e:
 		frappe.log_error(f"Error getting tampering stats: {str(e)}", "BrainWise Branding Stats")
 		return {"error": str(e)}
+
+# -----------------------------------------------------------------------------
+# POS Branding Settings
+# -----------------------------------------------------------------------------
+import re
+from werkzeug.wrappers import Response
+
+POS_BRANDING_DOCTYPE = "POS Branding Settings"
+
+POS_DEFAULT_BRANDING = {
+	"enabled": 1,
+	"app_name": "POSNext",
+	"app_short_name": "POS",
+	"workspace_label": "POS",
+	"login_title": "Sign in to POS",
+	"login_subtitle": "Enter your username and password to open the point of sale.",
+	"primary_logo": "",
+	"header_logo": "",
+	"app_icon": "",
+	"pwa_icon_192": "",
+	"pwa_icon_512": "",
+	"primary_color": "#4F46E5",
+	"secondary_color": "#2563EB",
+	"theme_color": "#4F46E5",
+	"background_color": "#ffffff",
+	"install_button_label": "Install",
+	"receipt_title": "POS",
+	"receipt_footer": "",
+	"demo_banner_enabled": 0,
+	"demo_banner_text": "",
+	"custom_css_optional": "",
+}
+
+POS_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}){1,2}$")
+
+
+def _has_pos_branding_doctype():
+	return frappe.db.exists("DocType", POS_BRANDING_DOCTYPE)
+
+
+def _clean_pos_text(value, fallback):
+	value = (value or "").strip()
+	return value or fallback
+
+
+def _clean_pos_color(value, fallback):
+	value = (value or "").strip()
+	return value if POS_COLOR_RE.match(value) else fallback
+
+
+def _clean_pos_asset_url(value):
+	value = (value or "").strip()
+	if not value:
+		return ""
+	if value.startswith(("/files/", "/private/files/", "/assets/")):
+		return value
+	if value.startswith(("http://", "https://")):
+		return value
+	return ""
+
+
+def get_pos_branding_settings_doc():
+	"""Return normalized POS branding settings with safe generic fallbacks."""
+	settings = POS_DEFAULT_BRANDING.copy()
+
+	if _has_pos_branding_doctype():
+		try:
+			doc = frappe.get_single(POS_BRANDING_DOCTYPE)
+			if not doc.get("enabled"):
+				return settings
+
+			for fieldname in settings:
+				value = doc.get(fieldname)
+				if value not in (None, ""):
+					settings[fieldname] = value
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "POS Branding Settings Load Error")
+
+	for key in ("app_name", "app_short_name", "workspace_label", "login_title", "login_subtitle", "install_button_label", "receipt_title"):
+		settings[key] = _clean_pos_text(settings.get(key), POS_DEFAULT_BRANDING[key])
+
+	for key in ("primary_logo", "header_logo", "app_icon", "pwa_icon_192", "pwa_icon_512"):
+		settings[key] = _clean_pos_asset_url(settings.get(key))
+
+	for key in ("primary_color", "secondary_color", "theme_color", "background_color"):
+		settings[key] = _clean_pos_color(settings.get(key), POS_DEFAULT_BRANDING[key])
+
+	settings["enabled"] = 1 if settings.get("enabled") else 0
+	settings["demo_banner_enabled"] = 1 if settings.get("demo_banner_enabled") else 0
+	settings["receipt_footer"] = settings.get("receipt_footer") or ""
+	settings["demo_banner_text"] = settings.get("demo_banner_text") or ""
+	settings["custom_css_optional"] = settings.get("custom_css_optional") or ""
+	return settings
+
+
+@frappe.whitelist(allow_guest=True)
+def get_pos_branding_settings():
+	"""Public read endpoint used by the POS frontend before login."""
+	return get_pos_branding_settings_doc()
+
+
+def build_pos_manifest():
+	branding = get_pos_branding_settings_doc()
+	icon_192 = branding.get("pwa_icon_192") or branding.get("app_icon") or "/assets/pos_next/pos/icon.svg"
+	icon_512 = branding.get("pwa_icon_512") or branding.get("app_icon") or "/assets/pos_next/pos/icon.svg"
+
+	return {
+		"name": branding["app_name"],
+		"short_name": branding["app_short_name"],
+		"id": "/pos",
+		"start_url": "/pos",
+		"scope": "/pos",
+		"display": "standalone",
+		"lang": "ar",
+		"dir": "rtl",
+		"background_color": branding["background_color"],
+		"theme_color": branding["theme_color"],
+		"description": branding.get("login_subtitle") or _("Point of Sale application"),
+		"categories": ["business", "productivity"],
+		"icons": [
+			{"src": icon_192, "sizes": "192x192", "type": "image/svg+xml" if icon_192.endswith(".svg") else "image/png", "purpose": "any"},
+			{"src": icon_512, "sizes": "512x512", "type": "image/svg+xml" if icon_512.endswith(".svg") else "image/png", "purpose": "any"},
+			{"src": icon_512, "sizes": "512x512", "type": "image/svg+xml" if icon_512.endswith(".svg") else "image/png", "purpose": "maskable"},
+		],
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_pos_manifest():
+	"""Return the PWA manifest as top-level JSON for browser manifest loading."""
+	return Response(
+		json.dumps(build_pos_manifest(), separators=(",", ":")),
+		mimetype="application/manifest+json",
+		headers={"Cache-Control": "no-store"},
+	)
