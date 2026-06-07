@@ -254,6 +254,8 @@ POS_DEFAULT_BRANDING = {
 
 POS_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}){1,2}$")
 
+DEFAULT_BRANDING = POS_DEFAULT_BRANDING
+
 
 def _has_pos_branding_doctype():
 	return frappe.db.exists("DocType", POS_BRANDING_DOCTYPE)
