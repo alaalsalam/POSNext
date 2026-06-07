@@ -2,19 +2,29 @@
 @import "frappe-ui/style.css";
 @import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
 
+@font-face {
+	font-family: "Almarai";
+	src: url("./assets/Almarai/Almarai-Regular.ttf") format("truetype");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
 /* CSS Custom Properties for consistent z-index layering */
 :root {
 	--z-dialog-overlay: 400;
 	--z-dialog-content: 500;
 	--z-dropdown: 10000;
+	--pos-font-stack: "SaudiRiyalSymbol", -apple-system, BlinkMacSystemFont, "Almarai", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 
-/* Apply Saudi Riyal symbol font to body for currency support */
-body {
-	font-family: "SaudiRiyalSymbol", "Inter", sans-serif;
+html,
+body,
+#app {
+	font-family: var(--pos-font-stack);
 }
 
-/* Ensure all text elements inherit the font stack with Saudi Riyal support */
+/* Ensure POS UI inherits the Trilogy font stack with Saudi Riyal support. */
 * {
 	font-family: inherit;
 }

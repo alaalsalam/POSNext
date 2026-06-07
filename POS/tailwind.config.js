@@ -8,7 +8,25 @@ export default {
 		"./node_modules/frappe-ui/src/components/**/*.{vue,js,ts,jsx,tsx}",
 	],
 	theme: {
-		extend: {},
+		extend: {
+			fontFamily: {
+				sans: [
+					"SaudiRiyalSymbol",
+					"-apple-system",
+					"BlinkMacSystemFont",
+					"Almarai",
+					"Segoe UI",
+					"Roboto",
+					"Oxygen",
+					"Ubuntu",
+					"Cantarell",
+					"Fira Sans",
+					"Droid Sans",
+					"Helvetica Neue",
+					"sans-serif",
+				],
+			},
+		},
 	},
 	plugins: [],
 }
