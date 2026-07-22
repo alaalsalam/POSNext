@@ -42,7 +42,7 @@
 
 					<!-- Mobile -->
 					<div class="col-span-2">
-						<FieldLabel :label="__('Mobile Number')" />
+						<FieldLabel :label="__('Mobile Number')" required />
 						<div class="flex gap-2">
 							<!-- Country Code -->
 							<div class="relative" ref="dropdownRef">
@@ -107,6 +107,7 @@
 								:placeholder="__('5xxxxxxxx')"
 								class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
 								@input="updateMobileNumber"
+								required
 							/>
 						</div>
 					</div>
@@ -233,7 +234,7 @@
 					variant="solid"
 					@click="handleCreate"
 					:loading="createCustomerResource.loading || updateCustomerResource.loading || checkingPermission"
-					:disabled="!customerData.customer_name || !hasPermission"
+					:disabled="!customerData.customer_name || !phoneNumber || !hasPermission"
 				>
 					{{ isEditMode ? __("Save Changes") : __("Create Customer") }}
 				</Button>
@@ -553,6 +554,9 @@ const checkPermissions = async () => {
 
 const handleCreate = async () => {
 	if (!customerData.value.customer_name) return showError(__("Customer Name is required"));
+	if (!phoneNumber.value) {
+		return showError(__("Mobile Number is required"));
+	}
 	if (isEditMode.value) {
 		await updateCustomerResource.submit();
 	} else {
