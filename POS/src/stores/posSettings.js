@@ -68,6 +68,8 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		// Security
 		enable_session_lock: 0,
 		session_lock_timeout: 5,
+		// Return Payment Modes
+		allowed_return_payment_modes: [],
 	});
 
 	const isLoading = ref(false);
@@ -181,6 +183,14 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		() => Number.parseInt(settings.value.session_lock_timeout) || 5
 	);
 
+	// Computed - Return Payment Modes
+	// Returns array of mode_of_payment strings. Empty = all modes allowed.
+	const allowedReturnPaymentModes = computed(() => {
+		const rows = settings.value.allowed_return_payment_modes;
+		if (!Array.isArray(rows) || rows.length === 0) return [];
+		return rows.map((r) => r.mode_of_payment).filter(Boolean);
+	});
+
 	// Resource
 	const settingsResource = createResource({
 		url: "pos_next.pos_next.doctype.pos_settings.pos_settings.get_pos_settings",
@@ -283,6 +293,8 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			// Security
 			enable_session_lock: 0,
 			session_lock_timeout: 5,
+			// Return Payment Modes
+			allowed_return_payment_modes: [],
 		};
 		isLoaded.value = false;
 	}
@@ -418,6 +430,9 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		// Computed - Security
 		enableSessionLock,
 		sessionLockTimeout,
+
+		// Computed - Return Payment Modes
+		allowedReturnPaymentModes,
 
 		// Actions
 		loadSettings,

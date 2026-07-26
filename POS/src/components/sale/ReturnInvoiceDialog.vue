@@ -866,7 +866,7 @@
 										>
 											<option value="">{{ __("Select method...") }}</option>
 											<option
-												v-for="method in paymentMethods"
+												v-for="method in filteredPaymentMethods"
 												:key="method.mode_of_payment"
 												:value="method.mode_of_payment"
 											>
@@ -1189,11 +1189,13 @@ import {
 	roundCurrency,
 } from "@/utils/currency";
 import { getInvoiceStatusColor } from "@/utils/invoice";
+import { usePOSSettingsStore } from "@/stores/posSettings";
 import { Button, Dialog, FeatherIcon, createResource } from "frappe-ui";
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 
 const { showSuccess, showError, showWarning } = useToast();
 const { isOffline } = useOfflineStatus();
+const posSettingsStore = usePOSSettingsStore();
 
 // ============================================
 // Constants (hoisted for performance)
@@ -1230,6 +1232,15 @@ const preparedReturnDoc = ref(null);
 const returnItems = ref([]);
 const returnReason = ref("");
 const paymentMethods = ref([]);
+
+// Filter payment methods to those allowed for returns per POS Settings.
+// When allowed_return_payment_modes is empty, all modes are available.
+const filteredPaymentMethods = computed(() => {
+	const allowed = posSettingsStore.allowedReturnPaymentModes;
+	if (allowed.length === 0) return paymentMethods.value;
+	return paymentMethods.value.filter((m) => allowed.includes(m.mode_of_payment));
+});
+
 const refundPayments = ref([]);
 const invoiceList = ref([]);
 const invoiceListFilter = ref("");

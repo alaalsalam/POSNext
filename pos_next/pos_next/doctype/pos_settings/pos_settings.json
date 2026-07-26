@@ -45,6 +45,7 @@
   "allow_return_without_invoice",
   "return_validity_days",
   "allow_free_batch_return",
+  "allowed_return_payment_modes",
   "allow_print_draft_invoices",
   "section_break_pricing",
   "decimal_precision",
@@ -277,10 +278,10 @@
   },
   {
    "default": "0",
-   "description": "Hide expected cash amount in closing",
+   "description": "When enabled, the cashier only enters the actual amount without seeing the expected balance — blind cash count.",
    "fieldname": "hide_expected_amount",
    "fieldtype": "Check",
-   "label": "Hide Expected Amount"
+   "label": "Blind Shift Closing (Hide Expected Amount)"
   },
   {
    "default": "0",
@@ -354,6 +355,14 @@
    "fieldname": "allow_free_batch_return",
    "fieldtype": "Check",
    "label": "Allow Free Batch Return"
+  },
+  {
+   "depends_on": "allow_return",
+   "description": "Restrict return refunds to these payment modes only. Leave empty to allow all payment modes configured on the POS Profile.",
+   "fieldname": "allowed_return_payment_modes",
+   "fieldtype": "Table",
+   "label": "Allowed Return Payment Modes",
+   "options": "POS Return Payment Mode"
   },
   {
    "default": "0",
