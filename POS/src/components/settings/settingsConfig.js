@@ -1,7 +1,7 @@
 /**
  * POS Settings Configuration
  * Centralized configuration for themes, icons, and section structures
- * Following DRY principle - Don't Repeat Yourself
+ * Design: clean white cards, colored icons only — no heavy colored backgrounds.
  */
 
 // SVG Icon Paths
@@ -21,70 +21,78 @@ export const icons = {
 	warning: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
 };
 
-// Theme Configurations for Section Headers
-export const sectionThemes = {
+/**
+ * Section header themes — clean white, icon-only color accents.
+ * Each key maps to a module section (stock, sales, etc.)
+ */
+const sectionThemes = {
+	/* Inventory / Stock */
 	purple: {
-		headerGradient: "from-purple-50 via-indigo-50 to-blue-50",
-		iconBg: "bg-purple-100",
-		iconColor: "text-purple-600",
-		badgeBg: "bg-purple-100",
-		badgeColor: "text-purple-700",
+		header: "px-6 py-4 bg-white border-b border-gray-100",
+		iconContainer: "p-2 bg-emerald-50 rounded-lg",
+		icon: "w-6 h-6 text-emerald-600",
+		badge: "flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full",
+		badgeIcon: "w-3.5 h-3.5 text-emerald-600",
+		badgeText: "text-xs font-semibold text-emerald-700",
 	},
+	/* Sales / Operations */
 	green: {
-		headerGradient: "from-green-50 via-emerald-50 to-teal-50",
-		iconBg: "bg-green-100",
-		iconColor: "text-green-600",
-		badgeBg: "bg-green-100",
-		badgeColor: "text-green-700",
-	},
-};
-
-// Theme Configurations for Subsections
-export const subsectionThemes = {
-	gray: {
-		gradient: "from-gray-50 to-gray-100",
-		border: "border-gray-200",
-		iconColor: "text-indigo-600",
-	},
-	blue: {
-		gradient: "from-blue-50 to-indigo-50",
-		border: "border-blue-200",
-		iconColor: "text-blue-600",
-	},
-	emerald: {
-		gradient: "from-emerald-50 to-green-50",
-		border: "border-green-200",
-		iconColor: "text-green-600",
-	},
-	teal: {
-		gradient: "from-teal-50 to-cyan-50",
-		border: "border-teal-200",
-		iconColor: "text-teal-600",
+		header: "px-6 py-4 bg-white border-b border-gray-100",
+		iconContainer: "p-2 bg-slate-100 rounded-lg",
+		icon: "w-6 h-6 text-slate-600",
+		badge: "flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full",
+		badgeIcon: "w-3.5 h-3.5 text-slate-500",
+		badgeText: "text-xs font-semibold text-slate-600",
 	},
 };
 
 /**
- * Helper function to get section header classes
+ * Subsection card themes — white cards with subtle borders, no gradient fills.
+ */
+const subsectionThemes = {
+	/* Neutral / general */
+	gray: {
+		container: "bg-gray-50 rounded-xl p-5 border border-gray-200",
+		icon: "w-5 h-5 text-gray-500",
+	},
+	/* Stock policy — white card */
+	blue: {
+		container: "bg-white rounded-xl p-5 border border-gray-200 shadow-sm",
+		icon: "w-5 h-5 text-emerald-600",
+	},
+	/* Pricing / highlight — very faint emerald tint */
+	emerald: {
+		container: "bg-emerald-50/50 rounded-xl p-5 border border-emerald-100",
+		icon: "w-5 h-5 text-emerald-600",
+	},
+	/* Operations / misc */
+	teal: {
+		container: "bg-white rounded-xl p-5 border border-gray-200 shadow-sm",
+		icon: "w-5 h-5 text-slate-500",
+	},
+	/* Stock sync — white card */
+	indigo: {
+		container: "bg-white rounded-xl p-5 border border-gray-200 shadow-sm",
+		icon: "w-5 h-5 text-slate-500",
+	},
+};
+
+/**
+ * Returns section header classes for a given theme key.
+ * Returns the full class strings directly (no string concatenation with unknown tokens).
  */
 export function getSectionHeaderClasses(theme) {
 	const config = sectionThemes[theme] || sectionThemes.purple;
-	return {
-		header: `px-6 py-4 bg-gradient-to-r ${config.headerGradient} border-b border-gray-200`,
-		iconContainer: `p-2 ${config.iconBg} rounded-lg`,
-		icon: `w-6 h-6 ${config.iconColor}`,
-		badge: `flex items-center space-x-2 px-3 py-1.5 ${config.badgeBg} rounded-full`,
-		badgeIcon: `w-4 h-4 ${config.iconColor}`,
-		badgeText: `text-xs font-semibold ${config.badgeColor}`,
-	};
+	return { ...config };
 }
 
 /**
- * Helper function to get subsection classes
+ * Returns subsection card classes for a given theme key.
  */
 export function getSubsectionClasses(theme) {
 	const config = subsectionThemes[theme] || subsectionThemes.gray;
 	return {
-		container: `bg-gradient-to-br ${config.gradient} rounded-lg p-5 border ${config.border}`,
-		icon: `w-5 h-5 ${config.iconColor}`,
+		container: config.container,
+		icon: config.icon,
 	};
 }

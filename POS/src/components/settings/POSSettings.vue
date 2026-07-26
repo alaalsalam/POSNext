@@ -13,12 +13,12 @@
 				>
 					<!-- Header -->
 					<div
-						class="flex items-center justify-between px-6 py-5 border-b bg-gradient-to-r from-emerald-50 to-green-50"
+						class="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white"
 					>
 						<div class="flex items-center gap-3">
-							<div class="p-2 bg-blue-100 rounded-lg">
+							<div class="p-2 bg-emerald-50 rounded-lg">
 								<svg
-									class="w-6 h-6 text-blue-600"
+									class="w-6 h-6 text-emerald-600"
 									fill="none"
 									stroke="currentColor"
 									viewBox="0 0 24 24"
