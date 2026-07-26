@@ -727,15 +727,15 @@
 
 				<!-- Quick Actions Grid -->
 				<div class="grid grid-cols-2 gap-2 sm:gap-2.5 w-full max-w-lg">
-					<!-- View Shift -->
+					<!-- View Shift — brand identity -->
 					<button
 						type="button"
 						@click="$emit('view-shift')"
-						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/70 hover:border-slate-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
+						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/80 border border-blue-200/70 hover:border-blue-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
 						:title="__('View current shift details')"
 					>
 						<svg
-							class="w-6 h-6 sm:w-7 sm:h-7 text-slate-500 mb-2 group-hover:scale-110 transition-transform duration-150"
+							class="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 mb-2 group-hover:scale-110 transition-transform duration-150"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -753,20 +753,20 @@
 								d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
 							/>
 						</svg>
-						<span class="text-[11px] sm:text-xs font-semibold text-slate-700 leading-tight">{{
+						<span class="text-[11px] sm:text-xs font-semibold text-blue-700 leading-tight">{{
 							__("View Shift")
 						}}</span>
 					</button>
 
-					<!-- Draft Invoices -->
+					<!-- Draft Invoices — brand identity -->
 					<button
 						type="button"
 						@click="$emit('show-drafts')"
-						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100 border border-sky-200/70 hover:border-sky-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
+						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/80 border border-blue-200/70 hover:border-blue-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
 						:title="__('View draft invoices')"
 					>
 						<svg
-							class="w-6 h-6 sm:w-7 sm:h-7 text-sky-500 mb-2 group-hover:scale-110 transition-transform duration-150"
+							class="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 mb-2 group-hover:scale-110 transition-transform duration-150"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -778,20 +778,20 @@
 								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 							/>
 						</svg>
-						<span class="text-[11px] sm:text-xs font-semibold text-sky-700 leading-tight">{{
+						<span class="text-[11px] sm:text-xs font-semibold text-blue-700 leading-tight">{{
 							__("Draft Invoices")
 						}}</span>
 					</button>
 
-					<!-- Invoice History -->
+					<!-- Invoice History — brand identity -->
 					<button
 						type="button"
 						@click="$emit('show-history')"
-						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/70 hover:border-amber-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
+						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/80 border border-blue-200/70 hover:border-blue-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
 						:title="__('View invoice history')"
 					>
 						<svg
-							class="w-6 h-6 sm:w-7 sm:h-7 text-amber-500 mb-2 group-hover:scale-110 transition-transform duration-150"
+							class="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 mb-2 group-hover:scale-110 transition-transform duration-150"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -803,12 +803,12 @@
 								d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
 							/>
 						</svg>
-						<span class="text-[11px] sm:text-xs font-semibold text-amber-700 leading-tight">{{
+						<span class="text-[11px] sm:text-xs font-semibold text-blue-700 leading-tight">{{
 							__("Invoice History")
 						}}</span>
 					</button>
 
-					<!-- Return Invoice -->
+					<!-- Return Invoice — semantic red (kept intentional) -->
 					<button
 						type="button"
 						@click="$emit('show-return')"
@@ -833,15 +833,15 @@
 						}}</span>
 					</button>
 
-					<!-- Close Shift -->
+					<!-- Close Shift — neutral/end-of-session -->
 					<button
 						type="button"
 						@click="$emit('close-shift')"
-						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-300/70 hover:border-gray-400 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
+						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200/70 hover:border-gray-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
 						:title="__('Close current shift')"
 					>
 						<svg
-							class="w-6 h-6 sm:w-7 sm:h-7 text-gray-600 mb-2 group-hover:scale-110 transition-transform duration-150"
+							class="w-6 h-6 sm:w-7 sm:h-7 text-gray-500 mb-2 group-hover:scale-110 transition-transform duration-150"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -853,20 +853,20 @@
 								d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
 							/>
 						</svg>
-						<span class="text-[11px] sm:text-xs font-semibold text-gray-700 leading-tight">{{
+						<span class="text-[11px] sm:text-xs font-semibold text-gray-600 leading-tight">{{
 							__("Close Shift")
 						}}</span>
 					</button>
 
-					<!-- Create Customer -->
+					<!-- Create Customer — solid brand CTA -->
 					<button
 						type="button"
 						@click="$emit('create-customer', '')"
-						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-200/70 hover:border-teal-300 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group"
+						class="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 border border-blue-600 hover:from-blue-700 hover:to-blue-800 hover:shadow-md active:scale-[0.97] transition-all duration-150 touch-manipulation group shadow-sm"
 						:title="__('Create new customer')"
 					>
 						<svg
-							class="w-6 h-6 sm:w-7 sm:h-7 text-teal-500 mb-2 group-hover:scale-110 transition-transform duration-150"
+							class="w-6 h-6 sm:w-7 sm:h-7 text-white mb-2 group-hover:scale-110 transition-transform duration-150"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -878,7 +878,7 @@
 								d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
 							/>
 						</svg>
-						<span class="text-[11px] sm:text-xs font-semibold text-teal-700 leading-tight">{{
+						<span class="text-[11px] sm:text-xs font-semibold text-white leading-tight">{{
 							__("Create Customer")
 						}}</span>
 					</button>
