@@ -750,7 +750,7 @@
 							@touchmove.passive="getOptimizedClickHandler(item).touchmove"
 							@touchend.passive="getOptimizedClickHandler(item).touchend"
 							@click="getOptimizedClickHandler(item).click"
-							class="group cursor-pointer hover:bg-blue-50 hover:shadow-md transition-[background-color,box-shadow] duration-100 touch-manipulation active:bg-blue-100"
+							class="group cursor-pointer hover:bg-gray-50 hover:shadow-sm transition-[background-color,box-shadow] duration-100 touch-manipulation active:bg-gray-100"
 						>
 							<td class="px-2 sm:px-3 py-2 whitespace-nowrap w-[50px] sm:w-[60px]">
 								<div
@@ -1388,10 +1388,11 @@ function onLongPressStart(item) {
 
 function onLongPressEnd() {
 	clearTimeout(longPressTimer);
-	// If not a long press, trigger item selection
+	// Single tap on the stock number → show the item's availability across the
+	// other warehouses (a tap on the number no longer adds the item to the cart).
 	if (!longPressTriggered && longPressItem) {
 		itemHandledByLongPress = true;
-		selectItem(longPressItem);
+		showWarehouseAvailability(longPressItem);
 	}
 	longPressTimer = null;
 	longPressItem = null;
