@@ -455,6 +455,7 @@
 								<div
 									v-for="(payment, idx) in closingData.payment_reconciliation"
 									:key="idx"
+									v-show="!isNegativeExpected(payment)"
 									class="border border-gray-200 rounded-lg p-3 md:p-4 bg-white hover:border-gray-300 transition-colors"
 								>
 									<div class="flex items-center justify-between gap-3">
@@ -510,13 +511,72 @@
 									:key="idx"
 									:class="[
 										'border rounded-lg p-3 md:p-5 transition-all',
-										payment.difference === 0
+										isNegativeExpected(payment)
+											? 'border-amber-300 bg-amber-50'
+											: payment.difference === 0
 											? 'border-green-200 bg-green-50'
 											: payment.difference > 0
 											? 'border-blue-200 bg-blue-50'
 											: 'border-red-200 bg-red-50',
 									]"
 								>
+
+									<!-- ▶ Special layout: negative expected (returns exceeded drawer balance) -->
+									<template v-if="isNegativeExpected(payment)">
+										<div class="flex items-start gap-2 md:gap-3">
+											<div
+												:class="[
+													'rounded-lg p-1.5 md:p-2 flex-shrink-0',
+													getPaymentIcon(payment.mode_of_payment).color,
+												]"
+											>
+												<span class="text-base md:text-xl">{{
+													getPaymentIcon(payment.mode_of_payment).icon
+												}}</span>
+											</div>
+											<div class="flex-1 min-w-0">
+												<h4 class="text-start text-sm md:text-base font-semibold text-gray-900">
+													{{ payment.mode_of_payment }}
+												</h4>
+												<p class="text-xs md:text-sm text-amber-800 mt-0.5">
+													{{ __("Cash disbursed from drawer to cover returns") }}
+												</p>
+											</div>
+											<div class="text-end flex-shrink-0">
+												<div class="text-xs text-amber-700 font-medium uppercase mb-0.5">
+													{{ __("Disbursed") }}
+												</div>
+												<div class="text-base md:text-xl font-bold text-amber-800">
+													{{ formatCurrency(Math.abs(payment.expected_amount)) }}
+												</div>
+											</div>
+										</div>
+										<div class="mt-2 md:mt-3 flex items-center gap-2 rounded-lg bg-amber-100 border border-amber-200 px-3 py-2">
+											<svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+												<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+											</svg>
+											<p class="text-xs text-amber-800">
+												{{ __("The drawer should be empty for this payment method. No input required — recorded automatically.") }}
+											</p>
+										</div>
+										<div class="mt-2 grid grid-cols-3 gap-2 text-xs text-center">
+											<div class="bg-white rounded-lg p-2 border border-amber-200">
+												<div class="text-gray-500 uppercase mb-0.5">{{ __("Opening") }}</div>
+												<div class="font-semibold text-gray-800">{{ formatCurrency(payment.opening_amount) }}</div>
+											</div>
+											<div class="bg-white rounded-lg p-2 border border-amber-200">
+												<div class="text-gray-500 uppercase mb-0.5">{{ __("Returns Paid") }}</div>
+												<div class="font-semibold text-amber-700">{{ formatCurrency(Math.abs(payment.expected_amount)) }}</div>
+											</div>
+											<div class="bg-white rounded-lg p-2 border border-amber-200">
+												<div class="text-gray-500 uppercase mb-0.5">{{ __("Drawer") }}</div>
+												<div class="font-semibold text-green-700">{{ formatCurrency(0) }} ✓</div>
+											</div>
+										</div>
+									</template>
+
+									<!-- ▶ Normal layout: standard positive/zero expected -->
+									<template v-else>
 									<div
 										class="flex items-start justify-between mb-3 md:mb-4 gap-2"
 									>
@@ -648,7 +708,11 @@
 											<label
 												class="block text-xs font-medium text-gray-700 uppercase mb-0.5 md:mb-1"
 											>
-												{{ __("Actual Amount *") }}
+												{{
+								hasNoExpectedBalance(payment)
+									? __("Actual Amount")
+									: __("Actual Amount *")
+							}}
 											</label>
 											<Input
 												:modelValue="payment.closing_amount"
@@ -671,7 +735,9 @@
 												{{
 													showSuccessReport
 														? __("Final Amount")
-														: __("Count & enter")
+														: hasNoExpectedBalance(payment)
+										? __("No balance to count")
+										: __("Count & enter")
 												}}
 											</div>
 										</div>
@@ -703,8 +769,8 @@
 												>
 													{{
 														payment.difference > 0
-															? __("Cash Over")
-															: __("Cash Short")
+															? __("Overage")
+															: __("Shortage")
 													}}
 												</p>
 												<p
@@ -735,8 +801,30 @@
 											</div>
 										</div>
 									</div>
+
+									</template><!-- end normal layout -->
 								</div>
 							</div>
+						</div>
+
+						<div
+							v-if="hasUnconfirmedVariance"
+							class="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 md:p-4"
+						>
+							<p class="text-sm font-semibold text-amber-900">
+								{{ __("A variance was detected") }}
+							</p>
+							<p class="mt-1 text-xs md:text-sm text-amber-800">
+								{{ __("Review the shortage or overage before closing this shift.") }}
+							</p>
+							<label class="mt-3 flex cursor-pointer items-start gap-2 text-xs md:text-sm text-amber-900">
+								<input
+									v-model="varianceConfirmed"
+									type="checkbox"
+									class="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-700 focus:ring-amber-500"
+								/>
+								<span>{{ __("I have reviewed the variance and approve closing this shift.") }}</span>
+							</label>
 						</div>
 
 						<!-- Reconciliation Summary (hidden in entry mode when hideExpectedAmount is enabled) -->
@@ -784,6 +872,20 @@
 										}}{{ formatCurrency(Math.abs(getTotalDifference)) }}
 									</p>
 								</div>
+							</div>
+							<!-- Returns disbursed note (shown only when any mode has negative expected) -->
+							<div
+								v-if="getTotalReturnsDisbursed > 0"
+								class="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2"
+							>
+								<svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+								</svg>
+								<p class="text-xs text-amber-800">
+									{{ __("Cash disbursed for returns:") }}
+									<span class="font-bold ms-1">{{ formatCurrency(getTotalReturnsDisbursed) }}</span>
+									— {{ __("recorded automatically, not counted in variance.") }}
+								</p>
 							</div>
 						</div>
 					</div>
@@ -925,7 +1027,11 @@
 						v-if="!canSubmit && closingData && !showSuccessReport"
 						class="text-xs md:text-sm text-yellow-600 font-medium text-center sm:text-end"
 					>
-						{{ __("Please enter all closing amounts") }}
+						{{
+							hasUnconfirmedVariance
+								? __("Review and confirm the variance before closing")
+								: __("Please enter all closing amounts")
+						}}
 					</div>
 
 					<!-- Success message (shown in report view) -->
@@ -1018,6 +1124,7 @@ const errorMessage = ref(""); // User-friendly error message
 const eodPrintFailed = ref(null);
 const retryPrintLoading = ref(false);
 const showIdleWarning = ref(false);
+const varianceConfirmed = ref(false);
 let _idleWarningTimer = null;
 
 // Watch dialog open state
@@ -1058,6 +1165,7 @@ onBeforeUnmount(() => {
 async function loadClosingData() {
 	try {
 		errorMessage.value = ""; // Clear any previous errors
+		varianceConfirmed.value = false;
 
 		const data = await closingDataResource.submit({
 			opening_shift: props.openingShift,
@@ -1065,14 +1173,18 @@ async function loadClosingData() {
 
 		// Make payment_reconciliation reactive
 		if (data.payment_reconciliation) {
-			data.payment_reconciliation = data.payment_reconciliation.map((payment) =>
-				reactive({
+			data.payment_reconciliation = data.payment_reconciliation.map((payment) => {
+				const noBalanceToCount = hasNoExpectedBalance(payment);
+				const negExp = Number.parseFloat(payment.expected_amount) < -0.005;
+				return reactive({
 					...payment,
-					closing_amount: payment.closing_amount ?? null,
+					// Negative-expected rows (returns > sales): drawer must be empty → auto-set to 0.
+					// Empty zero-balance methods are already reconciled; do not block the shift close.
+					closing_amount: payment.closing_amount ?? (noBalanceToCount || negExp ? 0 : null),
 					difference: 0,
-					_touched: false,
-				})
-			);
+					_touched: noBalanceToCount || negExp,
+				});
+			});
 
 			// Calculate initial differences
 			data.payment_reconciliation.forEach((payment) => {
@@ -1088,36 +1200,65 @@ async function loadClosingData() {
 		}
 	} catch (error) {
 		console.error("Error loading closing data:", error);
-		errorMessage.value =
-			"Unable to load shift data. Please check your connection and try again.";
+		errorMessage.value = __(
+			"Unable to load shift data. Please check your connection and try again."
+		);
 	}
+}
+
+function hasNoExpectedBalance(payment) {
+	const opening = Number.parseFloat(payment.opening_amount) || 0;
+	const expected = Number.parseFloat(payment.expected_amount) || 0;
+	return Math.abs(opening) < 0.005 && Math.abs(expected) < 0.005;
+}
+
+/** True when returns exceeded sales+opening for this payment mode → drawer owes money */
+function isNegativeExpected(payment) {
+	return Number.parseFloat(payment.expected_amount) < -0.005;
 }
 
 function calculateDifference(payment) {
 	const closing = Number.parseFloat(payment.closing_amount) || 0;
-	const expected = Number.parseFloat(payment.expected_amount) || 0;
-	payment.difference = closing - expected;
+	// For negative-expected rows the effective expected is 0 (drawer must be empty).
+	// We still store the true expected_amount so the backend journal entry is correct,
+	// but the variance shown to the cashier is always 0 for these rows.
+	const effective = isNegativeExpected(payment)
+		? 0
+		: Number.parseFloat(payment.expected_amount) || 0;
+	payment.difference = closing - effective;
 }
 
 // New function to handle closing amount updates with proper reactivity
 function updateClosingAmount(payment, value) {
 	payment.closing_amount = value;
 	payment._touched = true;
+	varianceConfirmed.value = false;
 	calculateDifference(payment);
 }
 
-const canSubmit = computed(() => {
+const allRequiredAmountsEntered = computed(() => {
 	if (!closingData.value || !closingData.value.payment_reconciliation) return false;
 
-	// Check if all closing amounts have been manually entered
 	return closingData.value.payment_reconciliation.every(
 		(payment) =>
-			payment._touched &&
-			payment.closing_amount !== null &&
-			payment.closing_amount !== undefined &&
-			payment.closing_amount !== ""
+			hasNoExpectedBalance(payment) ||
+			(payment._touched &&
+				payment.closing_amount !== null &&
+				payment.closing_amount !== undefined &&
+				payment.closing_amount !== "")
 	);
 });
+
+const hasUnconfirmedVariance = computed(
+	() =>
+		allRequiredAmountsEntered.value &&
+		Math.abs(getTotalDifference.value) >= 0.005 &&
+		!varianceConfirmed.value
+);
+
+const canSubmit = computed(
+	() => allRequiredAmountsEntered.value && !hasUnconfirmedVariance.value
+);
 
 async function submitClosing() {
 	if (!closingData.value) return;
@@ -1162,7 +1303,9 @@ async function submitClosing() {
 		}
 	} catch (error) {
 		console.error("Error submitting closing shift:", error);
-		errorMessage.value = "Failed to close shift. Please verify all amounts and try again.";
+		errorMessage.value = __(
+			"Failed to close shift. Please verify all amounts and try again."
+		);
 	}
 }
 
@@ -1205,12 +1348,14 @@ const isInEntryMode = computed(() => hideExpectedAmount.value && !showSuccessRep
 
 const reconciliationMessage = computed(() => {
 	if (isInEntryMode.value) {
-		return "Enter the actual counted amounts for each payment method";
+		return __("Enter the actual counted amounts for each payment method");
 	}
 	if (showSuccessReport.value && hideExpectedAmount.value) {
-		return "Shift closed successfully - Review the final reconciliation below";
+		return __(
+			"Shift closed successfully - Review the final reconciliation below"
+		);
 	}
-	return "Count your cash and enter actual amounts below";
+	return __("Count your cash and enter actual amounts below");
 });
 
 // Computed properties for real-time recalculation
@@ -1247,22 +1392,33 @@ const grossSales = computed(() => {
 });
 const getTotalExpected = computed(() => {
 	if (!closingData.value || !closingData.value.payment_reconciliation) return 0;
-	return closingData.value.payment_reconciliation.reduce(
-		(sum, payment) => sum + Number.parseFloat(payment.expected_amount || 0),
-		0
-	);
+	// Exclude negative-expected rows: their "expected" for variance purposes is 0.
+	return closingData.value.payment_reconciliation.reduce((sum, payment) => {
+		const exp = Number.parseFloat(payment.expected_amount || 0);
+		return sum + (exp < -0.005 ? 0 : exp);
+	}, 0);
 });
 
 const getTotalActual = computed(() => {
 	if (!closingData.value || !closingData.value.payment_reconciliation) return 0;
-	return closingData.value.payment_reconciliation.reduce(
-		(sum, payment) => sum + Number.parseFloat(payment.closing_amount || 0),
-		0
-	);
+	// Exclude negative-expected rows from actual total (their closing_amount is always 0).
+	return closingData.value.payment_reconciliation.reduce((sum, payment) => {
+		if (Number.parseFloat(payment.expected_amount) < -0.005) return sum;
+		return sum + Number.parseFloat(payment.closing_amount || 0);
+	}, 0);
 });
 
 const getTotalDifference = computed(() => {
 	return getTotalActual.value - getTotalExpected.value;
+});
+
+/** Sum of cash that was disbursed from the drawer to cover returns (absolute value). */
+const getTotalReturnsDisbursed = computed(() => {
+	if (!closingData.value || !closingData.value.payment_reconciliation) return 0;
+	return closingData.value.payment_reconciliation.reduce((sum, payment) => {
+		const exp = Number.parseFloat(payment.expected_amount || 0);
+		return exp < -0.005 ? sum + Math.abs(exp) : sum;
+	}, 0);
 });
 
 function getSalesForPayment(payment) {
@@ -1295,7 +1451,7 @@ function getShiftDuration() {
 }
 
 function getPaymentIcon(method) {
-	const methodLower = method.toLowerCase();
+	const methodLower = String(method || "").toLowerCase();
 
 	if (methodLower.includes("cash")) {
 		return { icon: "💵", color: "bg-green-500" };
