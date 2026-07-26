@@ -669,11 +669,11 @@
 				<button
 					type="button"
 					@click="$emit('apply-coupon')"
-					class="relative flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 hover:border-purple-400 hover:from-purple-100 hover:to-violet-100 hover:shadow-sm transition-all min-w-0 touch-manipulation active:scale-[0.98]"
+					class="relative flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 hover:border-emerald-400 hover:from-emerald-100 hover:to-green-100 hover:shadow-sm transition-all min-w-0 touch-manipulation active:scale-[0.98]"
 					:aria-label="__('Apply coupon code')"
 				>
 					<svg
-						class="w-3.5 h-3.5 text-purple-600 flex-shrink-0"
+						class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0"
 						fill="currentColor"
 						viewBox="0 0 20 20"
 					>
@@ -683,10 +683,10 @@
 							clip-rule="evenodd"
 						/>
 					</svg>
-					<span class="text-[11px] font-bold text-purple-700">{{ __("Coupon") }}</span>
+					<span class="text-[11px] font-bold text-emerald-700">{{ __("Coupon") }}</span>
 					<span
 						v-if="availableGiftCards.length > 0"
-						class="bg-purple-600 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 flex-shrink-0 min-w-[16px] text-center"
+						class="bg-emerald-600 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 flex-shrink-0 min-w-[16px] text-center"
 					>
 						{{ availableGiftCards.length }}
 					</span>
@@ -766,14 +766,14 @@
 					<button
 						type="button"
 						@click="$emit('show-drafts')"
-						class="flex flex-col items-center justify-center p-3 sm:p-4 bg-white border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 active:bg-purple-100 transition-colors shadow-sm hover:shadow touch-manipulation group"
+						class="flex flex-col items-center justify-center p-3 sm:p-4 bg-white border border-gray-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 active:bg-emerald-100 transition-colors shadow-sm hover:shadow touch-manipulation group"
 						:title="__('View draft invoices')"
 					>
 						<div
-							class="w-9 h-9 sm:w-10 sm:h-10 bg-purple-50 rounded-full flex items-center justify-center mb-2 group-hover:bg-purple-100 transition-colors"
+							class="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-50 rounded-full flex items-center justify-center mb-2 group-hover:bg-emerald-100 transition-colors"
 						>
 							<svg
-								class="w-5 h-5 text-purple-600"
+								class="w-5 h-5 text-emerald-600"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -1366,13 +1366,13 @@
 			</div>
 
 			<!-- Grand Total -->
-			<div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-2.5 mb-1.5">
+			<div class="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-2.5 mb-1.5">
 				<div class="flex items-center justify-between">
 					<span class="text-sm font-extrabold text-gray-900">{{
 						__("Grand Total")
 					}}</span>
 					<span
-						class="text-lg sm:text-xl font-extrabold text-blue-600 text-center min-w-[60px]"
+						class="text-lg sm:text-xl font-extrabold text-emerald-700 text-center min-w-[60px]"
 					>
 						{{ formatCurrency(displayGrandTotal) }}
 					</span>

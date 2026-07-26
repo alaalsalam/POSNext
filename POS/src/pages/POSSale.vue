@@ -56,10 +56,10 @@
 					<button
 						v-if="canAccessShiftActions"
 						@click="openDraftDialog"
-						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-purple-50 flex items-center gap-3 transition-colors relative"
+						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 flex items-center gap-3 transition-colors relative"
 					>
 						<svg
-							class="w-5 h-5 text-purple-600"
+							class="w-5 h-5 text-emerald-600"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -74,7 +74,7 @@
 						<span>{{ __("Draft Invoices") }}</span>
 						<span
 							v-if="draftsStore.draftsCount > 0"
-							class="ms-auto text-xs bg-purple-600 text-white px-1.5 py-0.5 rounded-full"
+							class="ms-auto text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded-full"
 						>
 							{{ draftsStore.draftsCount }}
 						</span>
@@ -82,7 +82,7 @@
 					<button
 						v-if="canAccessShiftActions"
 						@click="openHistoryDialog"
-						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 flex items-center gap-3 transition-colors"
+						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 flex items-center gap-3 transition-colors"
 					>
 						<svg
 							class="w-5 h-5 text-indigo-600"
@@ -980,9 +980,6 @@
 				@cancel="showClearCacheDialog = false"
 				@confirm="confirmClearCache"
 			/>
-
-			<!-- Footer -->
-			<POSFooter />
 		</template>
 
 		<!-- Session Lock Screen (outside v-if/v-else so it renders even during loading) -->
@@ -1004,7 +1001,6 @@ import ShiftOpeningDialog from "@/components/ShiftOpeningDialog.vue";
 import ClearCacheOverlay from "@/components/common/ClearCacheOverlay.vue";
 import SessionLockScreen from "@/components/common/SessionLockScreen.vue";
 import LoadingSpinner from "@/components/common/LoadingSpinner.vue";
-import POSFooter from "@/components/common/POSFooter.vue";
 import ManagementSlider from "@/components/pos/ManagementSlider.vue";
 import POSHeader from "@/components/pos/POSHeader.vue";
 import BatchSerialDialog from "@/components/sale/BatchSerialDialog.vue";
@@ -3019,8 +3015,8 @@ async function handlePrintInvoice(invoiceData) {
 	} catch (error) {
 		log.error("Error printing invoice:", error);
 		window.frappe?.msgprint({
-			title: "Error",
-			message: "Failed to print invoice",
+			title: __("Error"),
+			message: __("Failed to print invoice"),
 			indicator: "red",
 		});
 	}

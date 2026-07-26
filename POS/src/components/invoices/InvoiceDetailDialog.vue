@@ -11,7 +11,7 @@
 			<div v-else-if="invoiceData" class="flex flex-col gap-6">
 				<!-- Invoice Header -->
 				<div
-					class="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4 md:p-5 border border-indigo-100"
+					class="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-4 md:p-5 border border-emerald-100"
 				>
 					<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
 						<div class="flex-1">
@@ -69,7 +69,7 @@
 				<!-- Return Type Notice: Added to Customer Credit (no payments, negative outstanding) -->
 				<div
 					v-if="invoiceData.is_return && isAddedToCustomerCredit"
-					class="bg-gradient-to-r rtl:bg-gradient-to-l from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200"
+					class="bg-gradient-to-r rtl:bg-gradient-to-l from-emerald-50 to-green-50 rounded-lg p-4 border border-emerald-200"
 				>
 					<div class="flex items-start gap-3">
 						<div

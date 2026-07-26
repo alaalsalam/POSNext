@@ -13,10 +13,10 @@
 				>
 					<!-- Header -->
 					<div
-						class="flex items-center justify-between px-6 py-5 border-b bg-gradient-to-r from-indigo-50 to-purple-50"
+						class="flex items-center justify-between px-6 py-5 border-b bg-gradient-to-r from-emerald-50 to-green-50"
 					>
 						<div class="flex items-center gap-3">
-							<div class="p-2 bg-indigo-100 rounded-lg">
+							<div class="p-2 bg-emerald-100 rounded-lg">
 								<svg
 									class="w-6 h-6 text-indigo-600"
 									fill="none"
@@ -138,7 +138,7 @@
 							class="flex flex-col items-center justify-center py-16"
 						>
 							<div
-								class="animate-spin rounded-full h-12 w-12 border-b-3 border-indigo-500 mb-4"
+								class="animate-spin rounded-full h-12 w-12 border-b-3 border-emerald-500 mb-4"
 							></div>
 							<p class="text-sm font-medium text-gray-600">
 								{{ __("Loading {0}...", [currentTabLabel]) }}
@@ -577,7 +577,7 @@
 									>
 										<!-- Card Header with gradient -->
 										<div
-											class="bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-gray-200"
+											class="bg-gradient-to-r from-emerald-50 to-green-50 px-5 py-4 border-b border-gray-200"
 										>
 											<div class="flex items-start justify-between mb-2">
 												<div class="flex-1">
@@ -797,7 +797,7 @@
 									<div
 										v-for="draft in draftInvoices"
 										:key="draft.draft_id"
-										class="bg-white border-2 border-gray-200 rounded-lg p-4 hover:border-purple-400 transition-all cursor-pointer"
+										class="bg-white border-2 border-gray-200 rounded-lg p-4 hover:border-emerald-400 transition-all cursor-pointer"
 										@click="$emit('load-draft', draft)"
 									>
 										<div class="flex items-start justify-between mb-2">
@@ -846,7 +846,7 @@
 											<span class="text-gray-600">{{
 												__("{0} item(s)", [draft.items?.length || 0])
 											}}</span>
-											<span class="font-bold text-purple-600">{{
+											<span class="font-bold text-emerald-600">{{
 												formatCurrency(calculateDraftTotal(draft.items))
 											}}</span>
 										</div>
@@ -860,7 +860,7 @@
 												<span
 													v-for="(item, idx) in draft.items.slice(0, 3)"
 													:key="idx"
-													class="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded"
+													class="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded"
 												>
 													{{ item.item_name }} ({{
 														item.quantity || item.qty
@@ -1166,7 +1166,7 @@ const tabs = computed(() => [
 		label: __("Drafts"),
 		icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
 		color: "purple",
-		activeClass: "text-purple-600",
+		activeClass: "text-emerald-600",
 		badge: () => props.draftInvoices.length,
 	},
 	{
@@ -1189,9 +1189,9 @@ function getTabActiveClass(tabId) {
 		case "partial":
 			return "text-orange-600 border-orange-500";
 		case "history":
-			return "text-indigo-600 border-indigo-500";
+			return "text-indigo-600 border-emerald-500";
 		case "drafts":
-			return "text-purple-600 border-purple-500";
+			return "text-emerald-600 border-purple-500";
 		case "returns":
 			return "text-red-600 border-red-500";
 		default:
@@ -1205,7 +1205,7 @@ function getBadgeActiveClass(tabId) {
 		case "partial":
 			return "bg-orange-100 text-orange-700";
 		case "history":
-			return "bg-indigo-100 text-indigo-700";
+			return "bg-emerald-100 text-indigo-700";
 		case "drafts":
 			return "bg-purple-100 text-purple-700";
 		case "returns":

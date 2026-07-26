@@ -28,7 +28,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'products'
-					? 'bg-purple-100 text-purple-600'
+					? 'bg-emerald-100 text-emerald-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('Products')"

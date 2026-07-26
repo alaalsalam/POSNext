@@ -13,7 +13,7 @@
 				>
 					<!-- Header -->
 					<div
-						class="flex items-center justify-between px-6 py-5 border-b bg-gradient-to-r from-blue-50 to-indigo-50"
+						class="flex items-center justify-between px-6 py-5 border-b bg-gradient-to-r from-emerald-50 to-green-50"
 					>
 						<div class="flex items-center gap-3">
 							<div class="p-2 bg-blue-100 rounded-lg">
@@ -171,7 +171,21 @@
 								>
 									{{ __("Sales Management") }}
 								</button>
+								<button
+									@click="activeTab = 'branding'"
+									:class="[
+										'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
+										activeTab === 'branding'
+											? 'bg-white text-gray-900 shadow-sm'
+											: 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50',
+									]"
+								>
+									{{ __("Identity") }}
+								</button>
 							</div>
+
+							<!-- Brand Identity Section -->
+							<BrandingSettings v-if="activeTab === 'branding'" />
 
 							<!-- Stock Settings Section - Prominent -->
 							<div
@@ -1147,6 +1161,7 @@
 </template>
 
 <script setup>
+import BrandingSettings from "@/components/settings/BrandingSettings.vue";
 import CheckboxField from "@/components/settings/CheckboxField.vue";
 import NumberField from "@/components/settings/NumberField.vue";
 import SelectField from "@/components/settings/SelectField.vue";

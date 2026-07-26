@@ -684,7 +684,7 @@
 																{{ item.brand }}
 																<button
 																	@click="removeItem(index)"
-																	class="ms-1 hover:text-purple-900"
+																	class="ms-1 hover:text-emerald-900"
 																>
 																	×
 																</button>
@@ -710,7 +710,7 @@
 													<div class="flex items-center gap-2 mb-4">
 														<FeatherIcon
 															name="percent"
-															class="w-4 h-4 text-purple-600"
+															class="w-4 h-4 text-emerald-600"
 														/>
 														<h4
 															class="text-sm font-semibold text-gray-900"

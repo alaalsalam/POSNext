@@ -63,7 +63,7 @@
 							'rounded-lg p-2',
 							!isSalesPersonValid
 								? 'bg-red-50 border-2 border-red-300'
-								: 'bg-purple-50 border border-purple-200',
+								: 'bg-purple-50 border border-emerald-200',
 						]"
 					>
 						<!-- Single Mode: Show selected person or dropdown -->
@@ -75,7 +75,7 @@
 							>
 								<div class="flex items-center gap-2">
 									<svg
-										class="w-4 h-4 text-purple-600"
+										class="w-4 h-4 text-emerald-600"
 										fill="none"
 										stroke="currentColor"
 										viewBox="0 0 24 24"
@@ -96,7 +96,7 @@
 								</div>
 								<button
 									@click="clearSalesPersons"
-									class="text-purple-500 hover:text-purple-700 p-1 rounded hover:bg-purple-100"
+									class="text-emerald-500 hover:text-emerald-700 p-1 rounded hover:bg-emerald-100"
 									:title="__('Change sales person')"
 								>
 									<svg
@@ -117,7 +117,7 @@
 							<!-- Show dropdown when no selection -->
 							<div v-else ref="salesPersonDropdownRef">
 								<label
-									class="text-xs font-medium text-purple-700 flex items-center gap-1 mb-1"
+									class="text-xs font-medium text-emerald-700 flex items-center gap-1 mb-1"
 								>
 									<svg
 										class="w-3.5 h-3.5"
@@ -137,7 +137,7 @@
 									<!-- Refresh: re-fetch sales persons from server -->
 									<button
 										@click.prevent="refreshSalesPersons"
-										class="ms-auto p-0.5 text-purple-500 hover:text-purple-700 rounded hover:bg-purple-100 transition-colors"
+										class="ms-auto p-0.5 text-emerald-500 hover:text-emerald-700 rounded hover:bg-emerald-100 transition-colors"
 										:class="{ 'animate-spin': loadingSalesPersons }"
 										:title="__('Refresh sales persons')"
 										:disabled="loadingSalesPersons"
@@ -168,7 +168,7 @@
 										"
 										@focus="onSalesPersonFocus"
 										@blur="handleSalesPersonBlur"
-										class="w-full px-3 py-2 ps-3 pe-8 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+										class="w-full px-3 py-2 ps-3 pe-8 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
 										:class="
 											!isSalesPersonValid
 												? 'border-red-300'
@@ -176,7 +176,7 @@
 										"
 									/>
 									<svg
-										class="w-4 h-4 text-purple-500 absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
+										class="w-4 h-4 text-emerald-500 absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
 										:class="{ 'rotate-180': salesPersonDropdownOpen }"
 										fill="none"
 										stroke="currentColor"
@@ -195,20 +195,20 @@
 											salesPersonDropdownOpen &&
 											availableSalesPersons.length > 0
 										"
-										class="absolute z-50 mt-1 w-full max-h-40 overflow-y-auto border border-purple-200 rounded-lg bg-white shadow-lg"
+										class="absolute z-50 mt-1 w-full max-h-40 overflow-y-auto border border-emerald-200 rounded-lg bg-white shadow-lg"
 									>
 										<div
 											v-for="person in availableSalesPersons"
 											:key="person.name"
 											@mousedown.prevent="addSalesPerson(person)"
-											class="flex items-center justify-between p-2 hover:bg-purple-50 cursor-pointer border-b border-purple-100 last:border-b-0 text-xs"
+											class="flex items-center justify-between p-2 hover:bg-emerald-50 cursor-pointer border-b border-emerald-100 last:border-b-0 text-xs"
 										>
 											<span class="font-medium text-gray-900">{{
 												person.sales_person_name || person.name
 											}}</span>
 											<span
 												v-if="person.commission_rate"
-												class="text-purple-500 text-[10px]"
+												class="text-emerald-500 text-[10px]"
 											>
 												{{ person.commission_rate }}% {{ __("comm.") }}
 											</span>
@@ -221,7 +221,7 @@
 											availableSalesPersons.length === 0 &&
 											!loadingSalesPersons
 										"
-										class="absolute z-50 mt-1 w-full border border-purple-200 rounded-lg bg-white shadow-lg"
+										class="absolute z-50 mt-1 w-full border border-emerald-200 rounded-lg bg-white shadow-lg"
 									>
 										<div class="text-center py-3 text-xs text-gray-500">
 											{{ __("No sales persons available") }}
@@ -250,7 +250,7 @@
 							<!-- Label with required indicator -->
 							<div class="flex items-center justify-between mb-1.5">
 								<label
-									class="text-xs font-medium text-purple-700 flex items-center gap-1"
+									class="text-xs font-medium text-emerald-700 flex items-center gap-1"
 								>
 									<svg
 										class="w-3.5 h-3.5"
@@ -270,7 +270,7 @@
 									<!-- Refresh: re-fetch sales persons from server -->
 									<button
 										@click.prevent="refreshSalesPersons"
-										class="ms-1 p-0.5 text-purple-500 hover:text-purple-700 rounded hover:bg-purple-100 transition-colors"
+										class="ms-1 p-0.5 text-emerald-500 hover:text-emerald-700 rounded hover:bg-emerald-100 transition-colors"
 										:class="{ 'animate-spin': loadingSalesPersons }"
 										:title="__('Refresh sales persons')"
 										:disabled="loadingSalesPersons"
@@ -292,7 +292,7 @@
 								</label>
 								<span
 									v-if="selectedSalesPersons.length > 0"
-									class="text-[10px] text-purple-600"
+									class="text-[10px] text-emerald-600"
 								>
 									{{ __("Total: {0}%", [Math.round(totalSalesAllocation)]) }}
 								</span>
@@ -312,7 +312,7 @@
 									"
 									@focus="onSalesPersonFocus"
 									@blur="handleSalesPersonBlur"
-									class="w-full px-3 py-2 ps-3 pe-8 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+									class="w-full px-3 py-2 ps-3 pe-8 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
 									:class="
 										!isSalesPersonValid
 											? 'border-red-300'
@@ -320,7 +320,7 @@
 									"
 								/>
 								<svg
-									class="w-4 h-4 text-purple-500 absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
+									class="w-4 h-4 text-emerald-500 absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
 									:class="{ 'rotate-180': salesPersonDropdownOpen }"
 									fill="none"
 									stroke="currentColor"
@@ -339,20 +339,20 @@
 									v-if="
 										salesPersonDropdownOpen && availableSalesPersons.length > 0
 									"
-									class="absolute z-50 mt-1 w-full max-h-40 overflow-y-auto border border-purple-200 rounded-lg bg-white shadow-lg"
+									class="absolute z-50 mt-1 w-full max-h-40 overflow-y-auto border border-emerald-200 rounded-lg bg-white shadow-lg"
 								>
 									<div
 										v-for="person in availableSalesPersons"
 										:key="person.name"
 										@mousedown.prevent="addSalesPerson(person)"
-										class="flex items-center justify-between p-2 hover:bg-purple-50 cursor-pointer border-b border-purple-100 last:border-b-0 text-xs"
+										class="flex items-center justify-between p-2 hover:bg-emerald-50 cursor-pointer border-b border-emerald-100 last:border-b-0 text-xs"
 									>
 										<span class="font-medium text-gray-900">{{
 											person.sales_person_name || person.name
 										}}</span>
 										<span
 											v-if="person.commission_rate"
-											class="text-purple-500 text-[10px]"
+											class="text-emerald-500 text-[10px]"
 										>
 											{{ person.commission_rate }}% {{ __("comm.") }}
 										</span>
@@ -366,7 +366,7 @@
 										availableSalesPersons.length === 0 &&
 										!loadingSalesPersons
 									"
-									class="absolute z-50 mt-1 w-full border border-purple-200 rounded-lg bg-white shadow-lg"
+									class="absolute z-50 mt-1 w-full border border-emerald-200 rounded-lg bg-white shadow-lg"
 								>
 									<div class="text-center py-3 text-xs text-gray-500">
 										{{
@@ -401,17 +401,17 @@
 								<div
 									v-for="person in selectedSalesPersons"
 									:key="person.sales_person"
-									class="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 border border-purple-300 rounded text-xs"
+									class="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 border border-emerald-300 rounded text-xs"
 								>
 									<span class="font-medium text-gray-900 truncate max-w-[120px]">
 										{{ person.sales_person_name || person.sales_person }}
 									</span>
-									<span class="text-purple-600 font-semibold">
+									<span class="text-emerald-600 font-semibold">
 										{{ Math.round(person.allocated_percentage) }}%
 									</span>
 									<button
 										@click="removeSalesPerson(person.sales_person)"
-										class="text-purple-500 hover:text-purple-700"
+										class="text-emerald-500 hover:text-emerald-700"
 									>
 										<svg
 											class="w-3 h-3"
@@ -548,11 +548,11 @@
 								<button
 									type="button"
 									@click="emit('show-coupon')"
-									class="relative flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 hover:border-purple-400 hover:from-purple-100 hover:to-violet-100 hover:shadow-sm transition-all min-w-0 touch-manipulation active:scale-[0.98]"
+									class="relative flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 hover:border-emerald-400 hover:from-emerald-100 hover:to-green-100 hover:shadow-sm transition-all min-w-0 touch-manipulation active:scale-[0.98]"
 									:aria-label="__('Apply coupon or gift card')"
 								>
 									<svg
-										class="w-3.5 h-3.5 text-purple-600 flex-shrink-0"
+										class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0"
 										fill="currentColor"
 										viewBox="0 0 20 20"
 									>
@@ -562,7 +562,7 @@
 											clip-rule="evenodd"
 										/>
 									</svg>
-									<span class="text-[11px] font-bold text-purple-700">{{
+									<span class="text-[11px] font-bold text-emerald-700">{{
 										__("Coupon")
 									}}</span>
 								</button>
@@ -894,13 +894,13 @@
 									]"
 								>
 									<div
-										class="text-xs font-medium text-purple-600 uppercase tracking-wide mb-1"
+										class="text-xs font-medium text-emerald-600 uppercase tracking-wide mb-1"
 									>
 										{{ __("Write Off") }}
 									</div>
 									<div
 										:class="[
-											'font-bold text-purple-600',
+											'font-bold text-emerald-600',
 											dynamicTextSize.amount,
 										]"
 									>

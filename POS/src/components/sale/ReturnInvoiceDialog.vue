@@ -330,7 +330,7 @@
 				<!-- Invoice Details -->
 				<div
 					v-if="originalInvoice"
-					class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-5 border border-blue-100 shadow-sm"
+					class="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 sm:p-5 border border-emerald-100 shadow-sm"
 				>
 					<!-- Mobile Layout -->
 					<div class="sm:hidden flex flex-col gap-3">
@@ -851,7 +851,7 @@
 									<!-- Payment Method -->
 									<div class="flex items-center gap-2 flex-1">
 										<div
-											class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-xl border border-blue-200"
+											class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-50 to-green-100 flex items-center justify-center text-xl border border-emerald-200"
 										>
 											{{
 												payment.mode_of_payment

@@ -412,7 +412,7 @@
 						<Card>
 							<div class="p-5">
 								<div class="flex items-center gap-2 mb-4">
-									<FeatherIcon name="percent" class="w-4 h-4 text-purple-600" />
+									<FeatherIcon name="percent" class="w-4 h-4 text-emerald-600" />
 									<h4 class="text-sm font-semibold text-gray-900">
 										{{ __("Discount Configuration") }}
 									</h4>
@@ -479,7 +479,7 @@
 								</div>
 								<div
 									v-if="!isCreating && couponDetails.discount_type"
-									class="mt-4 p-3 bg-purple-50 rounded-lg"
+									class="mt-4 p-3 bg-emerald-50 rounded-lg"
 								>
 									<p class="text-sm text-gray-700">
 										<strong>{{ __("Current Discount:") }}</strong>

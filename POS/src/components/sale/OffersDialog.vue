@@ -123,7 +123,7 @@
 								</div>
 								<div
 									v-if="offer.offer === 'Give Product'"
-									class="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-semibold"
+									class="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-semibold"
 								>
 									{{ __("+ Free Item") }}
 								</div>

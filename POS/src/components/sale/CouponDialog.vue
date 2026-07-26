@@ -71,7 +71,7 @@
 					<label class="block text-sm font-medium text-gray-700 mb-2 text-start">
 						<div class="flex items-center gap-2">
 							<svg
-								class="w-4 h-4 text-purple-600"
+								class="w-4 h-4 text-emerald-600"
 								fill="currentColor"
 								viewBox="0 0 20 20"
 							>
@@ -90,16 +90,16 @@
 							v-for="card in giftCards"
 							:key="card.coupon_code"
 							@click="applyGiftCard(card)"
-							class="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-purple-400 transition-all"
+							class="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-emerald-400 transition-all"
 						>
 							<div class="flex items-center justify-between">
 								<div class="flex-1">
 									<div class="flex items-center gap-2">
 										<div
-											class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center"
+											class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center"
 										>
 											<svg
-												class="w-4 h-4 text-purple-600"
+												class="w-4 h-4 text-emerald-600"
 												fill="currentColor"
 												viewBox="0 0 20 20"
 											>
@@ -124,7 +124,7 @@
 									</div>
 								</div>
 								<svg
-									class="w-5 h-5 text-purple-600"
+									class="w-5 h-5 text-emerald-600"
 									fill="currentColor"
 									viewBox="0 0 20 20"
 								>
