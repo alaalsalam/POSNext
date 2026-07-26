@@ -12,7 +12,7 @@
 					:class="[
 						'flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-medium whitespace-nowrap transition-[background-color,border-color] duration-75 touch-manipulation snap-start flex-shrink-0',
 						!activeFilterValue
-							? 'bg-blue-50 text-blue-600 border-2 border-blue-500 shadow-sm'
+							? 'bg-gray-900 text-white border-2 border-gray-900 shadow-sm'
 							: 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:bg-gray-100',
 					]"
 				>
@@ -38,7 +38,7 @@
 					:class="[
 						'flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-medium whitespace-nowrap transition-[background-color,border-color] duration-75 touch-manipulation snap-start flex-shrink-0',
 						activeFilterValue === option.value
-							? 'bg-blue-50 text-blue-600 border-2 border-blue-500 shadow-sm'
+							? 'bg-gray-900 text-white border-2 border-gray-900 shadow-sm'
 							: 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:bg-gray-100',
 					]"
 				>
