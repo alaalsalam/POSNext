@@ -46,6 +46,12 @@ Welcome to the POS Next documentation directory. This folder contains comprehens
   - Troubleshooting guide
 
 ### Version Control
+- **[DIGITPOS_SOURCE_OF_TRUTH.md](DIGITPOS_SOURCE_OF_TRUTH.md)** - Canonical Digit POS source and deployment topology
+  - Development and production checkout responsibilities
+  - `posnext` versus `pos_next` naming
+  - Current purchasing, supplier payment, catalog, and reporting baseline
+  - Safe build, migration, verification, and recovery workflow
+
 - **[VERSION_CONTROL.md](VERSION_CONTROL.md)** - Complete guide to the version control system
   - Architecture overview
   - Version types and strategies
@@ -92,6 +98,7 @@ yarn build
 ```
 docs/
 ├── README.md                        # This file
+├── DIGITPOS_SOURCE_OF_TRUTH.md      # Canonical source and deployment workflow
 ├── LOCALIZATION.md                  # Language settings user guide
 ├── OFFERS_AND_PROMOTIONS.md         # Offers and promotions system
 ├── OFFLINE_SYNC.md                  # Offline invoice sync system
