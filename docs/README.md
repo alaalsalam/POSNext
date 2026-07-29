@@ -46,6 +46,11 @@ Welcome to the POS Next documentation directory. This folder contains comprehens
   - Troubleshooting guide
 
 ### Version Control
+- **[UPSTREAM_REVIEW_2026-07-29.md](UPSTREAM_REVIEW_2026-07-29.md)** - Review of official `develop` changes
+  - Adopted correctness fixes
+  - Deferred high-risk pricing changes
+  - Digit-owned upstream synchronization policy
+
 - **[DIGITPOS_SOURCE_OF_TRUTH.md](DIGITPOS_SOURCE_OF_TRUTH.md)** - Canonical Digit POS source and deployment topology
   - Development and production checkout responsibilities
   - `posnext` versus `pos_next` naming
@@ -99,6 +104,7 @@ yarn build
 docs/
 ├── README.md                        # This file
 ├── DIGITPOS_SOURCE_OF_TRUTH.md      # Canonical source and deployment workflow
+├── UPSTREAM_REVIEW_2026-07-29.md    # Official develop review and adoption record
 ├── LOCALIZATION.md                  # Language settings user guide
 ├── OFFERS_AND_PROMOTIONS.md         # Offers and promotions system
 ├── OFFLINE_SYNC.md                  # Offline invoice sync system

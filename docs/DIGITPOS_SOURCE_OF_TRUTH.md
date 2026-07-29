@@ -18,6 +18,11 @@ The development checkout is the only source of new changes. The production check
 must receive changes through Git fast-forward synchronization; never edit application
 source directly in production.
 
+The `github` remote (`alaalsalam/POSNext`) is the Digit-owned repository. The
+`upstream` remote (`BrainWise-DEV/POSNext`) is a read-only reference: inspect and port
+useful fixes from `upstream/develop`, but never replace or wholesale-merge the
+customized `digitpos` branch.
+
 ## `posnext` and `pos_next` Are the Same App
 
 - `posnext` is the Git repository directory name.
