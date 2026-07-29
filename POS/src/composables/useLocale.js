@@ -8,8 +8,8 @@ import { useBootstrapStore } from "../stores/bootstrap";
 const log = logger.create("Locale");
 
 // Reactive locale state (shared across all components)
-const currentLocale = ref("en");
-const currentDir = ref("ltr");
+const currentLocale = ref("ar");
+const currentDir = ref("rtl");
 const allowedLocales = ref(null); // null = not fetched yet, array = fetched from server
 const PREFARED_LANGUAGE_KEY = "pos_next_language";
 const ALLOWED_LOCALES_KEY = "pos_next_allowed_locales";
@@ -42,18 +42,6 @@ export const SUPPORTED_LOCALES = {
 		nativeName: "العربية",
 		countryCode: "sa",
 		dir: "rtl",
-	},
-	id: {
-		name: "Indonesian",
-		nativeName: "Bahasa",
-		countryCode: "id",
-		dir: "ltr",
-	},
-	"pt-br": {
-		name: "Portuguese (Brazil)",
-		nativeName: "Portugues (Brasil)",
-		countryCode: "br",
-		dir: "ltr",
 	},
 };
 
@@ -150,8 +138,8 @@ function detectCachedLanguage() {
 		return browserLang;
 	}
 
-	// 4. Default to English
-	return "en";
+	// 4. Digit POS demo defaults to Arabic; English remains available by choice.
+	return "ar";
 }
 
 /**
