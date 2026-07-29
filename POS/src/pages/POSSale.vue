@@ -148,6 +148,43 @@
 						</svg>
 						<span>{{ __("Return Invoice") }}</span>
 					</button>
+					<hr
+						v-if="canManageCatalog || canManagePurchases || canViewReports"
+						class="my-1 border-gray-100"
+					/>
+					<button
+						v-if="canManageCatalog"
+						data-testid="header-catalog-management-button"
+						@click="handleManagementMenuClick('catalog')"
+						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 flex items-center gap-3 transition-colors"
+					>
+						<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+						</svg>
+						<span>{{ __("Catalog Management") }}</span>
+					</button>
+					<button
+						v-if="canManagePurchases"
+						data-testid="header-purchases-button"
+						@click="handleManagementMenuClick('purchases')"
+						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 flex items-center gap-3 transition-colors"
+					>
+						<svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+						</svg>
+						<span>{{ __("Purchases") }}</span>
+					</button>
+					<button
+						v-if="canViewReports"
+						data-testid="header-reports-button"
+						@click="handleManagementMenuClick('reports')"
+						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 flex items-center gap-3 transition-colors"
+					>
+						<svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V9m6 10V5m6 14v-7m4 7H2" />
+						</svg>
+						<span>{{ __("Reports") }}</span>
+					</button>
 					<button
 						v-if="canAccessShiftActions && canSwitchToDesk"
 						@click="switchToDesk"
@@ -241,6 +278,44 @@
 					ref="containerRef"
 					class="flex-1 flex flex-col lg:flex-row overflow-hidden relative"
 				>
+					<!-- Mobile/Tablet Management Actions -->
+					<div
+						v-if="canManageCatalog || canManagePurchases || canViewReports"
+						class="lg:hidden bg-white border-b border-gray-200 px-2 py-2 flex items-center gap-2 overflow-x-auto shadow-sm"
+						data-testid="mobile-management-actions"
+					>
+						<button
+							v-if="canManageCatalog"
+							@click="handleManagementMenuClick('catalog')"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+							</svg>
+							<span>{{ __("Catalog Management") }}</span>
+						</button>
+						<button
+							v-if="canManagePurchases"
+							@click="handleManagementMenuClick('purchases')"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-100 text-xs font-semibold flex items-center gap-2 active:bg-orange-100"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5" />
+							</svg>
+							<span>{{ __("Purchases") }}</span>
+						</button>
+						<button
+							v-if="canViewReports"
+							@click="handleManagementMenuClick('reports')"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-semibold flex items-center gap-2 active:bg-emerald-100"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V9m6 10V5m6 14v-7m4 7H2" />
+							</svg>
+							<span>{{ __("Reports") }}</span>
+						</button>
+					</div>
+
 					<!-- Mobile Tab Navigation -->
 					<div
 						class="lg:hidden bg-white border-b border-gray-200 flex shadow-sm sticky top-0 z-[100]"
