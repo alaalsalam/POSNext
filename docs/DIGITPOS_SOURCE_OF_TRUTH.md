@@ -22,16 +22,22 @@ source directly in production.
 
 - `posnext` is the Git repository directory name.
 - `pos_next` is the Python package and Frappe app name.
-- `apps/pos_next` is a symlink to the `apps/posnext` checkout.
+- `apps/posnext` is the only application checkout directory in each bench.
+- The former `apps/pos_next` alias symlinks were removed from both benches on
+  2026-07-29 to prevent operators from mistaking them for duplicate repositories.
 - `sites/assets/pos_next` is the Frappe static-assets symlink to
   `apps/posnext/pos_next/public`.
 
-Therefore, `pos_next` is not an older or separate application. The only obsolete copy
-is the preserved archive:
+Therefore, references to `pos_next` in `sites/apps.txt`, Python imports, API routes,
+and asset URLs refer to the app/package name—not to another checkout. The only
+obsolete copy is the preserved archive:
 
 `/home/erpnext/frappe-bench-startd-prod/archives/posnext-20260729`
 
 Do not build, migrate, or copy source from that archive.
+
+On these servers, replace generic documentation paths such as `apps/pos_next/POS`
+with the real checkout path `apps/posnext/POS`.
 
 ## Feature Baseline
 
