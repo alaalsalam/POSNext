@@ -12,6 +12,8 @@ export default {
 			fontFamily: {
 				sans: [
 					"SaudiRiyalSymbol",
+					"IBM Plex Sans Arabic",
+					"Archivo",
 					"-apple-system",
 					"BlinkMacSystemFont",
 					"Almarai",

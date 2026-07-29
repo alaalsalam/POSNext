@@ -1133,7 +1133,19 @@ async function removeItemsByGroups(itemGroups) {
 async function cachePaymentMethodsFromServer(paymentMethods) {
 	try {
 		const db = await initDB();
-		await db.table("payment_methods").bulkPut(paymentMethods);
+		const validPaymentMethods = (paymentMethods || []).filter((method) => {
+			const name = method?.mode_of_payment;
+			return typeof name === "string" && name.trim() && !name.includes("?");
+		});
+		const profiles = [...new Set(validPaymentMethods.map((method) => method.pos_profile).filter(Boolean))];
+		const paymentMethodsTable = db.table("payment_methods");
+
+		await db.transaction("rw", paymentMethodsTable, async () => {
+			for (const profile of profiles) {
+				await paymentMethodsTable.where("pos_profile").equals(profile).delete();
+			}
+			await paymentMethodsTable.bulkPut(validPaymentMethods);
+		});
 
 		// Update settings
 		await db.table("settings").put({
@@ -1141,7 +1153,7 @@ async function cachePaymentMethodsFromServer(paymentMethods) {
 			value: Date.now(),
 		});
 
-		return { success: true, count: paymentMethods.length };
+		return { success: true, count: validPaymentMethods.length };
 	} catch (error) {
 		log.error("Error caching payment methods", error);
 		throw error;
@@ -1154,8 +1166,12 @@ async function getCachedPaymentMethods(posProfile) {
 		const db = await initDB();
 
 		if (!posProfile) {
-			// Return all payment methods if no profile specified
-			return await db.table("payment_methods").toArray();
+			// Return only valid records if no profile is specified.
+			const methods = await db.table("payment_methods").toArray();
+			return methods.filter((method) => {
+				const name = method?.mode_of_payment;
+				return typeof name === "string" && name.trim() && !name.includes("?");
+			});
 		}
 
 		// Get payment methods for specific profile
@@ -1165,7 +1181,10 @@ async function getCachedPaymentMethods(posProfile) {
 			.equals(posProfile)
 			.toArray();
 
-		return methods;
+		return methods.filter((method) => {
+			const name = method?.mode_of_payment;
+			return typeof name === "string" && name.trim() && !name.includes("?");
+		});
 	} catch (error) {
 		log.error("Error getting cached payment methods", error);
 		return [];

@@ -12,13 +12,18 @@ export const shiftState = ref({
 	_receivedAt: 0,
 });
 
+function hasCorruptedProfileName(data) {
+	const profileName = data?.pos_profile?.name;
+	return typeof profileName === "string" && profileName.includes("?");
+}
+
 export function useShift() {
 	// Check for existing open shift
 	const checkOpeningShift = createResource({
 		url: "pos_next.api.shifts.check_opening_shift",
 		auto: false,
 		onSuccess(data) {
-			if (data) {
+			if (data && !hasCorruptedProfileName(data)) {
 				// Compute initial elapsed time using server timestamps
 				// (avoids timezone mismatch between server and browser)
 				let initialElapsedMs = 0;
@@ -65,6 +70,10 @@ export function useShift() {
 			if (cachedData) {
 				try {
 					const data = JSON.parse(cachedData);
+					if (hasCorruptedProfileName(data)) {
+						localStorage.removeItem("pos_shift_data");
+						return;
+					}
 					shiftState.value = {
 						pos_opening_shift: data.pos_opening_shift,
 						pos_profile: data.pos_profile,

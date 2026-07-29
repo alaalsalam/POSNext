@@ -364,24 +364,31 @@ export async function cachePaymentMethodsFromServer(posProfile) {
 			pos_profile: posProfile,
 		});
 		const paymentMethods = result?.message || result || [];
+		const validPaymentMethods = paymentMethods.filter((method) => {
+			const name = method?.mode_of_payment;
+			return typeof name === "string" && name.trim() && !name.includes("?");
+		});
 
-		// Add pos_profile to each method for indexing
-		const methodsWithProfile = paymentMethods.map((method) => ({
+		// The server is authoritative. Replace the profile cache instead of appending
+		// records left over from renamed or malformed payment methods.
+		const methodsWithProfile = validPaymentMethods.map((method) => ({
 			...method,
 			pos_profile: posProfile,
 		}));
 
-		// Store in IndexedDB
-		await db.payment_methods.bulkPut(methodsWithProfile);
+		await db.transaction("rw", db.payment_methods, async () => {
+			await db.payment_methods.where("pos_profile").equals(posProfile).delete();
+			await db.payment_methods.bulkPut(methodsWithProfile);
+		});
 
 		// Update last sync timestamp
 		const timestamp = Date.now();
 		await setSetting("payment_methods_last_sync", timestamp);
 		memory.payment_methods_last_sync = timestamp;
 
-		console.log(`Cached ${paymentMethods.length} payment methods for ${posProfile}`);
+		console.log(`Cached ${validPaymentMethods.length} payment methods for ${posProfile}`);
 
-		return { payment_methods: paymentMethods };
+		return { payment_methods: validPaymentMethods };
 	} catch (error) {
 		console.error("Error caching payment methods:", error);
 		throw error;
@@ -397,7 +404,10 @@ export async function getCachedPaymentMethods(posProfile) {
 	try {
 		const methods = await db.payment_methods.where("pos_profile").equals(posProfile).toArray();
 
-		return methods;
+		return methods.filter((method) => {
+			const name = method?.mode_of_payment;
+			return typeof name === "string" && name.trim() && !name.includes("?");
+		});
 	} catch (error) {
 		console.error("Error getting cached payment methods:", error);
 		return [];

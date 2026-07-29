@@ -1,0 +1,124 @@
+<template>
+  <div class="flex flex-col h-full bg-gray-50" dir="rtl">
+    <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <button @click="$emit('back')" class="w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100">→</button>
+        <div>
+          <h2 class="text-base font-bold text-gray-900">{{ __("دفعات الموردين") }}</h2>
+          <p class="text-xs text-gray-500">{{ __("سجل الدفعات النقدية والبنكية") }}</p>
+        </div>
+      </div>
+      <button @click="$emit('close')" class="w-8 h-8 rounded-lg text-gray-400 hover:bg-gray-100">×</button>
+    </div>
+
+    <div class="bg-white border-b border-gray-100 px-4 py-2.5 flex gap-2 flex-wrap">
+      <input v-model="supplier" :placeholder="__('رمز المورد')" class="h-9 px-3 text-xs border rounded-lg flex-1 min-w-36" />
+      <input v-model="fromDate" type="date" class="h-9 px-2 text-xs border rounded-lg" />
+      <input v-model="toDate" type="date" class="h-9 px-2 text-xs border rounded-lg" />
+      <button @click="load" class="h-9 px-4 rounded-lg bg-orange-600 text-white text-xs font-semibold">{{ __("تطبيق") }}</button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-3">
+      <div v-if="loading" class="py-12 text-center text-sm text-gray-500">{{ __("جاري التحميل...") }}</div>
+      <div v-else-if="!payments.length" class="py-16 text-center text-sm text-gray-400">{{ __("لا توجد دفعات موردين") }}</div>
+      <div v-else class="space-y-2">
+        <div v-for="payment in payments" :key="payment.name" class="bg-white border border-gray-100 rounded-xl p-3">
+          <div class="flex justify-between gap-3">
+            <div>
+              <div class="flex gap-2 items-center">
+                <a :href="`/app/payment-entry/${payment.name}`" target="_blank" class="text-xs font-bold text-orange-700 hover:underline">{{ payment.name }}</a>
+                <span :class="statusClass(payment)" class="text-[10px] px-2 py-0.5 rounded-full font-bold">{{ statusLabel(payment) }}</span>
+              </div>
+              <p class="text-sm font-semibold text-gray-800 mt-1">{{ payment.party_name || payment.party }}</p>
+              <p class="text-xs text-gray-400">{{ formatDate(payment.posting_date) }} · {{ payment.mode_of_payment || __("غير محدد") }}</p>
+              <p v-if="payment.reference_no" class="text-[11px] text-gray-400">{{ __("المرجع: {0}", [payment.reference_no]) }}</p>
+              <div class="flex gap-2 mt-2">
+                <button
+                  v-if="payment.docstatus === 0 && canSubmit"
+                  @click="changeStatus(payment, 'submit')"
+                  :disabled="actionName === payment.name"
+                  class="px-3 py-1 text-[11px] font-semibold rounded-lg bg-green-600 text-white disabled:opacity-50"
+                >
+                  {{ __("اعتماد") }}
+                </button>
+                <button
+                  v-if="payment.docstatus === 1 && canCancel"
+                  @click="changeStatus(payment, 'cancel')"
+                  :disabled="actionName === payment.name"
+                  class="px-3 py-1 text-[11px] font-semibold rounded-lg bg-red-50 text-red-700 disabled:opacity-50"
+                >
+                  {{ __("إلغاء الدفعة") }}
+                </button>
+              </div>
+            </div>
+            <p class="text-sm font-bold text-gray-900">{{ formatAmount(payment.paid_amount) }} {{ payment.paid_from_account_currency }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from "vue";
+
+const props = defineProps({
+  canSubmit: { type: Boolean, default: false },
+  canCancel: { type: Boolean, default: false },
+});
+defineEmits(["back", "close"]);
+const payments = ref([]);
+const loading = ref(false);
+const supplier = ref("");
+const fromDate = ref("");
+const toDate = ref("");
+const actionName = ref("");
+
+async function load() {
+  loading.value = true;
+  try {
+    const response = await frappe.call({
+      method: "pos_next.api.purchases.get_supplier_payments",
+      args: {
+        supplier: supplier.value || null,
+        from_date: fromDate.value || null,
+        to_date: toDate.value || null,
+      },
+    });
+    payments.value = response?.message?.payments || [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function changeStatus(payment, action) {
+  if (action === "cancel" && !window.confirm(__("هل تريد إلغاء هذه الدفعة؟"))) return;
+  actionName.value = payment.name;
+  try {
+    await frappe.call({
+      method: action === "submit"
+        ? "pos_next.api.purchases.submit_supplier_payment"
+        : "pos_next.api.purchases.cancel_supplier_payment",
+      args: { name: payment.name },
+    });
+    await load();
+  } finally {
+    actionName.value = "";
+  }
+}
+
+function statusLabel(row) {
+  return row.docstatus === 1 ? __("معتمدة") : row.docstatus === 2 ? __("ملغاة") : __("مسودة");
+}
+function statusClass(row) {
+  return row.docstatus === 1 ? "bg-green-100 text-green-700" : row.docstatus === 2 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600";
+}
+function formatDate(value) {
+  return value ? new Date(value).toLocaleDateString("ar-SA") : "";
+}
+function formatAmount(value) {
+  return Number(value || 0).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+onMounted(load);
+</script>

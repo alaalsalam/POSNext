@@ -75,6 +75,12 @@ export default defineConfig({
 			workbox: {
 				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
 				maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 3 MB
+				// A new build's service worker must take over immediately, otherwise it
+				// sits "waiting" forever in a preview tab that never closes and the app
+				// keeps serving the stale (pre-branding) bundle.
+				skipWaiting: true,
+				clientsClaim: true,
+				cleanupOutdatedCaches: true,
 				navigateFallback: null,
 				navigateFallbackDenylist: [/^\/api/, /^\/app/],
 				runtimeCaching: [
@@ -108,7 +114,7 @@ export default defineConfig({
 					},
 					{
 						urlPattern: /\/assets\/pos_next\/pos\/.*/i,
-						handler: "CacheFirst",
+						handler: "StaleWhileRevalidate",
 						options: {
 							cacheName: "pos-assets-cache",
 							expiration: {

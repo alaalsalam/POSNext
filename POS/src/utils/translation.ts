@@ -137,7 +137,8 @@ const getLocale = (): string => {
  */
 async function init() {
   const locale = getLocale()
-  const loaded = await loadLocale(locale, { preferCache: true })
+  // Apply cached messages immediately, then refresh online so new UI keys appear after a deploy.
+  const loaded = await loadLocale(locale, { preferCache: true, forceNetwork: true })
   if (!loaded) fallbackFetch(locale)
 }
 

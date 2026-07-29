@@ -2,320 +2,329 @@
 	<Dialog
 		v-model="show"
 		:options="{
-			title: isEditMode ? __('Edit Customer') : __('Create New Customer'),
-			size: 'md',
+			title: isEditMode ? __('Edit Customer') : __('New Customer'),
+			size: 'lg',
 		}"
 	>
 		<template #body-content>
-			<div class="flex flex-col gap-6">
-				<!-- Customer Name (Required) -->
-				<div>
-					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
-						{{ __("Customer Name") }} <span class="text-red-500">*</span>
-					</label>
-					<Input
-						v-model="customerData.customer_name"
-						type="text"
-						:placeholder="__('Enter customer name')"
-						required
-					/>
+			<div class="flex flex-col gap-0">
+
+				<!-- ── Type Toggle ── -->
+				<div class="flex gap-2 mb-5">
+					<button
+						v-for="t in customerTypes"
+						:key="t.value"
+						type="button"
+						@click="customerData.customer_type = t.value"
+						class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium border transition-all"
+						:class="customerData.customer_type === t.value
+							? 'bg-gray-900 text-white border-gray-900 shadow-sm'
+							: 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'"
+					>
+						<component :is="t.icon" class="w-4 h-4" />
+						{{ __(t.label) }}
+					</button>
 				</div>
 
-				<!-- Mobile Number with Country Code Selector -->
-				<div>
-					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
-						{{ __("Mobile Number") }}
-					</label>
-					<div class="flex gap-2">
-						<!-- Country Code Dropdown -->
-						<div class="relative" ref="dropdownRef">
-							<button
-								type="button"
-								@click="showCountryDropdown = !showCountryDropdown"
-								class="flex items-center gap-1 w-24 ps-2 pe-1 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white hover:bg-gray-50"
-							>
-								<img
-									:src="`https://flagcdn.com/h24/${currentCountryCode}.png`"
-									:alt="currentCountryCode"
-									class="w-6 h-auto rounded-sm"
-									@error="handleFlagError"
-								/>
-								<span class="flex-1 text-start">{{
-									selectedCountryCode || "+20"
-								}}</span>
-								<svg
-									class="w-4 h-4 text-gray-400"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M19 9l-7 7-7-7"
-									/>
-								</svg>
-							</button>
+				<!-- ── Section: Basic Info ── -->
+				<SectionLabel :label="__('Basic Info')" icon="user" />
+				<div class="grid grid-cols-2 gap-3 mb-4">
 
-							<!-- Country Search Dropdown -->
-							<div
-								v-if="showCountryDropdown"
-								class="absolute start-0 z-50 mt-1 w-80 max-h-80 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden"
-							>
-								<div class="sticky top-0 bg-white border-b border-gray-200 p-2">
-									<input
-										ref="countrySearchRef"
-										v-model="countrySearchQuery"
-										type="text"
-										:placeholder="__('Search country or code...')"
-										class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-										@keydown.escape="showCountryDropdown = false"
+					<!-- Customer Name -->
+					<div class="col-span-2">
+						<FieldLabel :label="__('Customer Name')" required />
+						<Input
+							v-model="customerData.customer_name"
+							type="text"
+							:placeholder="customerData.customer_type === 'Company' ? __('Company / Store name') : __('Full name')"
+						/>
+					</div>
+
+					<!-- Mobile -->
+					<div class="col-span-2">
+						<FieldLabel :label="__('Mobile Number')" />
+						<div class="flex gap-2">
+							<!-- Country Code -->
+							<div class="relative" ref="dropdownRef">
+								<button
+									type="button"
+									@click="showCountryDropdown = !showCountryDropdown"
+									class="flex items-center gap-1 w-24 ps-2 pe-1 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white hover:bg-gray-50"
+								>
+									<img
+										:src="`https://flagcdn.com/h24/${currentCountryCode}.png`"
+										:alt="currentCountryCode"
+										class="w-6 h-auto rounded-sm"
+										@error="handleFlagError"
 									/>
-								</div>
-								<div class="overflow-y-auto max-h-64">
-									<button
-										v-for="country in filteredCountries"
-										:key="country.code"
-										type="button"
-										@click="selectCountry(country)"
-										class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors text-start"
-										:class="{
-											'bg-blue-50': selectedCountryCode === country.isd,
-										}"
-									>
-										<img
-											:src="`https://flagcdn.com/h24/${country.code.toLowerCase()}.png`"
-											:alt="country.name"
-											class="w-6 h-auto rounded-sm shadow-sm"
-											@error="(e) => (e.target.style.display = 'none')"
+									<span class="flex-1 text-start text-xs">{{ selectedCountryCode || "+966" }}</span>
+									<ChevronDownIcon class="w-3 h-3 text-gray-400" />
+								</button>
+
+								<!-- Dropdown -->
+								<div
+									v-if="showCountryDropdown"
+									class="absolute start-0 z-50 mt-1 w-80 max-h-80 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden"
+								>
+									<div class="sticky top-0 bg-white border-b border-gray-200 p-2">
+										<input
+											ref="countrySearchRef"
+											v-model="countrySearchQuery"
+											type="text"
+											:placeholder="__('Search country...')"
+											class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+											@keydown.escape="showCountryDropdown = false"
 										/>
-										<span class="flex-1 text-sm font-medium text-gray-700">{{
-											country.name
-										}}</span>
-										<span class="text-sm text-gray-500">{{
-											country.isd
-										}}</span>
-									</button>
-									<div
-										v-if="filteredCountries.length === 0"
-										class="px-4 py-8 text-center text-sm text-gray-500"
-									>
-										{{ __("No countries found") }}
+									</div>
+									<div class="overflow-y-auto max-h-64">
+										<button
+											v-for="country in filteredCountries"
+											:key="country.code"
+											type="button"
+											@click="selectCountry(country)"
+											class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors text-start"
+											:class="{ 'bg-gray-50': selectedCountryCode === country.isd }"
+										>
+											<img
+												:src="`https://flagcdn.com/h24/${country.code.toLowerCase()}.png`"
+												:alt="country.name"
+												class="w-6 h-auto rounded-sm shadow-sm"
+												@error="(e) => (e.target.style.display = 'none')"
+											/>
+											<span class="flex-1 text-sm font-medium text-gray-700">{{ country.name }}</span>
+											<span class="text-sm text-gray-400">{{ country.isd }}</span>
+										</button>
+										<div v-if="filteredCountries.length === 0" class="px-4 py-8 text-center text-sm text-gray-500">
+											{{ __("No countries found") }}
+										</div>
 									</div>
 								</div>
 							</div>
-						</div>
 
-						<!-- Phone Number Input -->
-						<input
-							v-model="phoneNumber"
-							type="tel"
-							:placeholder="__('Enter phone number')"
-							class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-start"
-							@input="updateMobileNumber"
-						/>
+							<input
+								v-model="phoneNumber"
+								type="tel"
+								:placeholder="__('5xxxxxxxx')"
+								class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+								@input="updateMobileNumber"
+							/>
+						</div>
 					</div>
 				</div>
 
-				<!-- Email -->
-				<div>
-					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
-						{{ __("Email") }}
-					</label>
-					<Input
-						v-model="customerData.email_id"
-						type="email"
-						:placeholder="__('Enter email address')"
-					/>
-				</div>
+				<!-- ── Section: Tax & Legal (Company only) ── -->
+				<template v-if="customerData.customer_type === 'Company'">
+					<SectionLabel :label="__('Tax & Legal')" icon="shield" />
+					<div class="grid grid-cols-2 gap-3 mb-4">
 
-				<!-- Customer Group -->
-				<div>
-					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
-						{{ __("Customer Group") }}
-					</label>
-					<select
-						v-model="customerData.customer_group"
-						class="w-full px-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-					>
-						<option value="">{{ __("Select Customer Group") }}</option>
-						<option v-for="group in customerGroups" :key="group" :value="group">
-							{{ group }}
-						</option>
-					</select>
-				</div>
+						<!-- VAT Number -->
+						<div>
+							<FieldLabel :label="__('VAT Number (الرقم الضريبي)')" />
+							<input
+								v-model="customerData.tax_id"
+								type="text"
+								maxlength="15"
+								:placeholder="__('300xxxxxxxxxx003')"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono"
+								dir="ltr"
+							/>
+						</div>
 
-				<!-- Territory -->
-				<div>
-					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
-						{{ __("Territory") }}
-					</label>
-					<select
-						v-model="customerData.territory"
-						class="w-full px-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-					>
-						<option value="">{{ __("Select Territory") }}</option>
-						<option
-							v-for="territory in territories"
-							:key="territory"
-							:value="territory"
+						<!-- CR Number -->
+						<div>
+							<FieldLabel :label="__('CR No. (السجل التجاري)')" />
+							<input
+								v-model="customerData.custom_commercial_registration"
+								type="text"
+								:placeholder="__('1010xxxxxx')"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono"
+								dir="ltr"
+							/>
+						</div>
+					</div>
+				</template>
+
+				<!-- ── Section: Address ── -->
+				<SectionLabel :label="__('Address')" icon="map-pin" />
+				<div class="grid grid-cols-2 gap-3 mb-4">
+
+					<!-- Governorate -->
+					<div>
+						<FieldLabel :label="__('City / Governorate')" />
+						<select
+							v-model="customerData.custom_governorate"
+							class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
 						>
-							{{ territory }}
-						</option>
-					</select>
-				</div>
+							<option value="">{{ __("Select city") }}</option>
+							<option v-for="g in governorates" :key="g" :value="g">{{ g }}</option>
+						</select>
+					</div>
 
-				<!-- Governorate -->
-				<div>
-					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
-						{{ __("Governorate") }}
-					</label>
-					<select
-						v-model="customerData.custom_governorate"
-						class="w-full px-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-					>
-						<option value="">{{ __("Select Governorate") }}</option>
-						<option v-for="gov in governorates" :key="gov" :value="gov">
-							{{ gov }}
-						</option>
-					</select>
-				</div>
-
-				<!-- District (filtered by selected Governorate) -->
-				<div>
-					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
-						{{ __("District") }}
-					</label>
-					<select
-						v-model="customerData.custom_district"
-						:disabled="!customerData.custom_governorate"
-						class="w-full px-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-					>
-						<option value="">
-							{{
-								customerData.custom_governorate
-									? __("Select District")
-									: __("Select a governorate first")
-							}}
-						</option>
-						<option
-							v-for="district in districts"
-							:key="district.name"
-							:value="district.name"
+					<!-- District -->
+					<div>
+						<FieldLabel :label="__('District / Neighbourhood')" />
+						<select
+							v-model="customerData.custom_district"
+							:disabled="!customerData.custom_governorate || districts.length === 0"
+							class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white disabled:bg-gray-50 disabled:text-gray-400"
 						>
-							{{ district.district }}
-						</option>
-					</select>
+							<option value="">{{ customerData.custom_governorate ? __("Select district") : __("Select city first") }}</option>
+							<option v-for="d in districts" :key="d.name" :value="d.name">{{ d.district }}</option>
+						</select>
+					</div>
+
+					<!-- Customer Group -->
+					<div>
+						<FieldLabel :label="__('Customer Group')" />
+						<select
+							v-model="customerData.customer_group"
+							class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+						>
+							<option value="">{{ __("Select group") }}</option>
+							<option v-for="g in customerGroups" :key="g" :value="g">{{ g }}</option>
+						</select>
+					</div>
+
+					<!-- Territory -->
+					<div>
+						<FieldLabel :label="__('Territory')" />
+						<select
+							v-model="customerData.territory"
+							class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+						>
+							<option value="">{{ __("Select territory") }}</option>
+							<option v-for="t in territories" :key="t" :value="t">{{ t }}</option>
+						</select>
+					</div>
 				</div>
+
+				<!-- ── Referral (new only) ── -->
+				<template v-if="!isEditMode">
+					<SectionLabel :label="__('Referral')" icon="gift" optional />
+					<div class="mb-1">
+						<FieldLabel :label="__('Referral Code')" />
+						<Input
+							v-model="referralCode"
+							type="text"
+							:placeholder="__('Enter referral code (optional)')"
+						/>
+						<p class="text-xs text-gray-400 mt-1">{{ __("Coupons are generated for both parties on valid referral") }}</p>
+					</div>
+				</template>
+
+				<!-- ── Permission Warning ── -->
+				<div
+					v-if="!hasPermission"
+					class="mt-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2"
+				>
+					<ExclamationTriangleIcon class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+					<div>
+						<p class="text-sm font-medium text-amber-900">{{ __("Permission Required") }}</p>
+						<p class="text-xs text-amber-700 mt-0.5">{{ __("Contact your administrator to create customers.") }}</p>
+					</div>
+				</div>
+
 			</div>
 		</template>
 
 		<template #actions>
-			<div class="flex flex-col gap-2">
-				<!-- Permission Warning -->
-				<div
-					v-if="!hasPermission"
-					class="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg"
+			<div class="flex gap-2">
+				<Button
+					variant="solid"
+					@click="handleCreate"
+					:loading="createCustomerResource.loading || updateCustomerResource.loading || checkingPermission"
+					:disabled="!customerData.customer_name || !hasPermission"
 				>
-					<div class="flex items-start gap-2">
-						<svg
-							class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
-							fill="currentColor"
-							viewBox="0 0 20 20"
-						>
-							<path
-								fill-rule="evenodd"
-								d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-						<div class="flex-1">
-							<p class="text-sm font-medium text-amber-900">
-								{{ __("Permission Required") }}
-							</p>
-							<p class="text-xs text-amber-700 mt-0.5">
-								{{
-									__(
-										"You don't have permission to create customers. Contact your administrator."
-									)
-								}}
-							</p>
-						</div>
-					</div>
-				</div>
-
-				<div class="flex gap-2">
-					<Button
-						variant="solid"
-						@click="handleCreate"
-						:loading="
-							createCustomerResource.loading ||
-							updateCustomerResource.loading ||
-							checkingPermission
-						"
-						:disabled="!customerData.customer_name || !hasPermission"
-					>
-						{{ isEditMode ? __("Save Changes") : __("Create Customer") }}
-					</Button>
-					<Button variant="subtle" @click="show = false">
-						{{ __("Cancel") }}
-					</Button>
-				</div>
+					{{ isEditMode ? __("Save Changes") : __("Create Customer") }}
+				</Button>
+				<Button variant="subtle" @click="show = false">{{ __("Cancel") }}</Button>
 			</div>
 		</template>
 	</Dialog>
 </template>
 
 <script setup>
-/**
- * CreateCustomerDialog - Quick customer creation from POS
- *
- * Features:
- * - Country code selector with flag icons and search
- * - Auto-sets territory based on selected country
- * - Permission checking before allowing creation
- * - Lazy loads countries data when dialog opens (not on app startup)
- */
-
 import { usePOSPermissions } from "@/composables/usePermissions";
 import { useToast } from "@/composables/useToast";
 import { useCountriesStore } from "@/stores/countries";
 import { logger } from "@/utils/logger";
-import { Button, Dialog, Input, createResource } from "frappe-ui";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Button, Dialog, Input, call, createResource } from "frappe-ui";
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 const log = logger.create("CreateCustomerDialog");
 
-// =============================================================================
-// Composables & Stores
-// =============================================================================
+// ── Mini components ────────────────────────────────────────────────────────
+const SectionLabel = defineComponent({
+	props: { label: String, icon: String, optional: Boolean },
+	setup(props) {
+		return () => h("div", {
+			class: "flex items-center gap-2 mb-2 mt-1"
+		}, [
+			h("span", { class: "text-xs font-semibold text-gray-500 uppercase tracking-wide" }, props.label),
+			props.optional ? h("span", { class: "text-xs text-gray-300" }, `(${__("optional")})`) : null,
+			h("div", { class: "flex-1 h-px bg-gray-100" }),
+		]);
+	},
+});
 
+const FieldLabel = defineComponent({
+	props: { label: String, required: Boolean },
+	setup(props) {
+		return () => h("label", {
+			class: "block text-xs font-medium text-gray-600 mb-1.5"
+		}, [
+			props.label,
+			props.required ? h("span", { class: "text-red-500 ms-0.5" }, " *") : null,
+		]);
+	},
+});
+
+// Heroicon stubs (inline SVG)
+const ChevronDownIcon = defineComponent({
+	setup: () => () => h("svg", { viewBox: "0 0 20 20", fill: "currentColor", class: "w-4 h-4" }, [
+		h("path", { "fill-rule": "evenodd", d: "M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z", "clip-rule": "evenodd" }),
+	]),
+});
+const ExclamationTriangleIcon = defineComponent({
+	setup: () => () => h("svg", { viewBox: "0 0 20 20", fill: "currentColor", class: "w-5 h-5" }, [
+		h("path", { "fill-rule": "evenodd", d: "M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z", "clip-rule": "evenodd" }),
+	]),
+});
+
+// ── Customer type toggle ────────────────────────────────────────────────────
+const customerTypes = [
+	{
+		value: "Individual",
+		label: "Individual",
+		icon: defineComponent({ setup: () => () => h("svg", { viewBox: "0 0 20 20", fill: "currentColor", class: "w-4 h-4" }, [h("path", { "fill-rule": "evenodd", d: "M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z", "clip-rule": "evenodd" })]) }),
+	},
+	{
+		value: "Company",
+		label: "Company / Business",
+		icon: defineComponent({ setup: () => () => h("svg", { viewBox: "0 0 20 20", fill: "currentColor", class: "w-4 h-4" }, [h("path", { "fill-rule": "evenodd", d: "M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z", "clip-rule": "evenodd" })]) }),
+	},
+];
+
+// ── Stores & composables ────────────────────────────────────────────────────
 const countriesStore = useCountriesStore();
 const { canCreateCustomer } = usePOSPermissions();
 const { showSuccess, showError } = useToast();
 
-// =============================================================================
-// Props & Emits
-// =============================================================================
-
+// ── Props & emits ───────────────────────────────────────────────────────────
 const props = defineProps({
 	modelValue: Boolean,
 	posProfile: String,
 	initialName: String,
-	customer: Object, // Customer object for edit mode
+	customer: Object,
 });
-
 const emit = defineEmits(["update:modelValue", "customer-created", "customer-updated"]);
 
-// =============================================================================
-// State
-// =============================================================================
-
+// ── State ───────────────────────────────────────────────────────────────────
 const hasPermission = ref(true);
 const checkingPermission = ref(false);
-const selectedCountryCode = ref("");
+const selectedCountryCode = ref("+966");
 const phoneNumber = ref("");
+const referralCode = ref("");
 const showCountryDropdown = ref(false);
 const countrySearchQuery = ref("");
 const dropdownRef = ref(null);
@@ -328,135 +337,92 @@ const districts = ref([]);
 
 const customerData = ref({
 	customer_name: "",
+	customer_type: "Individual",
 	mobile_no: "",
-	email_id: "",
 	customer_group: "",
 	territory: "",
+	tax_id: "",
+	custom_commercial_registration: "",
 	custom_governorate: "",
 	custom_district: "",
 });
 
-// =============================================================================
-// Computed
-// =============================================================================
-
+// ── Computed ────────────────────────────────────────────────────────────────
 const show = computed({
 	get: () => props.modelValue,
 	set: (val) => emit("update:modelValue", val),
 });
-
 const isEditMode = computed(() => !!props.customer?.name);
-
 const currentCountryCode = computed(() => {
-	const country = countriesStore.countries.find((c) => c.isd === selectedCountryCode.value);
-	return country?.code.toLowerCase() || "eg";
+	const c = countriesStore.countries.find((c) => c.isd === selectedCountryCode.value);
+	return c?.code.toLowerCase() || "sa";
 });
-
 const filteredCountries = computed(() => {
 	if (!countrySearchQuery.value) return countriesStore.countries;
-
-	const query = countrySearchQuery.value.toLowerCase();
+	const q = countrySearchQuery.value.toLowerCase();
 	return countriesStore.countries.filter(
-		(c) =>
-			c.name.toLowerCase().includes(query) ||
-			c.isd.includes(query) ||
-			c.code.toLowerCase().includes(query)
+		(c) => c.name.toLowerCase().includes(q) || c.isd.includes(q) || c.code.toLowerCase().includes(q)
 	);
 });
 
-// =============================================================================
-// Country & Territory Methods
-// =============================================================================
-
+// ── Country / mobile helpers ────────────────────────────────────────────────
 const handleFlagError = (e) => (e.target.style.display = "none");
-
 const selectCountry = (country) => {
 	selectedCountryCode.value = country.isd;
 	showCountryDropdown.value = false;
 	countrySearchQuery.value = "";
 	updateMobileNumber();
 };
-
 const updateMobileNumber = () => {
 	customerData.value.mobile_no = phoneNumber.value
 		? `${selectedCountryCode.value}-${phoneNumber.value}`
 		: "";
 };
-
-const handleClickOutside = (event) => {
-	if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {
+const handleClickOutside = (e) => {
+	if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
 		showCountryDropdown.value = false;
-		countrySearchQuery.value = "";
 	}
 };
-
 const setCountryFromName = (countryName) => {
-	if (!countryName) {
-		selectedCountryCode.value = "+20";
-		return;
-	}
-
+	if (!countryName) { selectedCountryCode.value = "+966"; return; }
 	const isd = countriesStore.countryNameToISDMap[countryName];
-	if (isd) {
-		selectedCountryCode.value = isd;
-		log.info(`Set country code to ${isd} for ${countryName}`);
-	} else {
-		log.warn(`Country "${countryName}" not found`);
-		selectedCountryCode.value = "+20";
-	}
+	selectedCountryCode.value = isd || "+966";
 };
-
-/** Auto-set territory based on selected country (exact or fuzzy match) */
 const updateTerritoryFromCountry = () => {
 	if (!territories.value.length) return;
-
 	const country = countriesStore.countries.find((c) => c.isd === selectedCountryCode.value);
 	if (!country) return;
-
-	// Try exact match first
-	if (territories.value.includes(country.name)) {
-		customerData.value.territory = country.name;
-		log.info(`Territory set to: ${country.name}`);
-		return;
-	}
-
-	// Try fuzzy match
-	const fuzzyMatch = territories.value.find(
-		(t) =>
-			t.toLowerCase().includes(country.name.toLowerCase()) ||
-			country.name.toLowerCase().includes(t.toLowerCase())
+	const exact = territories.value.find((t) => t === country.name);
+	if (exact) { customerData.value.territory = exact; return; }
+	const fuzzy = territories.value.find(
+		(t) => t.toLowerCase().includes(country.name.toLowerCase()) || country.name.toLowerCase().includes(t.toLowerCase())
 	);
-
-	if (fuzzyMatch) {
-		customerData.value.territory = fuzzyMatch;
-		log.info(`Territory set to fuzzy match: ${fuzzyMatch}`);
-	}
+	if (fuzzy) customerData.value.territory = fuzzy;
 };
 
-// =============================================================================
-// API Resources
-// =============================================================================
-
+// ── Resources ───────────────────────────────────────────────────────────────
 const createCustomerResource = createResource({
 	url: "pos_next.api.customers.create_customer",
 	makeParams: () => ({
 		customer_name: customerData.value.customer_name,
 		mobile_no: customerData.value.mobile_no || "",
-		email_id: customerData.value.email_id || "",
+		customer_type: customerData.value.customer_type,
 		customer_group: customerData.value.customer_group || "",
 		territory: customerData.value.territory || "",
+		tax_id: customerData.value.tax_id || "",
+		custom_commercial_registration: customerData.value.custom_commercial_registration || "",
 		custom_governorate: customerData.value.custom_governorate || "",
 		custom_district: customerData.value.custom_district || "",
 		pos_profile: props.posProfile,
 	}),
 	onSuccess: (data) => {
-		showSuccess(__("Customer {0} created successfully", [data.customer_name]));
+		showSuccess(__("Customer {0} created", [data.customer_name]));
 		emit("customer-created", data);
 		show.value = false;
 	},
-	onError: (error) => {
-		log.error("Error creating customer", error);
-		showError(error.message || __("Failed to create customer"));
+	onError: (err) => {
+		log.error("Error creating customer", err);
+		showError(err.message || __("Failed to create customer"));
 	},
 });
 
@@ -467,31 +433,30 @@ const updateCustomerResource = createResource({
 		name: props.customer?.name,
 		fieldname: {
 			customer_name: customerData.value.customer_name,
+			customer_type: customerData.value.customer_type,
 			customer_group: customerData.value.customer_group || "",
 			territory: customerData.value.territory || "",
 			mobile_no: customerData.value.mobile_no || "",
-			email_id: customerData.value.email_id || "",
+			tax_id: customerData.value.tax_id || "",
+			custom_commercial_registration: customerData.value.custom_commercial_registration || "",
 			custom_governorate: customerData.value.custom_governorate || "",
 			custom_district: customerData.value.custom_district || "",
 		},
 	}),
 	onSuccess: (data) => {
-		showSuccess(__("Customer {0} updated successfully", [data.customer_name]));
+		showSuccess(__("Customer {0} updated", [data.customer_name]));
 		emit("customer-updated", data);
 		show.value = false;
 	},
-	onError: (error) => {
-		log.error("Error updating customer", error);
-		showError(error.message || __("Failed to update customer"));
+	onError: (err) => {
+		log.error("Error updating customer", err);
+		showError(err.message || __("Failed to update customer"));
 	},
 });
 
 const sellingSettingsResource = createResource({
 	url: "frappe.client.get_value",
-	makeParams: () => ({
-		doctype: "Selling Settings",
-		fieldname: ["customer_group", "territory"],
-	}),
+	makeParams: () => ({ doctype: "Selling Settings", fieldname: ["customer_group", "territory"] }),
 	auto: false,
 	onError: (err) => log.error("Error loading Selling Settings", err),
 });
@@ -502,7 +467,6 @@ function pickDefault(settingsValue, list, fallbackFn = null) {
 	return list[0] || "";
 }
 
-/** Helper to create list fetch resources */
 const createListResource = (doctype, onSuccess) =>
 	createResource({
 		url: "frappe.client.get_list",
@@ -519,39 +483,21 @@ const createListResource = (doctype, onSuccess) =>
 
 const customerGroupsResource = createListResource("Customer Group", (names) => {
 	customerGroups.value = names;
-	if (!customerData.value.customer_group && names.length > 0) {
-		const settingsDefault = sellingSettingsResource.data?.customer_group;
-		customerData.value.customer_group = pickDefault(settingsDefault, names);
+	if (!customerData.value.customer_group && names.length) {
+		customerData.value.customer_group = pickDefault(sellingSettingsResource.data?.customer_group, names);
 	}
 });
-
 const territoriesResource = createListResource("Territory", (names) => {
 	territories.value = names;
-	if (!customerData.value.territory && names.length > 0) {
-		const settingsDefault = sellingSettingsResource.data?.territory;
-		customerData.value.territory = pickDefault(settingsDefault, names, (list) =>
-			list.find((n) => n === "All Territories")
+	if (!customerData.value.territory && names.length) {
+		customerData.value.territory = pickDefault(
+			sellingSettingsResource.data?.territory, names,
+			(list) => list.find((n) => n === "All Territories")
 		);
 	}
 });
-
 const governoratesResource = createListResource("Governorate", (names) => {
 	governorates.value = names;
-});
-
-const customerLocationResource = createResource({
-	url: "frappe.client.get_value",
-	makeParams: () => ({
-		doctype: "Customer",
-		filters: { name: props.customer?.name },
-		fieldname: ["custom_governorate", "custom_district"],
-	}),
-	auto: false,
-	onSuccess: (data) => {
-		customerData.value.custom_governorate = data?.custom_governorate || "";
-		customerData.value.custom_district = data?.custom_district || "";
-	},
-	onError: (err) => log.error("Error loading customer location", err),
 });
 
 const districtsResource = createResource({
@@ -566,11 +512,7 @@ const districtsResource = createResource({
 	auto: false,
 	onSuccess: (data) => {
 		districts.value = data || [];
-		// Drop the selected district if it no longer belongs to the governorate
-		if (
-			customerData.value.custom_district &&
-			!districts.value.some((d) => d.name === customerData.value.custom_district)
-		) {
+		if (customerData.value.custom_district && !districts.value.some((d) => d.name === customerData.value.custom_district)) {
 			customerData.value.custom_district = "";
 		}
 	},
@@ -579,149 +521,99 @@ const districtsResource = createResource({
 
 const posProfileResource = createResource({
 	url: "frappe.client.get_value",
-	makeParams: () => ({
-		doctype: "POS Profile",
-		filters: { name: props.posProfile },
-		fieldname: ["country"],
-	}),
+	makeParams: () => ({ doctype: "POS Profile", filters: { name: props.posProfile }, fieldname: ["country"] }),
 	auto: false,
-	onSuccess: (data) => setCountryFromName(data?.country || "Egypt"),
-	onError: (err) => {
-		log.error("Error loading POS Profile", err);
-		selectedCountryCode.value = "+20";
-	},
+	onSuccess: (data) => setCountryFromName(data?.country || "Saudi Arabia"),
+	onError: () => { selectedCountryCode.value = "+966"; },
 });
 
-// =============================================================================
-// Dialog Lifecycle
-// =============================================================================
-
+// ── Dialog lifecycle ────────────────────────────────────────────────────────
 const loadDialogData = async () => {
-	// Lazy load countries (non-blocking)
 	countriesStore.loadCountries();
-
 	await sellingSettingsResource.reload();
-
 	if (!isEditMode.value) {
 		customerData.value.customer_group = "";
 		customerData.value.territory = "";
 	}
-
-	// Load form options
-	await Promise.all([
-		territoriesResource.reload(),
-		customerGroupsResource.reload(),
-		governoratesResource.reload(),
-	]);
-	if (isEditMode.value && props.customer?.name) {
-		await customerLocationResource.reload();
-	}
-	if (customerData.value.custom_governorate) {
+	await Promise.all([territoriesResource.reload(), customerGroupsResource.reload(), governoratesResource.reload()]);
+	if (isEditMode.value && props.customer?.name && customerData.value.custom_governorate) {
 		await districtsResource.reload();
 	}
 	checkPermissions();
-
-	// Set country from POS Profile
-	if (props.posProfile) {
-		await posProfileResource.reload();
-	} else {
-		selectedCountryCode.value = "+20";
-	}
+	if (props.posProfile) await posProfileResource.reload();
+	else selectedCountryCode.value = "+966";
 };
 
 const checkPermissions = async () => {
 	checkingPermission.value = true;
-	try {
-		hasPermission.value = await canCreateCustomer();
-	} catch (err) {
-		log.error("Permission check failed", err);
-		hasPermission.value = false;
-	} finally {
-		checkingPermission.value = false;
-	}
+	try { hasPermission.value = await canCreateCustomer(); }
+	catch (err) { hasPermission.value = false; }
+	finally { checkingPermission.value = false; }
 };
 
 const handleCreate = async () => {
-	if (!customerData.value.customer_name) {
-		return showError(__("Customer Name is required"));
-	}
+	if (!customerData.value.customer_name) return showError(__("Customer Name is required"));
 	if (isEditMode.value) {
 		await updateCustomerResource.submit();
 	} else {
 		await createCustomerResource.submit();
+		if (referralCode.value && createCustomerResource.data?.name) {
+			try {
+				await call("pos_next.api.promotions.apply_referral_code", {
+					referral_code: referralCode.value,
+					customer: createCustomerResource.data.name,
+				});
+				showSuccess(__("Referral code applied"));
+			} catch (e) {
+				showError(e.message || __("Failed to apply referral code"));
+			}
+		}
 	}
 };
 
 const resetForm = () => {
-	const settings = sellingSettingsResource.data || {};
+	const s = sellingSettingsResource.data || {};
 	Object.assign(customerData.value, {
 		customer_name: "",
+		customer_type: "Individual",
 		mobile_no: "",
-		email_id: "",
-		customer_group: pickDefault(settings.customer_group, customerGroups.value),
-		territory: pickDefault(settings.territory, territories.value, (list) =>
-			list.find((n) => n === "All Territories")
-		),
+		tax_id: "",
+		custom_commercial_registration: "",
+		customer_group: pickDefault(s.customer_group, customerGroups.value),
+		territory: pickDefault(s.territory, territories.value, (l) => l.find((n) => n === "All Territories")),
 		custom_governorate: "",
 		custom_district: "",
 	});
 	districts.value = [];
-	selectedCountryCode.value = "";
+	selectedCountryCode.value = "+966";
 	phoneNumber.value = "";
+	referralCode.value = "";
 };
 
-// =============================================================================
-// Watchers
-// =============================================================================
+// ── Watchers ────────────────────────────────────────────────────────────────
+watch(() => props.initialName, (name) => name && (customerData.value.customer_name = name));
 
-watch(
-	() => props.initialName,
-	(name) => name && (customerData.value.customer_name = name)
-);
-
-// Pre-fill form when customer prop changes (edit mode)
-watch(
-	() => props.customer,
-	(customer) => {
-		if (customer?.name) {
-			customerData.value.customer_name = customer.customer_name || "";
-			customerData.value.email_id = customer.email_id || "";
-			customerData.value.customer_group =
-				customer.customer_group || customerGroups.value[0] || "";
-			customerData.value.territory =
-				customer.territory ||
-				territories.value.find((n) => n === "All Territories") ||
-				territories.value[0] ||
-				"";
-
-			customerData.value.custom_governorate = customer.custom_governorate || "";
-			customerData.value.custom_district = customer.custom_district || "";
-			// Handle mobile_no with country code
-			if (customer.mobile_no) {
-				customerData.value.mobile_no = customer.mobile_no;
-				if (customer.mobile_no.includes("-")) {
-					const [code, ...rest] = customer.mobile_no.split("-");
-					selectedCountryCode.value = code;
-					phoneNumber.value = rest.join("-");
-				} else {
-					phoneNumber.value = customer.mobile_no;
-				}
-			}
-		}
-	},
-	{ immediate: true }
-);
-
-watch(
-	() => customerData.value.mobile_no,
-	(value) => {
-		if (value?.includes("-")) {
-			const [code, ...rest] = value.split("-");
+watch(() => props.customer, (customer) => {
+	if (!customer?.name) return;
+	customerData.value.customer_name = customer.customer_name || "";
+	customerData.value.customer_type = customer.customer_type || "Individual";
+	customerData.value.tax_id = customer.tax_id || "";
+	customerData.value.custom_commercial_registration = customer.custom_commercial_registration || "";
+	customerData.value.customer_group = customer.customer_group || customerGroups.value[0] || "";
+	customerData.value.territory = customer.territory || territories.value.find((n) => n === "All Territories") || territories.value[0] || "";
+	customerData.value.custom_governorate = customer.custom_governorate || "";
+	customerData.value.custom_district = customer.custom_district || "";
+	if (customer.mobile_no) {
+		customerData.value.mobile_no = customer.mobile_no;
+		if (customer.mobile_no.includes("-")) {
+			const [code, ...rest] = customer.mobile_no.split("-");
 			selectedCountryCode.value = code;
 			phoneNumber.value = rest.join("-");
+		} else {
+			phoneNumber.value = customer.mobile_no;
 		}
 	}
-);
+}, { immediate: true });
 
 watch(selectedCountryCode, async (newVal, oldVal) => {
 	if (!oldVal) return;
@@ -729,55 +621,19 @@ watch(selectedCountryCode, async (newVal, oldVal) => {
 	updateTerritoryFromCountry();
 });
 
-watch(
-	() => customerData.value.custom_governorate,
-	(governorate) => {
-		if (governorate) {
-			districtsResource.reload();
-		} else {
-			districts.value = [];
-			customerData.value.custom_district = "";
-		}
-	}
-);
+watch(() => customerData.value.custom_governorate, (gov) => {
+	if (gov) districtsResource.reload();
+	else { districts.value = []; customerData.value.custom_district = ""; }
+});
 
 watch(showCountryDropdown, async (isOpen) => {
-	if (isOpen) {
-		await nextTick();
-		countrySearchRef.value?.focus();
-	}
+	if (isOpen) { await nextTick(); countrySearchRef.value?.focus(); }
 });
 
-watch(
-	() => props.modelValue,
-	async (isOpen) => {
-		isOpen ? await loadDialogData() : resetForm();
-	}
-);
-
-// =============================================================================
-// Lifecycle Hooks
-// =============================================================================
-
-onMounted(() => {
-	document.addEventListener("click", handleClickOutside);
+watch(() => props.modelValue, async (isOpen) => {
+	isOpen ? await loadDialogData() : resetForm();
 });
 
-onBeforeUnmount(() => {
-	document.removeEventListener("click", handleClickOutside);
-});
+onMounted(() => document.addEventListener("click", handleClickOutside));
+onBeforeUnmount(() => document.removeEventListener("click", handleClickOutside));
 </script>
-
-<style scoped>
-.sr-only {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	padding: 0;
-	margin: -1px;
-	overflow: hidden;
-	clip: rect(0, 0, 0, 0);
-	white-space: nowrap;
-	border-width: 0;
-}
-</style>

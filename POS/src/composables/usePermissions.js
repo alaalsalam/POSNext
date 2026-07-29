@@ -9,6 +9,41 @@ import { computed, ref } from "vue";
 // Cache permissions to avoid repeated API calls
 const permissionCache = ref({});
 
+// Shared POS permissions state — loaded once from get_pos_permissions()
+const _posPerms = ref(null);
+const _posPermsLoading = ref(false);
+
+/**
+ * Load all POS permissions in one API call.
+ * Shared across all components — only fetches once per session.
+ */
+export async function loadPOSPermissions() {
+	if (_posPerms.value) return _posPerms.value;
+	if (_posPermsLoading.value) {
+		// Wait for in-flight request
+		await new Promise((resolve) => {
+			const stop = setInterval(() => {
+				if (!_posPermsLoading.value) { clearInterval(stop); resolve(); }
+			}, 50);
+		});
+		return _posPerms.value;
+	}
+	_posPermsLoading.value = true;
+	try {
+		const result = await call("pos_next.api.permissions.get_pos_permissions");
+		_posPerms.value = result || {};
+	} catch (e) {
+		console.error("[POS Permissions] Failed to load:", e);
+		_posPerms.value = {};
+	} finally {
+		_posPermsLoading.value = false;
+	}
+	return _posPerms.value;
+}
+
+/** Reactive ref to the loaded POS permissions object */
+export const posPermissions = computed(() => _posPerms.value || {});
+
 export function usePermissions() {
 	/**
 	 * Check if the current user has a specific permission for a doctype

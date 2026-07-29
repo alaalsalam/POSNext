@@ -398,7 +398,24 @@ def get_payments_entries(pos_opening_shift):
 def _get_cash_mode_of_payment(pos_profile):
 	"""Get the cash mode of payment for a POS profile."""
 	cash_mode = frappe.get_value("POS Profile", pos_profile, "posa_cash_mode_of_payment")
-	return cash_mode or "Cash"
+	if cash_mode:
+		return cash_mode
+
+	profile_payments = frappe.get_all(
+		"POS Payment Method",
+		filters={"parent": pos_profile},
+		fields=["mode_of_payment", "default"],
+		order_by="idx asc",
+	)
+	for payment in profile_payments:
+		if payment.default:
+			return payment.mode_of_payment
+
+	for payment in profile_payments:
+		if frappe.db.get_value("Mode of Payment", payment.mode_of_payment, "type") == "Cash":
+			return payment.mode_of_payment
+
+	return "Cash"
 
 
 def _aggregate_payment(payments, mode_of_payment, amount, opening_amount=0):
@@ -560,13 +577,43 @@ def make_closing_shift_from_opening(opening_shift):
 		"sales_count": 0,
 	}
 
-	# Add opening balances to payments
+	# Reconcile against the payment methods configured for this POS profile.
+	# Old imported opening shifts can contain zero-value, obsolete payment rows.
+	profile_payment_modes = frappe.get_all(
+		"POS Payment Method",
+		filters={"parent": opening_shift.get("pos_profile")},
+		pluck="mode_of_payment",
+		order_by="idx asc",
+	)
+	profile_payment_mode_set = set(profile_payment_modes)
+	opening_amounts = defaultdict(float)
+	unknown_nonzero_openings = []
+
 	for detail in opening_shift.get("balance_details", []):
+		mode = detail.get("mode_of_payment")
 		opening_amount = flt(detail.get("amount"))
+		if mode in profile_payment_mode_set:
+			opening_amounts[mode] += opening_amount
+		elif opening_amount:
+			# Keep non-zero historical balances visible rather than silently dropping money.
+			unknown_nonzero_openings.append((mode, opening_amount))
+
+	for mode in profile_payment_modes:
 		payments.append(
 			frappe._dict(
 				{
-					"mode_of_payment": detail.get("mode_of_payment"),
+					"mode_of_payment": mode,
+					"opening_amount": opening_amounts[mode],
+					"expected_amount": opening_amounts[mode],
+				}
+			)
+		)
+
+	for mode, opening_amount in unknown_nonzero_openings:
+		payments.append(
+			frappe._dict(
+				{
+					"mode_of_payment": mode,
 					"opening_amount": opening_amount,
 					"expected_amount": opening_amount,
 				}
@@ -631,6 +678,20 @@ def make_closing_shift_from_opening(opening_shift):
 @frappe.whitelist()
 def submit_closing_shift(closing_shift):
 	closing_shift = json.loads(closing_shift)
+
+	# Idempotency: if a closing shift already exists for this opening, return it.
+	# This handles the case where the shift closed successfully but the UI retried
+	# (e.g. after an EOD print failure caused a network error on the same request).
+	opening_shift_name = closing_shift.get("pos_opening_shift")
+	if opening_shift_name:
+		existing = frappe.db.get_value(
+			"POS Closing Shift",
+			{"pos_opening_shift": opening_shift_name, "docstatus": 1},
+			"name",
+		)
+		if existing:
+			return existing
+
 	closing_shift_doc = frappe.get_doc(closing_shift)
 	closing_shift_doc.flags.ignore_permissions = True
 	closing_shift_doc.save()

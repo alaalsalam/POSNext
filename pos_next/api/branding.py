@@ -233,22 +233,22 @@ POS_BRANDING_DOCTYPE = "POS Branding Settings"
 
 POS_DEFAULT_BRANDING = {
 	"enabled": 1,
-	"app_name": "POSNext",
-	"app_short_name": "POS",
-	"workspace_label": "POS",
-	"login_title": "Sign in to POS",
-	"login_subtitle": "Enter your username and password to open the point of sale.",
+	"app_name": "Digit POS",
+	"app_short_name": "Digit",
+	"workspace_label": "Digit POS",
+	"login_title": "تسجيل الدخول إلى Digit POS",
+	"login_subtitle": "أدخل اسم المستخدم وكلمة المرور لفتح نقطة البيع.",
 	"primary_logo": "",
 	"header_logo": "",
 	"app_icon": "",
 	"pwa_icon_192": "",
 	"pwa_icon_512": "",
-	"primary_color": "#4F46E5",
-	"secondary_color": "#2563EB",
-	"theme_color": "#4F46E5",
+	"primary_color": "#0a8754",
+	"secondary_color": "#064e3b",
+	"theme_color": "#0a8754",
 	"background_color": "#ffffff",
-	"install_button_label": "Install",
-	"receipt_title": "POS",
+	"install_button_label": "تثبيت",
+	"receipt_title": "Digit POS",
 	"receipt_footer": "",
 	"demo_banner_enabled": 0,
 	"demo_banner_text": "",
@@ -291,12 +291,16 @@ def get_pos_branding_settings_doc():
 
 	if _has_pos_branding_doctype():
 		try:
-			doc = frappe.get_single(POS_BRANDING_DOCTYPE)
-			if not doc.get("enabled"):
+			# Only values an admin EXPLICITLY saved (stored in `tabSingles`) may
+			# override the Digit-green defaults. Reading stored singles — not the
+			# doctype's meta defaults — keeps an unconfigured site green without
+			# depending on a migrate to sync field defaults.
+			stored = frappe.db.get_singles_dict(POS_BRANDING_DOCTYPE) or {}
+			if "enabled" in stored and not frappe.utils.cint(stored.get("enabled")):
 				return settings
 
 			for fieldname in settings:
-				value = doc.get(fieldname)
+				value = stored.get(fieldname)
 				if value not in (None, ""):
 					settings[fieldname] = value
 		except Exception:
@@ -322,6 +326,57 @@ def get_pos_branding_settings_doc():
 @frappe.whitelist(allow_guest=True)
 def get_pos_branding_settings():
 	"""Public read endpoint used by the POS frontend before login."""
+	return get_pos_branding_settings_doc()
+
+
+POS_BRANDING_EDITABLE_TEXT = (
+	"app_name",
+	"app_short_name",
+	"workspace_label",
+	"login_title",
+	"login_subtitle",
+	"install_button_label",
+	"receipt_title",
+	"receipt_footer",
+)
+POS_BRANDING_EDITABLE_COLOR = ("primary_color", "secondary_color", "theme_color", "background_color")
+POS_BRANDING_EDITABLE_ASSET = ("primary_logo", "header_logo", "app_icon", "pwa_icon_192", "pwa_icon_512")
+
+
+@frappe.whitelist()
+def save_pos_branding_settings(settings=None, **kwargs):
+	"""Persist branding from the in-app settings screen. Managers only.
+
+	Fields are cleaned with the same helpers the read path uses, so a bad colour
+	or an off-site logo URL can never be stored.
+	"""
+	if not _has_pos_branding_doctype():
+		frappe.throw(_("POS Branding Settings is not available on this site."))
+	if not frappe.has_permission(POS_BRANDING_DOCTYPE, "write"):
+		raise frappe.PermissionError(_("You are not allowed to change branding settings."))
+
+	data = settings
+	if isinstance(data, str):
+		data = json.loads(data or "{}")
+	if not data:
+		data = kwargs
+	if not isinstance(data, dict):
+		frappe.throw(_("Invalid branding payload."))
+
+	doc = frappe.get_single(POS_BRANDING_DOCTYPE)
+	for field in POS_BRANDING_EDITABLE_TEXT:
+		if field in data:
+			doc.set(field, _clean_pos_text(data.get(field), POS_DEFAULT_BRANDING.get(field, "")))
+	for field in POS_BRANDING_EDITABLE_COLOR:
+		if field in data:
+			doc.set(field, _clean_pos_color(data.get(field), POS_DEFAULT_BRANDING.get(field, "#000000")))
+	for field in POS_BRANDING_EDITABLE_ASSET:
+		if field in data:
+			doc.set(field, _clean_pos_asset_url(data.get(field)))
+	if "enabled" in data:
+		doc.set("enabled", 1 if data.get("enabled") else 0)
+
+	doc.save()
 	return get_pos_branding_settings_doc()
 
 

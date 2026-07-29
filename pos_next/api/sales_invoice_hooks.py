@@ -157,6 +157,54 @@ def release_one_time_offer_usage(doc, method=None):
 	frappe.db.delete("One Time Customer Offer Usage", {"sales_invoice": doc.name})
 
 
+def increment_coupon_usage_on_submit(doc, method=None):
+	"""Track coupon usage when a POS invoice is submitted."""
+	if not doc.is_pos:
+		return
+	coupon_code = getattr(doc, "coupon_code", None)
+	if not coupon_code:
+		return
+	try:
+		from pos_next.pos_next.doctype.pos_coupon.pos_coupon import increment_coupon_usage
+		increment_coupon_usage(coupon_code)
+	except Exception as e:
+		import json
+		frappe.log_error(
+			"error in sales_invoice_hooks: increment_coupon_usage_on_submit",
+			json.dumps({
+				"user": frappe.session.user,
+				"datetime": frappe.utils.now(),
+				"invoice": doc.name,
+				"coupon_code": coupon_code,
+				"error": str(e),
+			}, default=str),
+		)
+
+
+def decrement_coupon_usage_on_cancel(doc, method=None):
+	"""Release coupon usage when a POS invoice is cancelled."""
+	if not doc.is_pos:
+		return
+	coupon_code = getattr(doc, "coupon_code", None)
+	if not coupon_code:
+		return
+	try:
+		from pos_next.pos_next.doctype.pos_coupon.pos_coupon import decrement_coupon_usage
+		decrement_coupon_usage(coupon_code)
+	except Exception as e:
+		import json
+		frappe.log_error(
+			"error in sales_invoice_hooks: decrement_coupon_usage_on_cancel",
+			json.dumps({
+				"user": frappe.session.user,
+				"datetime": frappe.utils.now(),
+				"invoice": doc.name,
+				"coupon_code": coupon_code,
+				"error": str(e),
+			}, default=str),
+		)
+
+
 def before_cancel(doc, method=None):
 	"""
 	Before Cancel hook for Sales Invoice.

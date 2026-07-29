@@ -88,8 +88,23 @@ def check_opening_shift(user=None):
 	if not open_shifts:
 		return None
 
-	# Get the latest open shift
-	shift_data = open_shifts[0]
+	# Find the first shift with a valid, enabled POS Profile (skip corrupted/orphaned shifts)
+	shift_data = None
+	for candidate in open_shifts:
+		profile_name = candidate.get("pos_profile") or ""
+		# Corrupted names stored as "?" sequences — skip them
+		if not profile_name or all(c in "? " for c in profile_name):
+			continue
+		# Skip if the profile no longer exists or has been disabled
+		profile_disabled = frappe.db.get_value("POS Profile", profile_name, "disabled")
+		if profile_disabled is None or profile_disabled:
+			continue
+		shift_data = candidate
+		break
+
+	if not shift_data:
+		return None
+
 	data = {}
 	data["pos_opening_shift"] = frappe.get_doc("POS Opening Shift", shift_data["name"])
 	data["pos_profile"] = frappe.get_doc("POS Profile", shift_data["pos_profile"])
@@ -106,11 +121,14 @@ def create_opening_shift(pos_profile, company, balance_details):
 	"""Create a new POS Opening Shift"""
 	balance_details = json.loads(balance_details) if isinstance(balance_details, str) else balance_details
 
-	# Check if user already has an open shift
+	# Check if user already has a valid open shift
 	existing_shift = check_opening_shift(frappe.session.user)
 	if existing_shift:
+		shift_name = existing_shift["pos_opening_shift"].name
+		profile_name = existing_shift.get("pos_profile", {}).name if hasattr(existing_shift.get("pos_profile", {}), "name") else str(existing_shift.get("pos_profile", ""))
 		frappe.throw(
-			_("You already have an open shift: {0}").format(existing_shift["pos_opening_shift"].name)
+			_("يوجد لديك وردية مفتوحة بالفعل ({0}) — أغلقها أولاً ثم افتح وردية جديدة.").format(shift_name),
+			title=_("وردية مفتوحة موجودة"),
 		)
 
 	new_pos_opening = frappe.get_doc(
@@ -186,3 +204,67 @@ def submit_closing_shift(closing_shift):
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Submit Closing Shift Error")
 		frappe.throw(_("Error submitting closing shift: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def get_shift_stats(opening_shift):
+	"""Return live stats for an open shift: invoice count, net sales, returns, payment totals."""
+	frappe.has_permission("POS Opening Shift", "read", throw=True)
+
+	shift = frappe.get_cached_doc("POS Opening Shift", opening_shift)
+	if shift.user != frappe.session.user:
+		frappe.has_permission("POS Opening Shift", "read", doc=shift, throw=True)
+
+	# Fetch all submitted invoices for this shift in one query
+	invoices = frappe.get_all(
+		"Sales Invoice",
+		filters={
+			"pos_opening_shift": opening_shift,
+			"docstatus": 1,
+		},
+		fields=["name", "grand_total", "net_total", "total_taxes_and_charges", "is_return", "posting_datetime"],
+		order_by="posting_datetime desc",
+	)
+
+	sales_total = 0.0
+	sales_count = 0
+	returns_total = 0.0
+	returns_count = 0
+	last_invoice_time = None
+
+	for inv in invoices:
+		if not last_invoice_time:
+			last_invoice_time = str(inv.posting_datetime) if inv.posting_datetime else None
+		if inv.is_return:
+			returns_total += abs(inv.grand_total or 0)
+			returns_count += 1
+		else:
+			sales_total += inv.grand_total or 0
+			sales_count += 1
+
+	net_total = sales_total - returns_total
+
+	# Aggregate payment totals — one query for all invoice names
+	invoice_names = [inv.name for inv in invoices]
+	payment_rows = []
+	if invoice_names:
+		payment_rows = frappe.get_all(
+			"Sales Invoice Payment",
+			filters={"parent": ["in", invoice_names]},
+			fields=["mode_of_payment", "amount"],
+		)
+
+	payment_totals = {}
+	for row in payment_rows:
+		mode = row.mode_of_payment
+		payment_totals[mode] = payment_totals.get(mode, 0.0) + (row.amount or 0)
+
+	return {
+		"sales_count": sales_count,
+		"returns_count": returns_count,
+		"sales_total": sales_total,
+		"returns_total": returns_total,
+		"net_total": net_total,
+		"payment_totals": payment_totals,
+		"last_invoice_time": last_invoice_time,
+	}

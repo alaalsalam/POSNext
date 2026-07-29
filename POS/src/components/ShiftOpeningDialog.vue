@@ -336,7 +336,9 @@ async function initDialog() {
 
 		// Check if user already has an open shift
 		const checkResult = await checkOpeningShift.fetch();
-		if (checkResult) {
+		const profileName = checkResult?.pos_profile?.name || "";
+		const isCorrupted = profileName && profileName.split("").every((c) => c === "?" || c === " ");
+		if (checkResult && !isCorrupted) {
 			existingShift.value = checkResult;
 			step.value = 3;
 		}
@@ -387,6 +389,15 @@ async function openShift() {
 		closeDialog("shift-opened");
 	} catch (error) {
 		console.error("Error opening shift:", error);
+		// If another stuck open shift was found (race condition or missed in initDialog),
+		// re-check and show the "Existing Shift Found" step so the user can close it.
+		const checkResult = await checkOpeningShift.fetch();
+		const profileName = checkResult?.pos_profile?.name || "";
+		const isCorrupted = profileName && profileName.split("").every((c) => c === "?" || c === " ");
+		if (checkResult && !isCorrupted) {
+			existingShift.value = checkResult;
+			step.value = 3;
+		}
 	}
 }
 
@@ -417,7 +428,16 @@ async function handleExistingShiftClosed() {
 	step.value = 1;
 	openingBalances.value = {};
 
-	await checkOpeningShift.fetch();
+	// Re-check: some users have more than one stuck open shift.
+	// If another valid (non-corrupted) shift is still open, show step 3 again so the user can close it too.
+	const checkResult = await checkOpeningShift.fetch();
+	const profileName = checkResult?.pos_profile?.name || "";
+	const isCorrupted = profileName && profileName.split("").every((c) => c === "?" || c === " ");
+	if (checkResult && !isCorrupted) {
+		existingShift.value = checkResult;
+		step.value = 3;
+		return;
+	}
 
 	if (!profilesResource.data || profilesResource.data.length === 0) {
 		await profilesResource.fetch();

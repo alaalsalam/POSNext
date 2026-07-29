@@ -1,1074 +1,432 @@
 <template>
 	<Dialog v-model="open" :options="{ title: __('Close POS Shift'), size: '4xl' }">
 		<template #body-content>
-			<div class="flex flex-col gap-3 md:gap-6">
-				<div v-if="closingDataResource.loading" class="text-center py-8 md:py-12">
-					<div
-						class="inline-block animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-b-4 border-blue-600"
-					></div>
-					<p class="mt-3 md:mt-4 text-base md:text-lg font-medium text-gray-600">
-						{{ __("Loading shift data...") }}
-					</p>
-					<p class="text-xs md:text-sm text-gray-500">
-						{{ __("Calculating totals and reconciliation...") }}
-					</p>
+
+			<!-- ── LOADING ── -->
+			<div v-if="closingDataResource.loading" class="flex flex-col items-center justify-center py-12 gap-3">
+				<div class="relative w-10 h-10">
+					<div class="absolute inset-0 rounded-full border-4 border-gray-100"></div>
+					<div class="absolute inset-0 rounded-full border-4 border-t-blue-600 animate-spin"></div>
+				</div>
+				<p class="text-sm text-gray-500">{{ __("Loading shift data...") }}</p>
+			</div>
+
+			<!-- ── LOAD ERROR ── -->
+			<div v-else-if="!closingData && (closingDataResource.error || errorMessage)" class="flex items-start gap-3 rounded-xl bg-red-50 border border-red-200 p-4">
+				<FeatherIcon name="alert-circle" class="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+				<div>
+					<p class="text-sm font-semibold text-red-800">{{ __("Failed to Load Shift Data") }}</p>
+					<p class="text-xs text-red-600 mt-0.5">{{ errorMessage || closingDataResource.error }}</p>
+				</div>
+			</div>
+
+			<!-- ── MAIN CONTENT ── -->
+			<div v-else-if="closingData" class="flex flex-col gap-2.5">
+
+				<!-- Idle Warning -->
+				<div v-if="showIdleWarning" class="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+					<FeatherIcon name="clock" class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+					<p class="text-xs text-amber-800">{{ __("Open over 1 minute — close the shift or cancel.") }}</p>
 				</div>
 
-				<div v-else-if="closingData" class="flex flex-col gap-3 md:gap-6">
-					<!-- Idle Warning -->
-					<div
-						v-if="showIdleWarning"
-						class="rounded-lg bg-amber-50 border border-amber-300 p-3 flex items-center gap-2"
-					>
-						<FeatherIcon
-							name="alert-triangle"
-							class="w-5 h-5 text-amber-600 flex-shrink-0"
-						/>
-						<p class="text-xs md:text-sm text-amber-800 font-medium">
-							{{
-								__(
-									"This dialog has been open for over a minute. Please close the shift or close this dialog to resume the shift timer."
-								)
-							}}
+				<!-- ── HEADER STRIP ── -->
+				<div class="flex items-center justify-between bg-slate-800 text-white px-4 py-2.5 rounded-xl gap-4">
+					<div class="min-w-0">
+						<p class="text-xs text-slate-400 truncate leading-none mb-0.5">{{ closingData.pos_profile }}</p>
+						<p class="text-sm font-bold leading-tight">
+							{{ isInEntryMode ? __("Count Your Cash") : showSuccessReport ? __("✓ Shift Closed") : __("Shift Summary") }}
 						</p>
 					</div>
 
-					<!-- Shift Summary Header (hidden in entry mode when hideExpectedAmount is enabled) -->
-					<div
-						v-if="shouldShowSummary"
-						class="bg-white border border-gray-200 rounded-lg p-3 md:p-6 shadow-sm"
-					>
+					<!-- Entry mode: progress pills -->
+					<div v-if="isInEntryMode" class="flex items-center gap-1 flex-1 max-w-28">
 						<div
-							class="flex flex-col sm:flex-row justify-start items-start gap-3 mb-3 md:mb-6"
-						>
-							<div class="flex-1">
-								<h3
-									class="text-start text-sm md:text-base font-medium text-gray-900"
-								>
-									{{ closingData.pos_profile }}
-								</h3>
-								<p class="text-start text-xs md:text-sm text-gray-500 mt-1">
-									{{ formatDateTime(closingData.period_start_date) }}
-								</p>
-							</div>
-							<div class="text-start sm:text-end">
-								<div class="text-start text-xs text-gray-500 uppercase">
-									{{ __("Duration") }}
-								</div>
-								<div class="text-base md:text-lg font-semibold text-gray-900">
-									{{ getShiftDuration() }}
-								</div>
-							</div>
-						</div>
-
-						<!-- Key Metrics Grid -->
-						<div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-							<!-- Gross Sales (before returns) -->
-							<div
-								class="text-start bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4"
-							>
-								<div class="text-blue-600 text-xs uppercase font-medium mb-1">
-									{{ __("Gross Sales") }}
-								</div>
-								<div
-									class="text-lg md:text-2xl font-bold text-blue-900 mb-0.5 md:mb-1 truncate"
-								>
-									{{ formatCurrency(grossSales) }}
-								</div>
-								<div class="text-blue-600 text-xs">
-									{{
-										__("{0} invoices", [
-											closingData.sales_count || salesInvoiceCount,
-										])
-									}}
-								</div>
-							</div>
-
-							<!-- Returns -->
-							<div
-								v-if="hasReturns"
-								class="text-start bg-red-50 border border-red-200 rounded-lg p-3 md:p-4"
-							>
-								<div class="text-red-600 text-xs uppercase font-medium mb-1">
-									{{ __("Returns") }}
-								</div>
-								<div
-									class="text-lg md:text-2xl font-bold text-red-700 mb-0.5 md:mb-1 truncate"
-								>
-									-{{ formatCurrency(closingData.returns_total) }}
-								</div>
-								<div class="text-red-600 text-xs">
-									{{ __("{0} returns", [closingData.returns_count]) }}
-								</div>
-							</div>
-
-							<!-- Net Sales (after returns) -->
-							<div
-								class="text-start bg-green-50 border border-green-200 rounded-lg p-3 md:p-4"
-							>
-								<div class="text-green-600 text-xs uppercase font-medium mb-1">
-									{{ __("Net Sales") }}
-								</div>
-								<div
-									class="text-lg md:text-2xl font-bold text-green-900 mb-0.5 md:mb-1 truncate"
-								>
-									{{ formatCurrency(closingData.grand_total) }}
-								</div>
-								<div class="text-green-600 text-xs">{{ __("After returns") }}</div>
-							</div>
-
-							<!-- Tax Collected -->
-							<div
-								class="text-start bg-gray-50 border border-gray-200 rounded-lg p-3 md:p-4"
-							>
-								<div class="text-gray-600 text-xs uppercase font-medium mb-1">
-									{{ __("Tax Collected") }}
-								</div>
-								<div
-									class="text-lg md:text-2xl font-bold text-gray-900 mb-0.5 md:mb-1 truncate"
-								>
-									{{ formatCurrency(totalTax) }}
-								</div>
-								<div class="text-gray-600 text-xs">{{ __("Net tax") }}</div>
-							</div>
-						</div>
+							v-for="(p, i) in activeMethods"
+							:key="i"
+							:class="['h-1 flex-1 rounded-full transition-all', p._touched ? 'bg-blue-400' : 'bg-slate-600']"
+						></div>
 					</div>
 
-					<!-- No Sales Warning (hidden in entry mode when hideExpectedAmount is enabled) -->
-					<div
-						v-if="shouldShowSummary && invoiceCount === 0"
-						class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 md:p-4"
-					>
-						<div class="flex items-start gap-2 md:gap-3">
-							<div class="flex-shrink-0">
-								<svg
-									class="h-4 w-4 md:h-5 md:w-5 text-yellow-600"
-									fill="currentColor"
-									viewBox="0 0 20 20"
-								>
-									<path
-										fill-rule="evenodd"
-										d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-										clip-rule="evenodd"
-									/>
-								</svg>
-							</div>
-							<div>
-								<h3 class="text-xs md:text-sm font-medium text-yellow-900">
-									{{ __("No Sales During This Shift") }}
-								</h3>
-								<p class="text-xs md:text-sm text-yellow-700 mt-1 md:mt-2">
-									{{
-										__(
-											"No invoices were created. Closing amounts should match opening amounts."
-										)
-									}}
-								</p>
-							</div>
-						</div>
+					<div class="text-end flex-shrink-0">
+						<p class="text-sm font-semibold tabular-nums leading-none">{{ getShiftDuration() }}</p>
+						<p class="text-xs text-slate-500 mt-0.5">{{ formatDateTime(closingData.period_start_date) }}</p>
 					</div>
+				</div>
 
-					<!-- Invoice Details (Collapsible) (hidden in entry mode when hideExpectedAmount is enabled) -->
-					<div
-						v-if="shouldShowSummary && invoiceCount > 0"
-						class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm"
-					>
-						<button
-							@click="showInvoiceDetails = !showInvoiceDetails"
-							:aria-label="`${
-								showInvoiceDetails ? 'Hide' : 'Show'
-							} invoice details for ${invoiceCount} transactions`"
-							:aria-expanded="showInvoiceDetails"
-							class="w-full px-3 py-3 md:px-6 md:py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+				<!-- ══════════════════════════════════════════
+				     ENTRY MODE
+				     ══════════════════════════════════════════ -->
+				<template v-if="isInEntryMode">
+
+					<!-- Active payment methods -->
+					<div class="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+						<div
+							v-for="(payment, idx) in activeMethods"
+							:key="idx"
+							:class="['flex items-center gap-3 px-4 py-2.5 transition-colors', payment._touched ? 'bg-blue-50' : 'bg-white hover:bg-gray-50']"
 						>
-							<div class="text-start">
-								<h3 class="text-sm md:text-lg font-medium text-gray-900">
-									{{ __("Invoice Details") }}
-								</h3>
-								<p class="text-xs md:text-sm text-gray-500">
-									{{
-										__("{0} transactions • {1}", [
-											invoiceCount,
-											formatCurrency(closingData.grand_total),
-										])
-									}}
-								</p>
+							<div :class="['w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0', getPaymentIcon(payment.mode_of_payment).color]">
+								{{ getPaymentIcon(payment.mode_of_payment).icon }}
 							</div>
-							<svg
-								:class="[
-									'h-4 w-4 md:h-5 md:w-5 text-gray-400 transition-transform',
-									showInvoiceDetails ? 'transform rotate-180' : '',
-								]"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M19 9l-7 7-7-7"
+							<div class="flex-1 min-w-0">
+								<label :for="`entry-${idx}`" class="block text-sm font-semibold text-gray-900 cursor-pointer truncate">
+									{{ payment.mode_of_payment }}
+								</label>
+								<p v-if="payment._touched && payment.closing_amount !== null" class="text-xs text-blue-600 font-medium leading-none mt-0.5">
+									{{ formatCurrency(payment.closing_amount) }}
+								</p>
+								<p v-else class="text-xs text-gray-400 leading-none mt-0.5">{{ __("Tap to enter") }}</p>
+							</div>
+							<div class="w-36 flex-shrink-0">
+								<Input
+									:id="`entry-${idx}`"
+									:modelValue="payment.closing_amount"
+									@update:modelValue="(v) => updateClosingAmount(payment, v)"
+									type="number" step="10" min="0" placeholder="0.00"
+									:disabled="submitResource.loading"
+									class="text-base font-bold text-center"
 								/>
-							</svg>
+							</div>
+						</div>
+
+						<!-- "Show unused" toggle row -->
+						<button
+							v-if="unusedMethodsCount > 0"
+							@click="showAllMethods = !showAllMethods"
+							class="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-start"
+						>
+							<span class="text-xs text-gray-500">
+								<span v-if="showAllMethods">{{ __("Hide {0} unused methods", [unusedMethodsCount]) }}</span>
+								<span v-else>{{ __("+ {0} unused methods (0.00)", [unusedMethodsCount]) }}</span>
+							</span>
+							<FeatherIcon :name="showAllMethods ? 'chevron-up' : 'chevron-down'" class="w-3.5 h-3.5 text-gray-400" />
 						</button>
 
-						<div v-show="showInvoiceDetails" class="border-t border-gray-200">
-							<!-- Mobile Card View -->
-							<div class="md:hidden divide-y divide-gray-200">
-								<div
-									v-for="(invoice, idx) in closingData.pos_transactions"
-									:key="idx"
-									:class="[
-										'p-3',
-										invoice.is_return
-											? 'bg-red-50 hover:bg-red-100'
-											: 'hover:bg-gray-50',
-									]"
-								>
-									<div class="flex justify-between items-start mb-2">
-										<div class="flex items-center gap-2">
-											<span
-												:class="[
-													'text-xs font-medium',
-													invoice.is_return
-														? 'text-red-700'
-														: 'text-gray-900',
-												]"
-											>
-												{{
-													invoice.pos_invoice ||
-													invoice.sales_invoice ||
-													__("N/A")
-												}}
-											</span>
-											<span
-												v-if="invoice.is_return"
-												class="px-1.5 py-0.5 text-xs font-medium bg-red-200 text-red-800 rounded"
-											>
-												{{ __("Return") }}
-											</span>
-										</div>
+						<!-- Unused methods (shown when expanded) -->
+						<template v-if="showAllMethods">
+							<div
+								v-for="(payment, idx) in unusedMethods"
+								:key="`unused-${idx}`"
+								class="flex items-center gap-3 px-4 py-2.5 bg-gray-50 opacity-70"
+							>
+								<div :class="['w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0', getPaymentIcon(payment.mode_of_payment).color]">
+									{{ getPaymentIcon(payment.mode_of_payment).icon }}
+								</div>
+								<div class="flex-1 min-w-0">
+									<p class="text-sm font-semibold text-gray-600 truncate">{{ payment.mode_of_payment }}</p>
+									<p class="text-xs text-gray-400 leading-none mt-0.5">{{ __("No activity this shift") }}</p>
+								</div>
+								<div class="w-36 flex-shrink-0">
+									<Input
+										:modelValue="payment.closing_amount"
+										@update:modelValue="(v) => updateClosingAmount(payment, v)"
+										type="number" step="10" min="0" placeholder="0.00"
+										:disabled="submitResource.loading"
+										class="text-base font-bold text-center"
+									/>
+								</div>
+							</div>
+						</template>
+					</div>
+
+					<!-- All entered total -->
+					<div v-if="allRequiredAmountsEntered" class="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+						<div class="flex items-center gap-1.5">
+							<FeatherIcon name="check-circle" class="w-4 h-4 text-green-600" />
+							<span class="text-sm font-semibold text-green-800">{{ __("All amounts entered") }}</span>
+						</div>
+						<span class="text-base font-bold text-green-900 tabular-nums">{{ formatCurrency(getTotalActual) }}</span>
+					</div>
+
+					<!-- Variance confirmation -->
+					<div v-if="hasUnconfirmedVariance" class="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5">
+						<FeatherIcon name="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+						<label class="flex cursor-pointer items-start gap-2 text-sm text-amber-900">
+							<input v-model="varianceConfirmed" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-amber-400" />
+							<span class="text-xs">{{ __("Variance detected — I reviewed and approve closing this shift.") }}</span>
+						</label>
+					</div>
+				</template>
+
+				<!-- ══════════════════════════════════════════
+				     REVIEW / REPORT MODE
+				     ══════════════════════════════════════════ -->
+				<template v-else>
+
+					<!-- Success bar -->
+					<div v-if="showSuccessReport" class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+						<FeatherIcon name="check-circle" class="w-4 h-4 text-green-600 flex-shrink-0" />
+						<p class="text-sm font-semibold text-green-800">{{ __("Shift closed successfully") }}</p>
+					</div>
+
+					<!-- KPI strip -->
+					<div v-if="shouldShowSummary" class="grid grid-cols-4 gap-2">
+						<div class="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-center">
+							<p class="text-xs text-blue-500 font-medium leading-none mb-1">{{ __("Gross") }}</p>
+							<p class="text-sm font-bold text-blue-900 tabular-nums">{{ formatCurrency(grossSales) }}</p>
+							<p class="text-xs text-blue-400 mt-0.5 leading-none">{{ closingData.sales_count || salesInvoiceCount }} {{ __("inv.") }}</p>
+						</div>
+						<div v-if="hasReturns" class="bg-red-50 border border-red-100 rounded-xl px-3 py-2 text-center">
+							<p class="text-xs text-red-500 font-medium leading-none mb-1">{{ __("Returns") }}</p>
+							<p class="text-sm font-bold text-red-800 tabular-nums">-{{ formatCurrency(closingData.returns_total) }}</p>
+							<p class="text-xs text-red-400 mt-0.5 leading-none">{{ closingData.returns_count }}</p>
+						</div>
+						<div :class="['bg-green-50 border border-green-100 rounded-xl px-3 py-2 text-center', !hasReturns ? 'col-span-2' : '']">
+							<p class="text-xs text-green-600 font-medium leading-none mb-1">{{ __("Net Sales") }}</p>
+							<p class="text-sm font-bold text-green-900 tabular-nums">{{ formatCurrency(closingData.grand_total) }}</p>
+							<p class="text-xs text-green-400 mt-0.5 leading-none">{{ __("after returns") }}</p>
+						</div>
+						<div class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-center">
+							<p class="text-xs text-gray-500 font-medium leading-none mb-1">{{ __("Tax") }}</p>
+							<p class="text-sm font-bold text-gray-900 tabular-nums">{{ formatCurrency(totalTax) }}</p>
+							<p class="text-xs text-gray-400 mt-0.5 leading-none">{{ __("collected") }}</p>
+						</div>
+					</div>
+
+					<!-- No sales -->
+					<div v-if="invoiceCount === 0" class="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2">
+						<FeatherIcon name="info" class="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" />
+						<p class="text-xs text-yellow-800">{{ __("No invoices this shift — closing amounts should match opening amounts.") }}</p>
+					</div>
+
+					<!-- ── Payment Reconciliation ── -->
+					<div class="border border-gray-200 rounded-xl overflow-hidden">
+						<div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
+							<p class="text-sm font-bold text-gray-800">{{ __("Payment Reconciliation") }}</p>
+							<div v-if="shouldShowSummary">
+								<span v-if="getTotalDifference !== 0" :class="['text-xs font-bold tabular-nums', getTotalDifference > 0 ? 'text-blue-600' : 'text-red-600']">
+									{{ getTotalDifference > 0 ? "+" : "" }}{{ formatCurrency(getTotalDifference) }} {{ __("variance") }}
+								</span>
+								<span v-else class="text-xs font-semibold text-green-600">✓ {{ __("Balanced") }}</span>
+							</div>
+						</div>
+
+						<!-- Active rows -->
+						<div class="divide-y divide-gray-100">
+							<div
+								v-for="(payment, idx) in activeMethods"
+								:key="idx"
+								class="flex items-center gap-3 px-4 py-2.5 bg-white"
+							>
+								<div :class="['w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0', getPaymentIcon(payment.mode_of_payment).color]">
+									{{ getPaymentIcon(payment.mode_of_payment).icon }}
+								</div>
+								<div class="flex-1 min-w-0">
+									<p class="text-sm font-semibold text-gray-900 truncate">{{ payment.mode_of_payment }}</p>
+									<p class="text-xs text-gray-400 leading-none mt-0.5">
+										{{ __("Opening {0} · Expected {1}", [formatCurrency(payment.opening_amount), formatCurrency(payment.expected_amount)]) }}
+									</p>
+								</div>
+								<!-- Negative expected -->
+								<span v-if="isNegativeExpected(payment)" class="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-1 rounded-lg flex-shrink-0">
+									{{ __("Disbursed: {0}", [formatCurrency(Math.abs(payment.expected_amount))]) }}
+								</span>
+								<!-- Normal input -->
+								<template v-else>
+									<div class="w-28 flex-shrink-0">
+										<Input
+											:modelValue="payment.closing_amount"
+											@update:modelValue="(v) => updateClosingAmount(payment, v)"
+											type="number" step="0.01" min="0" placeholder="0.00"
+											:disabled="showSuccessReport || submitResource.loading"
+											class="text-sm text-center"
+										/>
+									</div>
+									<div class="w-20 text-end flex-shrink-0">
 										<span
+											v-if="payment.closing_amount !== null && payment.closing_amount !== undefined"
 											:class="[
-												'text-sm font-semibold',
-												invoice.is_return
-													? 'text-red-700'
-													: 'text-gray-900',
+												'px-2 py-0.5 rounded-full text-xs font-bold',
+												payment.difference === 0 ? 'bg-green-100 text-green-700'
+												: payment.difference > 0 ? 'bg-blue-100 text-blue-700'
+												: 'bg-red-100 text-red-700',
 											]"
 										>
-											{{ formatCurrency(invoice.grand_total) }}
+											{{
+												payment.difference === 0 ? "✓"
+												: (payment.difference > 0 ? "+" : "") + formatCurrency(payment.difference)
+											}}
 										</span>
 									</div>
-									<div
-										class="flex justify-between items-center text-xs text-gray-600"
-									>
-										<span>{{ invoice.customer }}</span>
-										<span class="text-gray-500">{{
-											formatTime(invoice.posting_date)
-										}}</span>
-									</div>
-								</div>
-								<div class="bg-gray-50 p-3">
-									<div class="flex justify-between items-center">
-										<span class="text-xs font-semibold text-gray-700">{{
-											__("Net Total:")
-										}}</span>
-										<span class="text-sm font-bold text-gray-900">
-											{{ formatCurrency(closingData.grand_total) }}
-										</span>
-									</div>
-								</div>
-							</div>
-
-							<!-- Desktop Table View -->
-							<div class="hidden md:block overflow-x-auto">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th
-												class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase"
-											>
-												{{ __("Invoice") }}
-											</th>
-											<th
-												class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase"
-											>
-												{{ __("Type") }}
-											</th>
-											<th
-												class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase"
-											>
-												{{ __("Customer") }}
-											</th>
-											<th
-												class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase"
-											>
-												{{ __("Time") }}
-											</th>
-											<th
-												class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase"
-											>
-												{{ __("Amount") }}
-											</th>
-										</tr>
-									</thead>
-									<tbody class="bg-white divide-y divide-gray-200">
-										<tr
-											v-for="(invoice, idx) in closingData.pos_transactions"
-											:key="idx"
-											:class="
-												invoice.is_return
-													? 'bg-red-50 hover:bg-red-100'
-													: 'hover:bg-gray-50'
-											"
-										>
-											<td class="text-start px-6 py-4 whitespace-nowrap">
-												<span
-													:class="[
-														'text-sm font-medium',
-														invoice.is_return
-															? 'text-red-700'
-															: 'text-gray-900',
-													]"
-												>
-													{{
-														invoice.pos_invoice ||
-														invoice.sales_invoice ||
-														__("N/A")
-													}}
-												</span>
-											</td>
-											<td class="text-start px-6 py-4 whitespace-nowrap">
-												<span
-													v-if="invoice.is_return"
-													class="px-2 py-1 text-xs font-medium bg-red-200 text-red-800 rounded"
-												>
-													{{ __("Return") }}
-												</span>
-												<span
-													v-else
-													class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded"
-												>
-													{{ __("Sale") }}
-												</span>
-											</td>
-											<td
-												class="text-start px-6 py-4 whitespace-nowrap text-sm text-gray-600"
-											>
-												{{ invoice.customer }}
-											</td>
-											<td
-												class="text-start px-6 py-4 whitespace-nowrap text-sm text-gray-500"
-											>
-												{{ formatTime(invoice.posting_date) }}
-											</td>
-											<td class="text-start px-6 py-4 whitespace-nowrap">
-												<span
-													:class="[
-														'text-sm font-semibold',
-														invoice.is_return
-															? 'text-red-700'
-															: 'text-gray-900',
-													]"
-												>
-													{{ formatCurrency(invoice.grand_total) }}
-												</span>
-											</td>
-										</tr>
-									</tbody>
-									<tfoot class="bg-gray-50">
-										<tr>
-											<td
-												colspan="4"
-												class="px-6 py-4 text-start text-sm font-semibold text-gray-700"
-											>
-												{{ __("Net Total:") }}
-											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-start">
-												<span class="text-base font-bold text-gray-900">
-													{{ formatCurrency(closingData.grand_total) }}
-												</span>
-											</td>
-										</tr>
-									</tfoot>
-								</table>
+								</template>
 							</div>
 						</div>
-					</div>
 
-					<!-- Payment Reconciliation -->
-					<div
-						class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm"
-					>
-						<div
-							:class="[
-								'px-3 py-3 md:px-6 md:py-4 border-b border-gray-200',
-								hideExpectedAmount && showSuccessReport
-									? 'bg-green-50 border-green-200'
-									: 'bg-gray-50',
-							]"
+						<!-- "Show unused" toggle row -->
+						<button
+							v-if="unusedMethodsCount > 0"
+							@click="showAllMethods = !showAllMethods"
+							class="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 transition-colors border-t border-gray-100"
 						>
+							<span class="text-xs text-gray-500">
+								{{ showAllMethods ? __("Hide {0} unused methods", [unusedMethodsCount]) : __("+ {0} unused methods (0.00 each)", [unusedMethodsCount]) }}
+							</span>
+							<FeatherIcon :name="showAllMethods ? 'chevron-up' : 'chevron-down'" class="w-3.5 h-3.5 text-gray-400" />
+						</button>
+
+						<!-- Unused methods (expanded) -->
+						<div v-if="showAllMethods" class="divide-y divide-gray-100 border-t border-gray-100">
 							<div
-								class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
+								v-for="(payment, idx) in unusedMethods"
+								:key="`unused-${idx}`"
+								class="flex items-center gap-3 px-4 py-2.5 bg-gray-50 opacity-75"
 							>
-								<div>
-									<div class="text-start flex items-center gap-2">
-										<h3 class="text-sm md:text-lg font-semibold text-gray-900">
-											{{ __("Payment Reconciliation") }}
-										</h3>
-										<span
-											v-if="hideExpectedAmount && showSuccessReport"
-											class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
-										>
-											{{ __("✓ Shift Closed") }}
-										</span>
-									</div>
-									<p class="text-xs md:text-sm text-gray-600">
-										{{ reconciliationMessage }}
-									</p>
+								<div :class="['w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0', getPaymentIcon(payment.mode_of_payment).color]">
+									{{ getPaymentIcon(payment.mode_of_payment).icon }}
 								</div>
-								<div
-									v-if="shouldShowSummary && getTotalDifference !== 0"
-									class="text-start sm:text-end"
-								>
-									<div class="text-xs mb-1 text-gray-500 uppercase">
-										{{ __("Total Variance") }}
-									</div>
-									<div
-										:class="[
-											'text-lg md:text-xl font-bold',
-											getTotalDifference > 0
-												? 'text-blue-600'
-												: 'text-red-600',
-										]"
+								<div class="flex-1 min-w-0">
+									<p class="text-sm font-semibold text-gray-500 truncate">{{ payment.mode_of_payment }}</p>
+									<p class="text-xs text-gray-400 leading-none mt-0.5">{{ __("No activity this shift") }}</p>
+								</div>
+								<div class="w-28 flex-shrink-0">
+									<Input
+										:modelValue="payment.closing_amount"
+										@update:modelValue="(v) => updateClosingAmount(payment, v)"
+										type="number" step="0.01" min="0" placeholder="0.00"
+										:disabled="showSuccessReport || submitResource.loading"
+										class="text-sm text-center"
+									/>
+								</div>
+								<div class="w-20 text-end flex-shrink-0">
+									<span
+										v-if="payment.closing_amount !== null && payment.closing_amount !== undefined && Number(payment.closing_amount) !== 0"
+										class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700"
 									>
-										{{ getTotalDifference > 0 ? "+" : ""
-										}}{{ formatCurrency(Math.abs(getTotalDifference)) }}
-									</div>
+										{{ formatCurrency(payment.closing_amount) }}
+									</span>
+									<span v-else class="text-xs text-gray-400">—</span>
 								</div>
 							</div>
 						</div>
 
-						<div class="p-3 md:p-6">
-							<!-- ENTRY MODE: Simple blind input list (when hideExpectedAmount is enabled and not showing report) -->
-							<div v-if="isInEntryMode" class="flex flex-col gap-3 md:gap-4">
-								<div
-									v-for="(payment, idx) in closingData.payment_reconciliation"
-									:key="idx"
-									v-show="!isNegativeExpected(payment)"
-									class="border border-gray-200 rounded-lg p-3 md:p-4 bg-white hover:border-gray-300 transition-colors"
-								>
-									<div class="flex items-center justify-between gap-3">
-										<!-- Payment Method Name with Icon -->
-										<div class="flex items-center gap-2 md:gap-3 flex-1">
-											<div
-												:class="[
-													'rounded-lg p-1.5 md:p-2 flex-shrink-0',
-													getPaymentIcon(payment.mode_of_payment).color,
-												]"
-											>
-												<span class="text-base md:text-xl">{{
-													getPaymentIcon(payment.mode_of_payment).icon
-												}}</span>
-											</div>
-											<label
-												:for="`payment-${idx}`"
-												class="text-start text-sm md:text-base font-semibold text-gray-900 cursor-pointer"
-											>
-												{{ payment.mode_of_payment }}
-											</label>
-										</div>
-
-										<!-- Simple Input with Native Arrows -->
-										<div class="w-40 md:w-48">
-											<Input
-												:id="`payment-${idx}`"
-												:modelValue="payment.closing_amount"
-												@update:modelValue="
-													(value) => updateClosingAmount(payment, value)
-												"
-												type="number"
-												step="10"
-												min="0"
-												placeholder="0.00"
-												:disabled="submitResource.loading"
-												:aria-label="
-													__('Enter actual amount for {0}', [
-														payment.mode_of_payment,
-													])
-												"
-												class="text-base md:text-lg text-center font-semibold"
-											/>
-										</div>
-									</div>
-								</div>
+						<!-- Totals footer -->
+						<div v-if="shouldShowSummary" class="grid grid-cols-3 border-t border-gray-200 bg-gray-50 divide-x divide-gray-200 text-center">
+							<div class="px-3 py-2">
+								<p class="text-xs text-gray-400 leading-none mb-1">{{ __("Expected") }}</p>
+								<p class="text-sm font-bold text-gray-900 tabular-nums">{{ formatCurrency(getTotalExpected) }}</p>
 							</div>
-
-							<!-- REVIEW MODE: Full payment method cards (when not in entry mode) -->
-							<div v-else class="flex flex-col gap-4 md:gap-5">
-								<div
-									v-for="(payment, idx) in closingData.payment_reconciliation"
-									:key="idx"
-									:class="[
-										'border rounded-lg p-3 md:p-5 transition-all',
-										isNegativeExpected(payment)
-											? 'border-amber-300 bg-amber-50'
-											: payment.difference === 0
-											? 'border-green-200 bg-green-50'
-											: payment.difference > 0
-											? 'border-blue-200 bg-blue-50'
-											: 'border-red-200 bg-red-50',
-									]"
-								>
-
-									<!-- ▶ Special layout: negative expected (returns exceeded drawer balance) -->
-									<template v-if="isNegativeExpected(payment)">
-										<div class="flex items-start gap-2 md:gap-3">
-											<div
-												:class="[
-													'rounded-lg p-1.5 md:p-2 flex-shrink-0',
-													getPaymentIcon(payment.mode_of_payment).color,
-												]"
-											>
-												<span class="text-base md:text-xl">{{
-													getPaymentIcon(payment.mode_of_payment).icon
-												}}</span>
-											</div>
-											<div class="flex-1 min-w-0">
-												<h4 class="text-start text-sm md:text-base font-semibold text-gray-900">
-													{{ payment.mode_of_payment }}
-												</h4>
-												<p class="text-xs md:text-sm text-amber-800 mt-0.5">
-													{{ __("Cash disbursed from drawer to cover returns") }}
-												</p>
-											</div>
-											<div class="text-end flex-shrink-0">
-												<div class="text-xs text-amber-700 font-medium uppercase mb-0.5">
-													{{ __("Disbursed") }}
-												</div>
-												<div class="text-base md:text-xl font-bold text-amber-800">
-													{{ formatCurrency(Math.abs(payment.expected_amount)) }}
-												</div>
-											</div>
-										</div>
-										<div class="mt-2 md:mt-3 flex items-center gap-2 rounded-lg bg-amber-100 border border-amber-200 px-3 py-2">
-											<svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-												<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-											</svg>
-											<p class="text-xs text-amber-800">
-												{{ __("The drawer should be empty for this payment method. No input required — recorded automatically.") }}
-											</p>
-										</div>
-										<div class="mt-2 grid grid-cols-3 gap-2 text-xs text-center">
-											<div class="bg-white rounded-lg p-2 border border-amber-200">
-												<div class="text-gray-500 uppercase mb-0.5">{{ __("Opening") }}</div>
-												<div class="font-semibold text-gray-800">{{ formatCurrency(payment.opening_amount) }}</div>
-											</div>
-											<div class="bg-white rounded-lg p-2 border border-amber-200">
-												<div class="text-gray-500 uppercase mb-0.5">{{ __("Returns Paid") }}</div>
-												<div class="font-semibold text-amber-700">{{ formatCurrency(Math.abs(payment.expected_amount)) }}</div>
-											</div>
-											<div class="bg-white rounded-lg p-2 border border-amber-200">
-												<div class="text-gray-500 uppercase mb-0.5">{{ __("Drawer") }}</div>
-												<div class="font-semibold text-green-700">{{ formatCurrency(0) }} ✓</div>
-											</div>
-										</div>
-									</template>
-
-									<!-- ▶ Normal layout: standard positive/zero expected -->
-									<template v-else>
-									<div
-										class="flex items-start justify-between mb-3 md:mb-4 gap-2"
-									>
-										<div class="flex items-center gap-2 md:gap-3">
-											<!-- Payment Method Icon -->
-											<div
-												:class="[
-													'rounded-lg p-1.5 md:p-2',
-													getPaymentIcon(payment.mode_of_payment).color,
-												]"
-											>
-												<span class="text-base md:text-xl">{{
-													getPaymentIcon(payment.mode_of_payment).icon
-												}}</span>
-											</div>
-											<div>
-												<h4
-													class="text-start text-sm md:text-base font-semibold text-gray-900"
-												>
-													{{ payment.mode_of_payment }}
-												</h4>
-												<TranslatedHTML
-													:tag="'p'"
-													class="text-xs md:text-sm text-gray-600"
-													:inner="
-														__(
-															'Expected: &lt;span class=&quot;font-medium&quot;&gt;{0}&lt;/span&gt;',
-															[
-																formatCurrency(
-																	payment.expected_amount
-																),
-															]
-														)
-													"
-												/>
-											</div>
-										</div>
-
-										<!-- Status Badge -->
-										<div
-											v-if="
-												payment.closing_amount !== null &&
-												payment.closing_amount !== undefined
-											"
-											class="flex-shrink-0"
-										>
-											<span
-												v-if="payment.difference === 0"
-												class="inline-flex items-center px-2 md:px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
-											>
-												{{ __("✓ Balanced") }}
-											</span>
-											<span
-												v-else-if="payment.difference > 0"
-												class="inline-flex items-center px-2 md:px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-											>
-												{{
-													__("Over {0}", [
-														formatCurrency(payment.difference),
-													])
-												}}
-											</span>
-											<span
-												v-else
-												class="inline-flex items-center px-2 md:px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"
-											>
-												{{
-													__("Short {0}", [
-														formatCurrency(
-															Math.abs(payment.difference)
-														),
-													])
-												}}
-											</span>
-										</div>
-									</div>
-
-									<!-- Amount Entry Grid -->
-									<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
-										<!-- Opening Amount -->
-										<div
-											class="text-start bg-white rounded-lg p-2 md:p-3 border border-gray-200"
-										>
-											<label
-												class="block text-xs font-medium text-gray-500 uppercase mb-0.5 md:mb-1"
-												>{{ __("Opening") }}</label
-											>
-											<div
-												class="text-base md:text-lg font-semibold text-gray-900"
-											>
-												{{ formatCurrency(payment.opening_amount) }}
-											</div>
-											<div
-												class="text-xs text-gray-500 mt-0.5 md:mt-1 hidden sm:block"
-											>
-												{{ __("Shift start") }}
-											</div>
-										</div>
-
-										<!-- Expected Amount -->
-										<div
-											class="text-start bg-white rounded-lg p-2 md:p-3 border border-gray-200"
-										>
-											<label
-												class="block text-xs font-medium text-gray-500 uppercase mb-0.5 md:mb-1"
-												>{{ __("Expected") }}</label
-											>
-											<div
-												class="text-base md:text-lg font-semibold text-gray-900"
-											>
-												{{ formatCurrency(payment.expected_amount) }}
-											</div>
-											<div
-												class="text-xs text-gray-500 mt-0.5 md:mt-1 hidden sm:block"
-											>
-												<span v-if="getSalesForPayment(payment) > 0">
-													+{{
-														formatCurrency(getSalesForPayment(payment))
-													}}
-												</span>
-												<span v-else>{{ __("No sales") }}</span>
-											</div>
-										</div>
-
-										<!-- Actual/Closing Amount -->
-										<div
-											class="text-start bg-white rounded-lg p-2 md:p-3 border border-gray-300"
-										>
-											<label
-												class="block text-xs font-medium text-gray-700 uppercase mb-0.5 md:mb-1"
-											>
-												{{
-								hasNoExpectedBalance(payment)
-									? __("Actual Amount")
-									: __("Actual Amount *")
-							}}
-											</label>
-											<Input
-												:modelValue="payment.closing_amount"
-												@update:modelValue="
-													(value) => updateClosingAmount(payment, value)
-												"
-												type="number"
-												step="0.01"
-												min="0"
-												placeholder="0.00"
-												:disabled="
-													showSuccessReport || submitResource.loading
-												"
-												:aria-label="`Enter actual amount for ${payment.mode_of_payment}`"
-												class="text-base md:text-lg"
-											/>
-											<div
-												class="text-xs text-gray-500 mt-0.5 md:mt-1 hidden sm:block"
-											>
-												{{
-													showSuccessReport
-														? __("Final Amount")
-														: hasNoExpectedBalance(payment)
-										? __("No balance to count")
-										: __("Count & enter")
-												}}
-											</div>
-										</div>
-									</div>
-
-									<!-- Difference Alert -->
-									<div
-										v-if="
-											payment.closing_amount !== null &&
-											payment.closing_amount !== undefined &&
-											payment.difference !== 0
-										"
-										class="text-start mt-2 md:mt-3 p-2 md:p-3 rounded-lg"
-										:class="[
-											payment.difference > 0
-												? 'bg-blue-50 border border-blue-200'
-												: 'bg-red-50 border border-red-200',
-										]"
-									>
-										<div class="flex items-center justify-between gap-2">
-											<div class="flex-1">
-												<p
-													:class="[
-														'text-xs md:text-sm font-medium',
-														payment.difference > 0
-															? 'text-blue-900'
-															: 'text-red-900',
-													]"
-												>
-													{{
-														payment.difference > 0
-															? __("Overage")
-															: __("Shortage")
-													}}
-												</p>
-												<p
-													:class="[
-														'text-xs',
-														payment.difference > 0
-															? 'text-blue-700'
-															: 'text-red-700',
-													]"
-												>
-													{{
-														payment.difference > 0
-															? __("You have more than expected.")
-															: __("You have less than expected.")
-													}}
-												</p>
-											</div>
-											<div
-												:class="[
-													'text-base md:text-xl font-bold',
-													payment.difference > 0
-														? 'text-blue-700'
-														: 'text-red-700',
-												]"
-											>
-												{{ payment.difference > 0 ? "+" : ""
-												}}{{ formatCurrency(payment.difference) }}
-											</div>
-										</div>
-									</div>
-
-									</template><!-- end normal layout -->
-								</div>
+							<div class="px-3 py-2">
+								<p class="text-xs text-gray-400 leading-none mb-1">{{ __("Actual") }}</p>
+								<p class="text-sm font-bold text-gray-900 tabular-nums">{{ formatCurrency(getTotalActual) }}</p>
 							</div>
-						</div>
-
-						<div
-							v-if="hasUnconfirmedVariance"
-							class="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 md:p-4"
-						>
-							<p class="text-sm font-semibold text-amber-900">
-								{{ __("A variance was detected") }}
-							</p>
-							<p class="mt-1 text-xs md:text-sm text-amber-800">
-								{{ __("Review the shortage or overage before closing this shift.") }}
-							</p>
-							<label class="mt-3 flex cursor-pointer items-start gap-2 text-xs md:text-sm text-amber-900">
-								<input
-									v-model="varianceConfirmed"
-									type="checkbox"
-									class="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-700 focus:ring-amber-500"
-								/>
-								<span>{{ __("I have reviewed the variance and approve closing this shift.") }}</span>
-							</label>
-						</div>
-
-						<!-- Reconciliation Summary (hidden in entry mode when hideExpectedAmount is enabled) -->
-						<div
-							v-if="shouldShowSummary"
-							class="text-start bg-gray-50 px-3 py-3 md:px-6 md:py-4 border-t border-gray-200"
-						>
-							<div class="grid grid-cols-3 gap-2 md:gap-4">
-								<div>
-									<p class="text-xs md:text-sm text-gray-600">
-										{{ __("Total Expected") }}
-									</p>
-									<p class="text-base md:text-xl font-semibold text-gray-900">
-										{{ formatCurrency(getTotalExpected) }}
-									</p>
-								</div>
-								<div>
-									<p class="text-xs md:text-sm text-gray-600">
-										{{ __("Total Actual") }}
-									</p>
-									<p class="text-base md:text-xl font-semibold text-gray-900">
-										{{ formatCurrency(getTotalActual) }}
-									</p>
-								</div>
-								<div>
-									<p class="text-xs md:text-sm text-gray-600">
-										{{ __("Net Variance") }}
-									</p>
-									<p
-										:class="[
-											'text-base md:text-xl font-bold',
-											getTotalDifference === 0
-												? 'text-green-600'
-												: getTotalDifference > 0
-												? 'text-blue-600'
-												: 'text-red-600',
-										]"
-									>
-										{{
-											getTotalDifference === 0
-												? "✓ "
-												: getTotalDifference > 0
-												? "+"
-												: ""
-										}}{{ formatCurrency(Math.abs(getTotalDifference)) }}
-									</p>
-								</div>
-							</div>
-							<!-- Returns disbursed note (shown only when any mode has negative expected) -->
-							<div
-								v-if="getTotalReturnsDisbursed > 0"
-								class="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2"
-							>
-								<svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-								</svg>
-								<p class="text-xs text-amber-800">
-									{{ __("Cash disbursed for returns:") }}
-									<span class="font-bold ms-1">{{ formatCurrency(getTotalReturnsDisbursed) }}</span>
-									— {{ __("recorded automatically, not counted in variance.") }}
+							<div class="px-3 py-2">
+								<p class="text-xs text-gray-400 leading-none mb-1">{{ __("Variance") }}</p>
+								<p :class="['text-sm font-bold tabular-nums', getTotalDifference === 0 ? 'text-green-600' : getTotalDifference > 0 ? 'text-blue-600' : 'text-red-600']">
+									{{ getTotalDifference === 0 ? "✓ 0.00" : (getTotalDifference > 0 ? "+" : "") + formatCurrency(getTotalDifference) }}
 								</p>
 							</div>
 						</div>
 					</div>
 
-					<!-- Tax Summary (hidden in entry mode when hideExpectedAmount is enabled) -->
-					<div
-						v-if="
-							shouldShowSummary && closingData.taxes && closingData.taxes.length > 0
-						"
-						class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm"
-					>
-						<div class="px-3 py-3 md:px-6 md:py-4 bg-gray-50 border-b border-gray-200">
-							<h3 class="text-sm md:text-lg font-medium text-gray-900">
+					<!-- Variance confirmation -->
+					<div v-if="hasUnconfirmedVariance" class="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5">
+						<FeatherIcon name="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+						<label class="flex cursor-pointer items-start gap-2">
+							<input v-model="varianceConfirmed" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-amber-400" />
+							<span class="text-xs text-amber-900">{{ __("Variance detected — I reviewed and approve closing this shift.") }}</span>
+						</label>
+					</div>
+
+					<!-- Returns disbursed note -->
+					<div v-if="getTotalReturnsDisbursed > 0" class="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+						<FeatherIcon name="info" class="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+						<p class="text-xs text-amber-800">
+							{{ __("Cash disbursed for returns:") }} <span class="font-bold ms-1">{{ formatCurrency(getTotalReturnsDisbursed) }}</span>
+						</p>
+					</div>
+
+					<!-- ── Transactions (collapsible) ── -->
+					<div v-if="invoiceCount > 0 && shouldShowSummary" class="border border-gray-200 rounded-xl overflow-hidden">
+						<button @click="showInvoiceDetails = !showInvoiceDetails" :aria-expanded="showInvoiceDetails"
+							class="w-full flex items-center justify-between px-4 py-2.5 bg-white hover:bg-gray-50 transition-colors">
+							<span class="text-sm font-semibold text-gray-700">
+								{{ __("Transactions") }}
+								<span class="ms-2 text-gray-400 font-normal text-xs">{{ invoiceCount }} · {{ formatCurrency(closingData.grand_total) }}</span>
+							</span>
+							<FeatherIcon :name="showInvoiceDetails ? 'chevron-up' : 'chevron-down'" class="w-4 h-4 text-gray-400" />
+						</button>
+						<div v-show="showInvoiceDetails" class="border-t border-gray-100 max-h-52 overflow-y-auto">
+							<table class="min-w-full divide-y divide-gray-100 text-sm">
+								<thead class="bg-gray-50 sticky top-0">
+									<tr>
+										<th class="px-4 py-2 text-start text-xs font-semibold text-gray-500 uppercase">{{ __("Invoice") }}</th>
+										<th class="px-4 py-2 text-start text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">{{ __("Customer") }}</th>
+										<th class="px-4 py-2 text-start text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">{{ __("Time") }}</th>
+										<th class="px-4 py-2 text-end text-xs font-semibold text-gray-500 uppercase">{{ __("Amount") }}</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-100 bg-white">
+									<tr v-for="(inv, i) in closingData.pos_transactions" :key="i"
+										:class="inv.is_return ? 'bg-red-50' : 'hover:bg-gray-50'">
+										<td class="px-4 py-2">
+											<span :class="['text-xs font-medium', inv.is_return ? 'text-red-700' : 'text-gray-900']">
+												{{ inv.pos_invoice || inv.sales_invoice || __("N/A") }}
+											</span>
+											<span v-if="inv.is_return" class="ms-1 px-1 py-0.5 text-xs bg-red-100 text-red-700 rounded">{{ __("Ret.") }}</span>
+										</td>
+										<td class="px-4 py-2 text-xs text-gray-500 hidden sm:table-cell truncate max-w-xs">{{ inv.customer }}</td>
+										<td class="px-4 py-2 text-xs text-gray-400 tabular-nums hidden sm:table-cell">{{ formatTime(inv.posting_date) }}</td>
+										<td :class="['px-4 py-2 text-end text-xs font-bold tabular-nums', inv.is_return ? 'text-red-700' : 'text-gray-900']">
+											{{ formatCurrency(inv.grand_total) }}
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+
+					<!-- ── Tax Summary (collapsible) ── -->
+					<div v-if="shouldShowSummary && closingData.taxes && closingData.taxes.length > 0" class="border border-gray-200 rounded-xl overflow-hidden">
+						<button @click="showTaxDetails = !showTaxDetails" :aria-expanded="showTaxDetails"
+							class="w-full flex items-center justify-between px-4 py-2.5 bg-white hover:bg-gray-50 transition-colors">
+							<span class="text-sm font-semibold text-gray-700">
 								{{ __("Tax Summary") }}
-							</h3>
-						</div>
-						<div class="p-3 md:p-6">
-							<div class="flex flex-col gap-2 md:gap-3">
-								<div
-									v-for="(tax, idx) in closingData.taxes"
-									:key="idx"
-									class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-								>
-									<div>
-										<p class="text-xs md:text-sm font-medium text-gray-900">
-											{{ tax.account_head }}
-										</p>
-										<p class="text-xs text-gray-500">
-											{{ formatQuantity(tax.rate) }}%
-										</p>
-									</div>
-									<div class="text-end">
-										<p
-											class="text-sm md:text-base font-semibold text-gray-900"
-										>
-											{{ formatCurrency(tax.amount) }}
-										</p>
-									</div>
+								<span class="ms-2 text-gray-400 font-normal text-xs">{{ formatCurrency(totalTax) }}</span>
+							</span>
+							<FeatherIcon :name="showTaxDetails ? 'chevron-up' : 'chevron-down'" class="w-4 h-4 text-gray-400" />
+						</button>
+						<div v-show="showTaxDetails" class="border-t border-gray-100 divide-y divide-gray-100">
+							<div v-for="(tax, i) in closingData.taxes" :key="i" class="flex items-center justify-between px-4 py-2">
+								<div>
+									<p class="text-xs font-medium text-gray-800">{{ tax.account_head }}</p>
+									<p class="text-xs text-gray-400">{{ formatQuantity(tax.rate) }}%</p>
 								</div>
-							</div>
-							<div class="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-200">
-								<div class="flex items-center justify-between">
-									<span class="text-xs md:text-sm font-medium text-gray-700">{{
-										__("Total Tax Collected")
-									}}</span>
-									<span class="text-base md:text-lg font-bold text-gray-900">{{
-										formatCurrency(totalTax)
-									}}</span>
-								</div>
+								<p class="text-sm font-bold text-gray-900 tabular-nums">{{ formatCurrency(tax.amount) }}</p>
 							</div>
 						</div>
 					</div>
+				</template>
 
-					<!-- Error Display -->
-					<div
-						v-if="submitResource.error || (errorMessage && !closingDataResource.error)"
-						class="rounded-lg bg-red-50 border border-red-200 p-3 md:p-4"
-					>
-						<div class="flex gap-2 md:gap-3">
-							<svg
-								class="h-4 w-4 md:h-5 md:w-5 text-red-600 flex-shrink-0"
-								fill="currentColor"
-								viewBox="0 0 20 20"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-									clip-rule="evenodd"
-								/>
-							</svg>
-							<div class="flex-1">
-								<h4 class="text-xs md:text-sm font-medium text-red-800">
-									{{ __("Error Closing Shift") }}
-								</h4>
-								<p class="text-xs md:text-sm text-red-700 mt-1">
-									{{ errorMessage || submitResource.error }}
-								</p>
-								<button
-									v-if="errorMessage"
-									@click="errorMessage = ''"
-									class="mt-2 text-xs text-red-600 hover:text-red-800 underline"
-								>
-									{{ __("Dismiss") }}
-								</button>
-							</div>
-						</div>
+				<!-- Submit error -->
+				<div v-if="submitResource.error || (errorMessage && !closingDataResource.error)" class="flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+					<FeatherIcon name="alert-circle" class="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+					<div class="flex-1">
+						<p class="text-sm font-semibold text-red-800">{{ __("Error Closing Shift") }}</p>
+						<p class="text-xs text-red-600 mt-0.5">{{ errorMessage || submitResource.error }}</p>
+						<button v-if="errorMessage" @click="errorMessage = ''" class="mt-1 text-xs text-red-500 underline">{{ __("Dismiss") }}</button>
 					</div>
 				</div>
 
-				<!-- Error State -->
-				<div
-					v-else-if="closingDataResource.error || errorMessage"
-					class="rounded-lg bg-red-50 border border-red-200 p-3 md:p-4"
-				>
-					<div class="flex gap-2 md:gap-3">
-						<svg
-							class="h-4 w-4 md:h-5 md:w-5 text-red-600 flex-shrink-0"
-							fill="currentColor"
-							viewBox="0 0 20 20"
-						>
-							<path
-								fill-rule="evenodd"
-								d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-						<div>
-							<h3 class="text-xs md:text-sm font-medium text-red-800">
-								{{ __("Failed to Load Shift Data") }}
-							</h3>
-							<p class="text-xs md:text-sm text-red-700 mt-1">
-								{{ errorMessage || closingDataResource.error }}
-							</p>
-						</div>
-					</div>
-				</div>
 			</div>
 		</template>
 
+		<!-- ── ACTIONS BAR ── -->
 		<template #actions>
-			<div
-				class="flex flex-col sm:flex-row justify-between w-full items-stretch sm:items-center gap-2 sm:gap-0"
-			>
-				<!-- Left side - Cancel/Close button -->
-				<Button
-					variant="subtle"
-					@click="closeDialog"
-					:disabled="submitResource.loading"
-					class="order-2 sm:order-1"
-				>
+			<div class="flex items-center justify-between w-full gap-3">
+				<Button variant="subtle" @click="closeDialog" :disabled="submitResource.loading">
 					{{ showSuccessReport ? __("Close") : __("Cancel") }}
 				</Button>
-
-				<div
-					class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 order-1 sm:order-2"
-				>
-					<!-- Validation Warning (only in entry mode) -->
-					<div
-						v-if="!canSubmit && closingData && !showSuccessReport"
-						class="text-xs md:text-sm text-yellow-600 font-medium text-center sm:text-end"
-					>
-						{{
-							hasUnconfirmedVariance
-								? __("Review and confirm the variance before closing")
-								: __("Please enter all closing amounts")
-						}}
-					</div>
-
-					<!-- Success message (shown in report view) -->
-					<div
-						v-if="showSuccessReport"
-						class="text-xs md:text-sm text-green-600 font-medium text-center sm:text-end"
-					>
-						{{ __("✓ Shift closed successfully") }}
-					</div>
-
-					<div
-						v-if="eodPrintFailed"
-						class="text-xs md:text-sm text-amber-600 font-medium text-center sm:text-end"
-					>
-						{{ __("EOD report pending print") }}
-					</div>
-
-					<!-- Submit/Close button (only shown in entry mode) -->
-					<Button
-						v-if="!showSuccessReport"
-						variant="solid"
-						theme="blue"
-						@click="submitClosing"
-						:loading="submitResource.loading"
-						:disabled="!canSubmit"
-					>
-						{{ submitResource.loading ? __("Closing Shift...") : __("Close Shift") }}
-					</Button>
-
-					<Button
-						v-if="eodPrintFailed"
-						variant="solid"
-						theme="blue"
-						@click="retryEodPrint"
-						:loading="retryPrintLoading"
-					>
+				<div class="flex items-center gap-2.5 flex-wrap justify-end">
+					<p v-if="!canSubmit && closingData && !showSuccessReport" class="text-xs text-amber-600 font-medium">
+						{{ hasUnconfirmedVariance ? __("Confirm variance first") : __("Enter all amounts first") }}
+					</p>
+					<p v-if="showSuccessReport" class="text-xs text-green-600 font-semibold">{{ __("✓ Shift closed") }}</p>
+					<p v-if="eodPrintFailed" class="text-xs text-amber-600">{{ __("EOD print pending") }}</p>
+					<Button v-if="eodPrintFailed" variant="solid" theme="blue" @click="retryEodPrint" :loading="retryPrintLoading">
 						{{ __("Print EOD Report") }}
+					</Button>
+					<Button v-if="!showSuccessReport" variant="solid" theme="blue" @click="submitClosing" :loading="submitResource.loading" :disabled="!canSubmit">
+						{{ submitResource.loading ? __("Closing...") : __("Close Shift") }}
 					</Button>
 				</div>
 			</div>
@@ -1086,25 +444,16 @@ import { useToast } from "../composables/useToast";
 import { usePOSSettingsStore } from "../stores/posSettings";
 import { usePOSShiftStore } from "../stores/posShift";
 import { printEODReport } from "../utils/printEod";
-import TranslatedHTML from "./common/TranslatedHTML.vue";
 
 const props = defineProps({
-	modelValue: {
-		type: Boolean,
-		required: true,
-	},
-	openingShift: {
-		type: String,
-		required: true,
-		validator: (value) => value && value.length > 0,
-	},
+	modelValue: { type: Boolean, required: true },
+	openingShift: { type: String, required: true, validator: (v) => v && v.length > 0 },
 });
-
 const emit = defineEmits(["update:modelValue", "shift-closed"]);
 
 const open = computed({
 	get: () => props.modelValue,
-	set: (value) => emit("update:modelValue", value),
+	set: (v) => emit("update:modelValue", v),
 });
 
 const { getClosingShiftData, submitClosingShift } = useShift();
@@ -1112,123 +461,89 @@ const { formatCurrency, formatQuantity, formatDateTime, formatTime } = useFormat
 const { showSuccess, showWarning } = useToast();
 const posSettingsStore = usePOSSettingsStore();
 const { hideExpectedAmount } = storeToRefs(posSettingsStore);
-
 const shiftStore = usePOSShiftStore();
 
-const closingData = ref(null);
+const closingData        = ref(null);
 const closingDataResource = getClosingShiftData;
-const submitResource = submitClosingShift;
+const submitResource     = submitClosingShift;
 const showInvoiceDetails = ref(false);
-const showSuccessReport = ref(false); // Track if shift is closed and showing report
-const errorMessage = ref(""); // User-friendly error message
-const eodPrintFailed = ref(null);
-const retryPrintLoading = ref(false);
-const showIdleWarning = ref(false);
-const varianceConfirmed = ref(false);
-let _idleWarningTimer = null;
+const showTaxDetails     = ref(false);
+const showAllMethods     = ref(false);   // ← toggle for unused payment methods
+const showSuccessReport  = ref(false);
+const errorMessage       = ref("");
+const eodPrintFailed     = ref(null);
+const retryPrintLoading  = ref(false);
+const showIdleWarning    = ref(false);
+const varianceConfirmed  = ref(false);
+let _idleWarningTimer    = null;
 
-// Watch dialog open state
 watch(open, async (isOpen) => {
 	if (isOpen && props.openingShift) {
-		// Pause the shift duration counter in the header
 		shiftStore.shiftTimerPaused = true;
 		showIdleWarning.value = false;
-
-		// Warn user if dialog stays open for more than 1 minute
-		_idleWarningTimer = setTimeout(() => {
-			showIdleWarning.value = true;
-		}, 60_000);
-
-		// Refresh POS settings to get latest hideExpectedAmount value
+		showAllMethods.value = false;
+		_idleWarningTimer = setTimeout(() => { showIdleWarning.value = true; }, 60_000);
 		await posSettingsStore.reloadSettings();
 		loadClosingData();
 	} else {
-		// Resume the shift duration counter
 		shiftStore.shiftTimerPaused = false;
 		showIdleWarning.value = false;
-		if (_idleWarningTimer) {
-			clearTimeout(_idleWarningTimer);
-			_idleWarningTimer = null;
-		}
+		if (_idleWarningTimer) { clearTimeout(_idleWarningTimer); _idleWarningTimer = null; }
 		eodPrintFailed.value = null;
 	}
 });
 
 onBeforeUnmount(() => {
 	shiftStore.shiftTimerPaused = false;
-	if (_idleWarningTimer) {
-		clearTimeout(_idleWarningTimer);
-		_idleWarningTimer = null;
-	}
+	if (_idleWarningTimer) { clearTimeout(_idleWarningTimer); _idleWarningTimer = null; }
 });
 
 async function loadClosingData() {
 	try {
-		errorMessage.value = ""; // Clear any previous errors
+		errorMessage.value = "";
 		varianceConfirmed.value = false;
 
-		const data = await closingDataResource.submit({
-			opening_shift: props.openingShift,
-		});
+		const data = await closingDataResource.submit({ opening_shift: props.openingShift });
 
-		// Make payment_reconciliation reactive
 		if (data.payment_reconciliation) {
 			data.payment_reconciliation = data.payment_reconciliation.map((payment) => {
-				const noBalanceToCount = hasNoExpectedBalance(payment);
-				const negExp = Number.parseFloat(payment.expected_amount) < -0.005;
+				const noBalance = hasNoExpectedBalance(payment);
+				const negExp   = Number.parseFloat(payment.expected_amount) < -0.005;
 				return reactive({
 					...payment,
-					// Negative-expected rows (returns > sales): drawer must be empty → auto-set to 0.
-					// Empty zero-balance methods are already reconciled; do not block the shift close.
-					closing_amount: payment.closing_amount ?? (noBalanceToCount || negExp ? 0 : null),
+					closing_amount: payment.closing_amount ?? (noBalance || negExp ? 0 : null),
 					difference: 0,
-					_touched: noBalanceToCount || negExp,
+					_touched: noBalance || negExp,
 				});
 			});
-
-			// Calculate initial differences
-			data.payment_reconciliation.forEach((payment) => {
-				calculateDifference(payment);
-			});
+			data.payment_reconciliation.forEach((p) => calculateDifference(p));
 		}
 
-		closingData.value = data;
-
-		// Auto-expand invoice details if there are few invoices
-		if (invoiceCount.value > 0 && invoiceCount.value <= 10) {
-			showInvoiceDetails.value = true;
-		}
+		closingData.value   = data;
+		showInvoiceDetails.value = false;
+		showTaxDetails.value     = false;
 	} catch (error) {
 		console.error("Error loading closing data:", error);
-		errorMessage.value = __(
-			"Unable to load shift data. Please check your connection and try again."
-		);
+		errorMessage.value = __("Unable to load shift data. Please check your connection and try again.");
 	}
 }
 
 function hasNoExpectedBalance(payment) {
-	const opening = Number.parseFloat(payment.opening_amount) || 0;
+	const opening  = Number.parseFloat(payment.opening_amount) || 0;
 	const expected = Number.parseFloat(payment.expected_amount) || 0;
 	return Math.abs(opening) < 0.005 && Math.abs(expected) < 0.005;
 }
 
-/** True when returns exceeded sales+opening for this payment mode → drawer owes money */
 function isNegativeExpected(payment) {
 	return Number.parseFloat(payment.expected_amount) < -0.005;
 }
 
 function calculateDifference(payment) {
-	const closing = Number.parseFloat(payment.closing_amount) || 0;
-	// For negative-expected rows the effective expected is 0 (drawer must be empty).
-	// We still store the true expected_amount so the backend journal entry is correct,
-	// but the variance shown to the cashier is always 0 for these rows.
-	const effective = isNegativeExpected(payment)
-		? 0
-		: Number.parseFloat(payment.expected_amount) || 0;
+	const closing   = Number.parseFloat(payment.closing_amount) || 0;
+	const effective = isNegativeExpected(payment) ? 0 : Number.parseFloat(payment.expected_amount) || 0;
 	payment.difference = closing - effective;
 }
 
-// New function to handle closing amount updates with proper reactivity
 function updateClosingAmount(payment, value) {
 	payment.closing_amount = value;
 	payment._touched = true;
@@ -1236,44 +551,47 @@ function updateClosingAmount(payment, value) {
 	calculateDifference(payment);
 }
 
-const allRequiredAmountsEntered = computed(() => {
-	if (!closingData.value || !closingData.value.payment_reconciliation) return false;
+// ── Derived payment method lists ─────────────────────────
+/** Methods with actual activity this shift (show by default). */
+const activeMethods = computed(() => {
+	if (!closingData.value?.payment_reconciliation) return [];
+	return closingData.value.payment_reconciliation.filter(
+		(p) => !hasNoExpectedBalance(p)
+	);
+});
 
+/** Methods with zero opening AND zero expected (truly unused). */
+const unusedMethods = computed(() => {
+	if (!closingData.value?.payment_reconciliation) return [];
+	return closingData.value.payment_reconciliation.filter(
+		(p) => hasNoExpectedBalance(p) && !isNegativeExpected(p)
+	);
+});
+
+const unusedMethodsCount = computed(() => unusedMethods.value.length);
+
+// ── Validation ────────────────────────────────────────────
+const allRequiredAmountsEntered = computed(() => {
+	if (!closingData.value?.payment_reconciliation) return false;
 	return closingData.value.payment_reconciliation.every(
-		(payment) =>
-			hasNoExpectedBalance(payment) ||
-			(payment._touched &&
-				payment.closing_amount !== null &&
-				payment.closing_amount !== undefined &&
-				payment.closing_amount !== "")
+		(p) =>
+			hasNoExpectedBalance(p) ||
+			(p._touched && p.closing_amount !== null && p.closing_amount !== undefined && p.closing_amount !== "")
 	);
 });
 
 const hasUnconfirmedVariance = computed(
-	() =>
-		allRequiredAmountsEntered.value &&
-		Math.abs(getTotalDifference.value) >= 0.005 &&
-		!varianceConfirmed.value
+	() => allRequiredAmountsEntered.value && Math.abs(getTotalDifference.value) >= 0.005 && !varianceConfirmed.value
 );
 
-const canSubmit = computed(
-	() => allRequiredAmountsEntered.value && !hasUnconfirmedVariance.value
-);
+const canSubmit = computed(() => allRequiredAmountsEntered.value && !hasUnconfirmedVariance.value);
 
+// ── Submit ────────────────────────────────────────────────
 async function submitClosing() {
 	if (!closingData.value) return;
-
 	try {
-		errorMessage.value = ""; // Clear any previous errors
-
-		// Ensure all differences are calculated
-		if (closingData.value.payment_reconciliation) {
-			closingData.value.payment_reconciliation.forEach((payment) => {
-				calculateDifference(payment);
-			});
-		}
-
-		// Submit to server
+		errorMessage.value = "";
+		closingData.value.payment_reconciliation?.forEach((p) => calculateDifference(p));
 		const result = await submitResource.submit({ closing_shift: closingData.value });
 		const closingShiftName = result?.name ?? submitResource.data?.name;
 		if (closingShiftName) {
@@ -1288,31 +606,21 @@ async function submitClosing() {
 				return;
 			}
 		}
-
-		// If hideExpectedAmount is enabled, show success report before closing
 		if (hideExpectedAmount.value) {
 			showSuccessReport.value = true;
-			// Auto-expand invoice details in success report
-			if (invoiceCount.value > 0 && invoiceCount.value <= 10) {
-				showInvoiceDetails.value = true;
-			}
 		} else {
-			// Normal mode: close immediately
 			emit("shift-closed");
 			closeDialog();
 		}
 	} catch (error) {
 		console.error("Error submitting closing shift:", error);
-		errorMessage.value = __(
-			"Failed to close shift. Please verify all amounts and try again."
-		);
+		errorMessage.value = __("Failed to close shift. Please verify all amounts and try again.");
 	}
 }
 
 async function retryEodPrint() {
 	const closingShiftName = eodPrintFailed.value?.closingShiftName;
 	if (!closingShiftName) return;
-
 	retryPrintLoading.value = true;
 	try {
 		await printEODReport(closingShiftName);
@@ -1328,152 +636,82 @@ async function retryEodPrint() {
 }
 
 function closeDialog() {
-	// Emit shift-closed event if we're closing from success report
-	if (showSuccessReport.value) {
-		emit("shift-closed");
-	}
-
-	open.value = false;
-	closingData.value = null;
+	if (showSuccessReport.value) emit("shift-closed");
+	open.value           = false;
+	closingData.value    = null;
 	showInvoiceDetails.value = false;
-	showSuccessReport.value = false; // Reset report view
-	errorMessage.value = ""; // Clear error messages
-	eodPrintFailed.value = null;
+	showTaxDetails.value     = false;
+	showAllMethods.value     = false;
+	showSuccessReport.value  = false;
+	errorMessage.value       = "";
+	eodPrintFailed.value     = null;
 }
 
-// UI State Computed Properties
+// ── UI State ──────────────────────────────────────────────
 const shouldShowSummary = computed(() => !hideExpectedAmount.value || showSuccessReport.value);
+const isInEntryMode     = computed(() => hideExpectedAmount.value && !showSuccessReport.value);
 
-const isInEntryMode = computed(() => hideExpectedAmount.value && !showSuccessReport.value);
+const invoiceCount = computed(() => (closingData.value?.pos_transactions || []).length);
+const hasReturns   = computed(() => (closingData.value?.returns_count || 0) > 0);
 
-const reconciliationMessage = computed(() => {
-	if (isInEntryMode.value) {
-		return __("Enter the actual counted amounts for each payment method");
-	}
-	if (showSuccessReport.value && hideExpectedAmount.value) {
-		return __(
-			"Shift closed successfully - Review the final reconciliation below"
-		);
-	}
-	return __("Count your cash and enter actual amounts below");
-});
+const salesInvoiceCount = computed(() =>
+	(closingData.value?.pos_transactions || []).filter((t) => !t.is_return).length
+);
 
-// Computed properties for real-time recalculation
-const invoiceCount = computed(() => {
-	if (!closingData.value) return 0;
-	const transactions = closingData.value.pos_transactions || [];
-	return transactions.length;
-});
+const totalTax = computed(() =>
+	(closingData.value?.taxes || []).reduce((s, t) => s + Number.parseFloat(t.amount || 0), 0)
+);
 
-// Check if there are any return invoices
-const hasReturns = computed(() => {
-	if (!closingData.value) return false;
-	return (closingData.value.returns_count || 0) > 0;
-});
+const grossSales = computed(() =>
+	closingData.value ? (closingData.value.sales_total ?? closingData.value.grand_total ?? 0) : 0
+);
 
-// Count of sales invoices (non-returns)
-const salesInvoiceCount = computed(() => {
-	if (!closingData.value) return 0;
-	const transactions = closingData.value.pos_transactions || [];
-	return transactions.filter((t) => !t.is_return).length;
-});
-
-const totalTax = computed(() => {
-	if (!closingData.value || !closingData.value.taxes) return 0;
-	return closingData.value.taxes.reduce(
-		(sum, tax) => sum + Number.parseFloat(tax.amount || 0),
-		0
-	);
-});
-
-const grossSales = computed(() => {
-	if (!closingData.value) return 0;
-	return closingData.value.sales_total ?? closingData.value.grand_total ?? 0;
-});
 const getTotalExpected = computed(() => {
-	if (!closingData.value || !closingData.value.payment_reconciliation) return 0;
-	// Exclude negative-expected rows: their "expected" for variance purposes is 0.
-	return closingData.value.payment_reconciliation.reduce((sum, payment) => {
-		const exp = Number.parseFloat(payment.expected_amount || 0);
+	if (!closingData.value?.payment_reconciliation) return 0;
+	return closingData.value.payment_reconciliation.reduce((sum, p) => {
+		const exp = Number.parseFloat(p.expected_amount || 0);
 		return sum + (exp < -0.005 ? 0 : exp);
 	}, 0);
 });
 
 const getTotalActual = computed(() => {
-	if (!closingData.value || !closingData.value.payment_reconciliation) return 0;
-	// Exclude negative-expected rows from actual total (their closing_amount is always 0).
-	return closingData.value.payment_reconciliation.reduce((sum, payment) => {
-		if (Number.parseFloat(payment.expected_amount) < -0.005) return sum;
-		return sum + Number.parseFloat(payment.closing_amount || 0);
+	if (!closingData.value?.payment_reconciliation) return 0;
+	return closingData.value.payment_reconciliation.reduce((sum, p) => {
+		if (Number.parseFloat(p.expected_amount) < -0.005) return sum;
+		return sum + Number.parseFloat(p.closing_amount || 0);
 	}, 0);
 });
 
-const getTotalDifference = computed(() => {
-	return getTotalActual.value - getTotalExpected.value;
-});
+const getTotalDifference = computed(() => getTotalActual.value - getTotalExpected.value);
 
-/** Sum of cash that was disbursed from the drawer to cover returns (absolute value). */
 const getTotalReturnsDisbursed = computed(() => {
-	if (!closingData.value || !closingData.value.payment_reconciliation) return 0;
-	return closingData.value.payment_reconciliation.reduce((sum, payment) => {
-		const exp = Number.parseFloat(payment.expected_amount || 0);
+	if (!closingData.value?.payment_reconciliation) return 0;
+	return closingData.value.payment_reconciliation.reduce((sum, p) => {
+		const exp = Number.parseFloat(p.expected_amount || 0);
 		return exp < -0.005 ? sum + Math.abs(exp) : sum;
 	}, 0);
 });
 
-function getSalesForPayment(payment) {
-	return (
-		Number.parseFloat(payment.expected_amount || 0) -
-		Number.parseFloat(payment.opening_amount || 0)
-	);
-}
-
 function getShiftDuration() {
-	if (!closingData.value || !closingData.value.period_start_date) return __("N/A");
-
-	// Use the same timezone-safe approach as the header timer
+	if (!closingData.value?.period_start_date) return __("N/A");
 	const { _initialElapsedMs, _receivedAt } = shiftState.value;
 	const diff = _initialElapsedMs + (Date.now() - (_receivedAt || Date.now()));
 	if (diff < 0) return __("N/A");
-
-	const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-	const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-	const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-	if (days > 0) {
-		const dayLabel = days === 1 ? __("Day") : __("Days");
-		return __("{0} {1} {2}h {3}m", [days, dayLabel, hours, minutes]);
-	}
-	if (hours > 0) {
-		return __("{0}h {1}m", [hours, minutes]);
-	}
+	const days    = Math.floor(diff / 86400000);
+	const hours   = Math.floor((diff % 86400000) / 3600000);
+	const minutes = Math.floor((diff % 3600000) / 60000);
+	if (days > 0)  return __("{0}d {1}h {2}m", [days, hours, minutes]);
+	if (hours > 0) return __("{0}h {1}m", [hours, minutes]);
 	return __("{0}m", [minutes]);
 }
 
 function getPaymentIcon(method) {
-	const methodLower = String(method || "").toLowerCase();
-
-	if (methodLower.includes("cash")) {
-		return { icon: "💵", color: "bg-green-500" };
-	} else if (
-		methodLower.includes("card") ||
-		methodLower.includes("credit") ||
-		methodLower.includes("debit")
-	) {
-		return { icon: "💳", color: "bg-blue-500" };
-	} else if (
-		methodLower.includes("mobile") ||
-		methodLower.includes("wallet") ||
-		methodLower.includes("upi") ||
-		methodLower.includes("phone")
-	) {
-		return { icon: "📱", color: "bg-purple-500" };
-	} else if (methodLower.includes("bank") || methodLower.includes("transfer")) {
-		return { icon: "🏦", color: "bg-indigo-500" };
-	} else if (methodLower.includes("cheque") || methodLower.includes("check")) {
-		return { icon: "📝", color: "bg-yellow-500" };
-	} else {
-		return { icon: "💰", color: "bg-gray-500" };
-	}
+	const m = String(method || "").toLowerCase();
+	if (m.includes("cash"))                                                    return { icon: "💵", color: "bg-green-500" };
+	if (m.includes("card") || m.includes("credit") || m.includes("debit"))    return { icon: "💳", color: "bg-blue-500" };
+	if (m.includes("mobile") || m.includes("wallet") || m.includes("phone"))  return { icon: "📱", color: "bg-purple-500" };
+	if (m.includes("bank") || m.includes("transfer"))                          return { icon: "🏦", color: "bg-indigo-500" };
+	if (m.includes("cheque") || m.includes("check"))                           return { icon: "📝", color: "bg-yellow-500" };
+	return { icon: "💰", color: "bg-gray-500" };
 }
 </script>

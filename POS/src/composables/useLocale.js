@@ -40,7 +40,7 @@ export const SUPPORTED_LOCALES = {
 	ar: {
 		name: "Arabic",
 		nativeName: "العربية",
-		countryCode: "eg",
+		countryCode: "sa",
 		dir: "rtl",
 	},
 	id: {

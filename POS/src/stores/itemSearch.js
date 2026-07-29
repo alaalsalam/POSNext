@@ -1869,6 +1869,14 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 		selectedBrand.value = null;
 		clearBaseCache();
 
+		// SMALL CATALOG FAST PATH: If all items are already loaded locally
+		// (hasMore === false means no more pages — entire catalog is in allItems),
+		// the filteredItems computed handles filtering instantly — no server call needed.
+		if (!hasMore.value && allItems.value.length > 0) {
+			// Just update the reactive ref; filteredItems computed re-runs automatically.
+			return;
+		}
+
 		// LARGE CATALOG OPTIMIZATION: Fetch items from server when group changes
 		// Client-side filtering doesn't work for 65K+ items
 		if (posProfile.value) {

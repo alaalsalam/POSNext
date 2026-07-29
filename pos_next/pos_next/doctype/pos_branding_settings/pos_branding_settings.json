@@ -46,7 +46,7 @@
    "label": "Application Identity"
   },
   {
-   "default": "POSNext",
+   "default": "Digit POS",
    "fieldname": "app_name",
    "fieldtype": "Data",
    "label": "Application Name",
@@ -120,7 +120,7 @@
    "label": "PWA Icon 512"
   },
   {
-   "default": "#4F46E5",
+   "default": "#0a8754",
    "fieldname": "theme_color",
    "fieldtype": "Color",
    "label": "Theme Color"
@@ -137,13 +137,13 @@
    "label": "Brand Colors"
   },
   {
-   "default": "#4F46E5",
+   "default": "#0a8754",
    "fieldname": "primary_color",
    "fieldtype": "Color",
    "label": "Primary Color"
   },
   {
-   "default": "#2563EB",
+   "default": "#064e3b",
    "fieldname": "secondary_color",
    "fieldtype": "Color",
    "label": "Secondary Color"

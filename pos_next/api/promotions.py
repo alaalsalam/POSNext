@@ -10,26 +10,39 @@ from frappe.utils import cint, cstr, flt, getdate, nowdate
 
 def check_promotion_permissions(action="read"):
 	"""
-	Check if user has permissions for promotional scheme operations.
+	Check if user has permissions for Promotional Scheme operations.
+	Used by promotion management functions (manager-only).
 
 	Args:
-		action: Type of action - "read", "write", "delete"
-
-	Raises:
-		frappe.PermissionError: If user doesn't have required permissions
+		action: "read", "write", or "delete"
 	"""
-	# Check if user has required permissions for Promotional Scheme doctype
-	if action == "read":
-		if not frappe.has_permission("Promotional Scheme", "read"):
-			frappe.throw(_("You don't have permission to view promotions"), frappe.PermissionError)
-	elif action == "write":
-		if not frappe.has_permission("Promotional Scheme", "write"):
-			frappe.throw(
-				_("You don't have permission to create or modify promotions"), frappe.PermissionError
-			)
-	elif action == "delete":
-		if not frappe.has_permission("Promotional Scheme", "delete"):
-			frappe.throw(_("You don't have permission to delete promotions"), frappe.PermissionError)
+	perm_map = {
+		"read": ("read", _("You don't have permission to view promotions")),
+		"write": ("write", _("You don't have permission to create or modify promotions")),
+		"delete": ("delete", _("You don't have permission to delete promotions")),
+	}
+	perm_type, message = perm_map.get(action, ("read", _("Permission denied")))
+	if not frappe.has_permission("Promotional Scheme", perm_type):
+		frappe.throw(message, frappe.PermissionError)
+
+
+def check_coupon_permissions(action="read"):
+	"""
+	Check if user has permissions for POS Coupon operations.
+	POSNext Cashier can read; POS Manager can do everything.
+
+	Args:
+		action: "read", "write", "create", or "delete"
+	"""
+	perm_map = {
+		"read": ("read", _("You don't have permission to view coupons")),
+		"write": ("write", _("You don't have permission to modify coupons")),
+		"create": ("create", _("You don't have permission to create coupons")),
+		"delete": ("delete", _("You don't have permission to delete coupons")),
+	}
+	perm_type, message = perm_map.get(action, ("read", _("Permission denied")))
+	if not frappe.has_permission("POS Coupon", perm_type):
+		frappe.throw(message, frappe.PermissionError)
 
 
 @frappe.whitelist()
@@ -71,32 +84,68 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 		order_by="modified desc",
 	)
 
-	# Enrich with pricing rules count and details
 	today = getdate(nowdate())
 
+	# --- Enrich Promotional Schemes without N+1 ---
+
+	scheme_names = [s.name for s in schemes]
+
+	# Pricing rules count per scheme — one query
+	pricing_rule_rows = frappe.get_all(
+		"Pricing Rule",
+		filters={"promotional_scheme": ["in", scheme_names]},
+		fields=["promotional_scheme"],
+	) if scheme_names else []
+	pr_count_map = {}
+	for row in pricing_rule_rows:
+		pr_count_map[row.promotional_scheme] = pr_count_map.get(row.promotional_scheme, 0) + 1
+
+	# Price discount slabs count per scheme — one query
+	price_slab_rows = frappe.get_all(
+		"Promotional Scheme Price Discount",
+		filters={"parent": ["in", scheme_names], "parenttype": "Promotional Scheme"},
+		fields=["parent"],
+	) if scheme_names else []
+	price_slab_map = {}
+	for row in price_slab_rows:
+		price_slab_map[row.parent] = price_slab_map.get(row.parent, 0) + 1
+
+	# Product discount slabs count per scheme — one query
+	product_slab_rows = frappe.get_all(
+		"Promotional Scheme Product Discount",
+		filters={"parent": ["in", scheme_names], "parenttype": "Promotional Scheme"},
+		fields=["parent"],
+	) if scheme_names else []
+	product_slab_map = {}
+	for row in product_slab_rows:
+		product_slab_map[row.parent] = product_slab_map.get(row.parent, 0) + 1
+
+	# Items/groups/brands counts — three bulk queries covering all apply_on variants
+	item_count_map = {}
+	if scheme_names:
+		for child_dt, parent_field, apply_on_val in (
+			("Promotional Scheme Item", "parent", "Item Code"),
+			("Promotional Scheme Item Group", "parent", "Item Group"),
+			("Promotional Scheme Brand", "parent", "Brand"),
+		):
+			# Only query if at least one scheme uses this apply_on
+			relevant = [s.name for s in schemes if s.apply_on == apply_on_val]
+			if relevant:
+				rows = frappe.get_all(
+					child_dt,
+					filters={"parent": ["in", relevant], "parenttype": "Promotional Scheme"},
+					fields=["parent"],
+				)
+				for row in rows:
+					item_count_map[row.parent] = item_count_map.get(row.parent, 0) + 1
+
 	for scheme in schemes:
-		# Mark as Promotional Scheme
 		scheme["source"] = "Promotional Scheme"
+		scheme["pricing_rules_count"] = pr_count_map.get(scheme.name, 0)
+		scheme["price_slabs"] = price_slab_map.get(scheme.name, 0)
+		scheme["product_slabs"] = product_slab_map.get(scheme.name, 0)
+		scheme["items_count"] = item_count_map.get(scheme.name, 0)
 
-		# Get pricing rules count
-		scheme["pricing_rules_count"] = frappe.db.count("Pricing Rule", {"promotional_scheme": scheme.name})
-
-		# Get discount slabs
-		scheme_doc = frappe.get_doc("Promotional Scheme", scheme.name)
-		scheme["price_slabs"] = len(scheme_doc.price_discount_slabs or [])
-		scheme["product_slabs"] = len(scheme_doc.product_discount_slabs or [])
-
-		# Get items/groups/brands count
-		if scheme.apply_on == "Item Code":
-			scheme["items_count"] = len(scheme_doc.items or [])
-		elif scheme.apply_on == "Item Group":
-			scheme["items_count"] = len(scheme_doc.item_groups or [])
-		elif scheme.apply_on == "Brand":
-			scheme["items_count"] = len(scheme_doc.brands or [])
-		else:
-			scheme["items_count"] = 0
-
-		# Calculate status based on dates and disable flag
 		if scheme.disable:
 			scheme["status"] = "Disabled"
 		elif scheme.valid_from and getdate(scheme.valid_from) > today:
@@ -106,7 +155,8 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 		else:
 			scheme["status"] = "Active"
 
-	# Get standalone pricing rules (not associated with promotional schemes)
+	# --- Standalone Pricing Rules (not linked to a Promotional Scheme) ---
+
 	pr_filters = filters.copy()
 	pr_filters["promotional_scheme"] = ["is", "not set"]
 
@@ -136,26 +186,33 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 		order_by="modified desc",
 	)
 
-	# Transform pricing rules to match promotional scheme structure
+	pr_names = [pr.name for pr in pricing_rules]
+
+	# Items/groups/brands counts for standalone pricing rules — bulk queries
+	pr_item_count_map = {}
+	if pr_names:
+		for child_dt, apply_on_val in (
+			("Pricing Rule Item Code", "Item Code"),
+			("Pricing Rule Item Group", "Item Group"),
+			("Pricing Rule Brand", "Brand"),
+		):
+			relevant = [pr.name for pr in pricing_rules if pr.apply_on == apply_on_val]
+			if relevant:
+				rows = frappe.get_all(
+					child_dt,
+					filters={"parent": ["in", relevant], "parenttype": "Pricing Rule"},
+					fields=["parent"],
+				)
+				for row in rows:
+					pr_item_count_map[row.parent] = pr_item_count_map.get(row.parent, 0) + 1
+
 	for pr in pricing_rules:
-		# Mark as Pricing Rule
 		pr["source"] = "Pricing Rule"
-		pr["pricing_rules_count"] = 1  # Itself
+		pr["pricing_rules_count"] = 1
 		pr["price_slabs"] = 1
 		pr["product_slabs"] = 0
+		pr["items_count"] = pr_item_count_map.get(pr.name, 0)
 
-		# Get items/groups/brands count
-		pr_doc = frappe.get_doc("Pricing Rule", pr.name)
-		if pr.apply_on == "Item Code":
-			pr["items_count"] = len(pr_doc.items or [])
-		elif pr.apply_on == "Item Group":
-			pr["items_count"] = len(pr_doc.item_groups or [])
-		elif pr.apply_on == "Brand":
-			pr["items_count"] = len(pr_doc.brands or [])
-		else:
-			pr["items_count"] = 0
-
-		# Calculate status
 		if pr.disable:
 			pr["status"] = "Disabled"
 		elif pr.valid_from and getdate(pr.valid_from) > today:
@@ -165,10 +222,7 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 		else:
 			pr["status"] = "Active"
 
-	# Combine both lists
-	all_promotions = schemes + pricing_rules
-
-	return all_promotions
+	return schemes + pricing_rules
 
 
 @frappe.whitelist()
@@ -345,7 +399,9 @@ def create_promotion(data):
 			if data.get("priority"):
 				slab.priority = cstr(data["priority"])
 
-		# Save the scheme (this will auto-generate pricing rules)
+		# Save the scheme — Frappe internally creates linked Pricing Rule records.
+		# POS Manager has "create" on Pricing Rule via Custom DocPerm fixture,
+		# so no ignore_permissions needed.
 		scheme.insert()
 
 		return {
@@ -436,7 +492,6 @@ def update_promotion(scheme_name, data):
 				if "max_amt" in data:
 					slab.max_amount = flt(data["max_amt"])
 
-		# Save
 		scheme.save()
 
 		return {"success": True, "message": _("Promotion {0} updated successfully").format(scheme_name)}
@@ -487,7 +542,6 @@ def delete_promotion(scheme_name):
 		frappe.throw(_("Promotional Scheme {0} not found").format(scheme_name))
 
 	try:
-		# This will automatically delete associated pricing rules via on_trash
 		frappe.delete_doc("Promotional Scheme", scheme_name)
 
 		return {"success": True, "message": _("Promotion {0} deleted successfully").format(scheme_name)}
@@ -562,7 +616,7 @@ def search_items(search_term, pos_profile=None, limit=20):
 @frappe.whitelist()
 def get_coupons(company=None, include_disabled=False, coupon_type=None):
 	"""Get all coupons for the company with enhanced filtering."""
-	check_promotion_permissions("read")
+	check_coupon_permissions("read")
 
 	filters = {}
 
@@ -633,7 +687,7 @@ def get_coupons(company=None, include_disabled=False, coupon_type=None):
 @frappe.whitelist()
 def get_coupon_details(coupon_name):
 	"""Get detailed information about a specific coupon."""
-	check_promotion_permissions("read")
+	check_coupon_permissions("read")
 
 	if not frappe.db.exists("POS Coupon", coupon_name):
 		frappe.throw(_("Coupon {0} not found").format(coupon_name))
@@ -669,7 +723,7 @@ def create_coupon(data):
 		"campaign": "Campaign Name"  # Optional
 	}
 	"""
-	check_promotion_permissions("write")
+	check_coupon_permissions("create")
 
 	import json
 
@@ -751,7 +805,7 @@ def update_coupon(coupon_name, data):
 	Update an existing coupon.
 	Can update validity dates, usage limits, disabled status, and discount configuration.
 	"""
-	check_promotion_permissions("write")
+	check_coupon_permissions("write")
 
 	import json
 
@@ -807,7 +861,7 @@ def update_coupon(coupon_name, data):
 @frappe.whitelist()
 def toggle_coupon(coupon_name, disabled=None):
 	"""Enable or disable a coupon."""
-	check_promotion_permissions("write")
+	check_coupon_permissions("write")
 
 	if not frappe.db.exists("POS Coupon", coupon_name):
 		frappe.throw(_("Coupon {0} not found").format(coupon_name))
@@ -839,7 +893,7 @@ def toggle_coupon(coupon_name, disabled=None):
 @frappe.whitelist()
 def delete_coupon(coupon_name):
 	"""Delete a coupon."""
-	check_promotion_permissions("delete")
+	check_coupon_permissions("delete")
 
 	if not frappe.db.exists("POS Coupon", coupon_name):
 		frappe.throw(_("Coupon {0} not found").format(coupon_name))
@@ -900,6 +954,8 @@ def apply_referral_code(referral_code, customer):
 @frappe.whitelist()
 def get_referral_codes(company=None, include_disabled=False):
 	"""Get all referral codes with optional filters."""
+	check_promotion_permissions("read")
+
 	filters = {}
 
 	if company:
@@ -967,3 +1023,104 @@ def get_referral_details(referral_name):
 	data["total_coupons_generated"] = len(coupons)
 
 	return data
+
+
+@frappe.whitelist()
+def create_referral_code_api(
+	customer,
+	referrer_discount_type,
+	referee_discount_type,
+	referrer_discount_percentage=None,
+	referrer_discount_amount=None,
+	referee_discount_percentage=None,
+	referee_discount_amount=None,
+	referrer_coupon_valid_days=30,
+	referee_coupon_valid_days=30,
+	campaign=None,
+):
+	"""Create a new Referral Code for a customer."""
+	frappe.has_permission("Referral Code", "create", throw=True)
+
+	if not customer:
+		frappe.throw(_("Customer is required"))
+	if not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Customer '{0}' not found").format(customer))
+
+	company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+		"Global Defaults", "default_company"
+	)
+
+	try:
+		from pos_next.pos_next.doctype.referral_code.referral_code import create_referral_code
+
+		doc = create_referral_code(
+			company=company,
+			customer=customer,
+			referrer_discount_type=referrer_discount_type,
+			referrer_discount_percentage=frappe.utils.flt(referrer_discount_percentage)
+			if referrer_discount_percentage
+			else None,
+			referrer_discount_amount=frappe.utils.flt(referrer_discount_amount)
+			if referrer_discount_amount
+			else None,
+			referee_discount_type=referee_discount_type,
+			referee_discount_percentage=frappe.utils.flt(referee_discount_percentage)
+			if referee_discount_percentage
+			else None,
+			referee_discount_amount=frappe.utils.flt(referee_discount_amount)
+			if referee_discount_amount
+			else None,
+			campaign=campaign,
+			referrer_coupon_valid_days=frappe.utils.cint(referrer_coupon_valid_days) or 30,
+			referee_coupon_valid_days=frappe.utils.cint(referee_coupon_valid_days) or 30,
+		)
+		return doc.as_dict()
+	except frappe.ValidationError:
+		raise
+	except Exception as e:
+		import json
+
+		error_doc = frappe.log_error(
+			"error in promotions API: create_referral_code_api",
+			json.dumps(
+				{
+					"user": frappe.session.user,
+					"datetime": frappe.utils.now(),
+					"customer": customer,
+					"error": str(e),
+				}
+			),
+		)
+		frappe.throw(_("An error occurred. Error ID: {0}").format(error_doc.name))
+
+
+@frappe.whitelist()
+def toggle_referral(referral_name):
+	"""Enable or disable a referral code."""
+	frappe.has_permission("Referral Code", "write", throw=True)
+
+	if not frappe.db.exists("Referral Code", referral_name):
+		frappe.throw(_("Referral Code '{0}' not found").format(referral_name))
+
+	current = frappe.db.get_value("Referral Code", referral_name, "disabled")
+	new_val = 0 if current else 1
+	frappe.db.set_value("Referral Code", referral_name, "disabled", new_val)
+	return {"disabled": new_val}
+
+
+@frappe.whitelist()
+def delete_referral(referral_name):
+	"""Delete a referral code — only allowed if it has never been used."""
+	frappe.has_permission("Referral Code", "delete", throw=True)
+
+	if not frappe.db.exists("Referral Code", referral_name):
+		frappe.throw(_("Referral Code '{0}' not found").format(referral_name))
+
+	referrals_count = frappe.db.get_value("Referral Code", referral_name, "referrals_count") or 0
+	if referrals_count > 0:
+		frappe.throw(
+			_("Cannot delete a referral code that has been used {0} time(s)").format(referrals_count)
+		)
+
+	frappe.delete_doc("Referral Code", referral_name, ignore_permissions=False)
+	return {"deleted": True}

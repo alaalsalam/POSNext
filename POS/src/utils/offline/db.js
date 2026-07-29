@@ -22,6 +22,9 @@ const log = logger.create("OfflineDB");
 /** @type {Dexie} Main database instance */
 export const db = new Dexie("pos_next_offline");
 
+// Bump this only when stale payment-method records must be purged from clients.
+const PAYMENT_METHOD_CACHE_REVISION = "2026-07-23-authoritative-v1";
+
 /**
  * Database schema definition.
  * Modify this object to change the schema - version will auto-increment.
@@ -148,6 +151,19 @@ db.version(schemaVersion).stores(CURRENT_SCHEMA);
 export const initDB = async () => {
 	try {
 		await db.open();
+
+		// Older builds appended payment methods, leaving deleted or malformed labels
+		// available to the POS. Purge only that cache once, without touching invoices.
+		const revision = await db.settings.get("payment_methods_cache_revision");
+		if (revision?.value !== PAYMENT_METHOD_CACHE_REVISION) {
+			await db.payment_methods.clear();
+			await db.settings.put({
+				key: "payment_methods_cache_revision",
+				value: PAYMENT_METHOD_CACHE_REVISION,
+			});
+			log.info("Cleared legacy payment-method cache");
+		}
+
 		log.success("POS Next offline database initialized");
 		return true;
 	} catch (error) {

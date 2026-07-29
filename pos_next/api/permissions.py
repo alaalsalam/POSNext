@@ -1,0 +1,61 @@
+# Copyright (c) 2025, POS Next and contributors
+# For license information, please see license.txt
+
+import frappe
+
+
+@frappe.whitelist()
+def get_pos_permissions():
+	"""
+	Return a dict of what the current user can do in the POS app.
+	The frontend uses this to show/hide buttons and menu items.
+	"""
+	user_roles = frappe.get_roles()
+
+	# Helper: check a single perm without raising
+	def can(doctype, ptype):
+		return bool(frappe.has_permission(doctype, ptype))
+
+	return {
+		# ── Promotion management (POS Manager only) ──
+		"can_read_promotions": can("Promotional Scheme", "read"),
+		"can_create_promotions": can("Promotional Scheme", "create"),
+		"can_write_promotions": can("Promotional Scheme", "write"),
+		"can_delete_promotions": can("Promotional Scheme", "delete"),
+		# ── Coupon management ──
+		"can_read_coupons": can("POS Coupon", "read"),
+		"can_create_coupons": can("POS Coupon", "create"),
+		"can_write_coupons": can("POS Coupon", "write"),
+		"can_delete_coupons": can("POS Coupon", "delete"),
+		# ── Referral codes ──
+		"can_read_referrals": can("Referral Code", "read"),
+		"can_create_referrals": can("Referral Code", "create"),
+		"can_write_referrals": can("Referral Code", "write"),
+		# ── Customer management ──
+		"can_create_customers": can("Customer", "create"),
+		"can_write_customers": can("Customer", "write"),
+		# ── Item/catalog management ──
+		"can_create_items": can("Item", "create"),
+		"can_write_items": can("Item", "write"),
+		# ── POS Settings ──
+		"can_write_pos_settings": can("POS Profile", "write"),
+		# ── Role shortcuts ──
+		"is_pos_manager": "POS Manager" in user_roles or "System Manager" in user_roles,
+		"is_cashier": "POSNext Cashier" in user_roles,
+		# ── Purchase management ──
+		"can_read_purchases": can("Purchase Invoice", "read"),
+		"can_create_purchases": can("Purchase Invoice", "create"),
+		"can_submit_purchases": can("Purchase Invoice", "submit"),
+		"can_cancel_purchases": can("Purchase Invoice", "cancel"),
+		"can_read_suppliers": can("Supplier", "read"),
+		"can_create_suppliers": can("Supplier", "create"),
+		# ── Supplier payments ──
+		"can_read_payment_entries": can("Payment Entry", "read"),
+		"can_create_payment_entries": can("Payment Entry", "create"),
+		"can_write_payment_entries": can("Payment Entry", "write"),
+		"can_submit_payment_entries": can("Payment Entry", "submit"),
+		"can_cancel_payment_entries": can("Payment Entry", "cancel"),
+		# ── Reports ──
+		"can_view_reports": can("Sales Invoice", "read"),
+		"user_roles": user_roles,
+	}

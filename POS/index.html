@@ -3,20 +3,23 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%234F46E5' d='M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM10 4h4v3h-4V4zm10 16H4V9h16v11z'/></svg>" />
+  <link rel="icon" type="image/svg+xml" href="/assets/digit/images/digit-icon-app.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/digit/images/digit-pos-192.png" />
+  <link rel="manifest" href="/assets/digit/pos.webmanifest" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
-  <meta name="theme-color" content="#4F46E5" />
-  <meta name="description" content="POS built on ERPNext with real-time billing, stock management, multi-user access, offline mode, and direct ERP integration" />
+  <meta name="theme-color" content="#064E3B" />
+  <meta name="description" content="Digit POS — point of sale with offline support, real-time billing and direct ERP integration" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="POSNext" />
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%234F46E5' d='M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM10 4h4v3h-4V4zm10 16H4V9h16v11z'/></svg>" />
-  <title>POSNext</title>
+  <meta name="apple-mobile-web-app-title" content="Digit POS" />
+  <link rel="apple-touch-icon" href="/assets/digit/images/digit-pos-180.png" />
+  <title>Digit POS</title>
   <!-- Nexus demo countdown: production pos.html loads hashed assets after boot -->
   <link rel="stylesheet" href="/assets/nexus_demo/css/demo_countdown_banner.bundle.css" onerror="this.remove()" />
   <script src="/assets/nexus_demo/js/demo_countdown_banner.bundle.js" onerror="this.remove()"></script>
+  <!-- Digit identity theme (owned by the digit app; survives vite rebuilds) -->
+  <link rel="stylesheet" href="/assets/digit/css/digit_pos.css?v=20260617_pos_v6" onerror="this.remove()" />
 </head>
 
 <body>

@@ -213,6 +213,15 @@
 				</template>
 			</POSHeader>
 
+			<!-- Live Shift Stats Bar -->
+			<ShiftStatsBar
+				v-if="shiftStore.hasOpenShift"
+				ref="statsBarRef"
+				:has-open-shift="shiftStore.hasOpenShift"
+				:current-shift-name="shiftStore.currentShift?.name"
+				:currency="shiftStore.profileCurrency"
+			/>
+
 			<!-- Main Content: Responsive Layout -->
 			<div
 				v-if="shiftStore.hasOpenShift"
@@ -220,7 +229,12 @@
 				style="max-height: calc(100vh - 60px - var(--header-height, 60px))"
 			>
 				<!-- Icon-Only Management Slider - Always Visible -->
-				<ManagementSlider @menu-clicked="handleManagementMenuClick" />
+				<ManagementSlider
+					@menu-clicked="handleManagementMenuClick"
+					:can-manage-catalog="canManageCatalog"
+					:can-manage-purchases="canManagePurchases"
+				:can-view-reports="canViewReports"
+				/>
 
 				<!-- Main Content Container -->
 				<div
@@ -686,6 +700,64 @@
 				@print-invoice="handlePrintInvoice"
 			/>
 
+			<!-- Catalog Management Panel -->
+			<CatalogManagement
+				:show="showCatalogManagement"
+				@close="showCatalogManagement = false"
+			/>
+
+			<!-- Purchases Panel -->
+			<div
+				v-if="showPurchasesPanel"
+				class="absolute inset-0 z-[300] flex"
+			>
+				<div class="flex-1 flex flex-col overflow-hidden">
+					<PurchaseInvoiceList
+						v-if="purchaseView === 'list'"
+						:can-create="canManagePurchases"
+						:can-create-payment="canCreateSupplierPayment"
+						:can-read-payments="canReadSupplierPayments"
+						@close="showPurchasesPanel = false"
+						@new-invoice="purchaseView = 'form'; currentPurchaseName = null"
+						@open-invoice="openPurchaseInvoice"
+						@pay-invoice="openSupplierPayment"
+						@open-payments="purchaseView = 'payments'"
+					/>
+					<PurchaseInvoiceForm
+						v-else-if="purchaseView === 'form'"
+						:invoice-name="currentPurchaseName"
+						:defaults="purchaseDefaults"
+						@back="purchaseView = 'list'"
+						@close="showPurchasesPanel = false"
+						@saved="onPurchaseSaved"
+						@submitted="onPurchaseSubmitted"
+					/>
+					<SupplierPaymentList
+						v-else-if="purchaseView === 'payments'"
+						:can-submit="canSubmitSupplierPayment"
+						:can-cancel="canCancelSupplierPayment"
+						@back="purchaseView = 'list'"
+						@close="showPurchasesPanel = false"
+					/>
+				</div>
+			</div>
+			<SupplierPaymentDialog
+				v-if="supplierPaymentInvoice"
+				:invoice="supplierPaymentInvoice"
+				@close="supplierPaymentInvoice = null"
+				@created="onSupplierPaymentCreated"
+			/>
+
+			<!-- Reports Panel -->
+			<div
+				v-if="showReportsPanel"
+				class="absolute inset-0 z-[300] flex"
+			>
+				<div class="flex-1 flex flex-col overflow-hidden">
+					<POSReportDashboard @close="showReportsPanel = false" />
+				</div>
+			</div>
+
 			<!-- Clear Cart Confirmation Dialog -->
 			<Dialog
 				v-model="uiStore.showClearCartDialog"
@@ -1002,7 +1074,14 @@ import ClearCacheOverlay from "@/components/common/ClearCacheOverlay.vue";
 import SessionLockScreen from "@/components/common/SessionLockScreen.vue";
 import LoadingSpinner from "@/components/common/LoadingSpinner.vue";
 import ManagementSlider from "@/components/pos/ManagementSlider.vue";
+import CatalogManagement from "@/components/pos/CatalogManagement.vue";
+import PurchaseInvoiceList from "@/components/purchases/PurchaseInvoiceList.vue";
+import PurchaseInvoiceForm from "@/components/purchases/PurchaseInvoiceForm.vue";
+import SupplierPaymentDialog from "@/components/purchases/SupplierPaymentDialog.vue";
+import SupplierPaymentList from "@/components/purchases/SupplierPaymentList.vue";
+import POSReportDashboard from "@/components/reports/POSReportDashboard.vue";
 import POSHeader from "@/components/pos/POSHeader.vue";
+import ShiftStatsBar from "@/components/pos/ShiftStatsBar.vue";
 import BatchSerialDialog from "@/components/sale/BatchSerialDialog.vue";
 import CouponDialog from "@/components/sale/CouponDialog.vue";
 import CreateCustomerDialog from "@/components/sale/CreateCustomerDialog.vue";
@@ -1112,6 +1191,7 @@ const itemsSelectorRef = ref(null);
 const offersDialogRef = ref(null);
 const containerRef = ref(null);
 const dividerRef = ref(null);
+const statsBarRef = ref(null);
 const pendingPaymentAfterCustomer = ref(false);
 const logoutAfterClose = ref(false);
 const editCustomer = ref(null); // Customer being edited (null for create mode)
@@ -1153,6 +1233,24 @@ const showStockLookup = ref(false);
 
 // Invoice Management dialog
 const showInvoiceManagement = ref(false);
+
+// Catalog Management panel
+const showCatalogManagement = ref(false);
+const canManageCatalog = ref(false);
+
+// Purchases panel
+const showPurchasesPanel = ref(false);
+const purchaseView = ref("list"); // "list" | "form"
+const currentPurchaseName = ref(null);
+const purchaseDefaults = ref({});
+const canManagePurchases = ref(false);
+const canCreateSupplierPayment = ref(false);
+const canReadSupplierPayments = ref(false);
+const canSubmitSupplierPayment = ref(false);
+const canCancelSupplierPayment = ref(false);
+const supplierPaymentInvoice = ref(null);
+const showReportsPanel = ref(false);
+const canViewReports = ref(false);
 
 // Invoice Detail dialog
 const showInvoiceDetail = ref(false);
@@ -1218,7 +1316,7 @@ const profileWarehouses = computed(() => {
 
 const canAccessShiftActions = computed(() => shiftStore.hasOpenShift);
 
-/** Desk link only for users with the Nexus POS Manager role (from bootstrap API). */
+/** Desk link only for users with the POS Manager role (from bootstrap API). */
 const canSwitchToDesk = computed(() => Boolean(bootstrapStore.data?.can_switch_to_desk));
 
 // Resize state
@@ -1484,7 +1582,33 @@ onMounted(async () => {
 
 		_initializedKey = `${shiftStore.profileName}::${shiftStore.currentShift?.name}`;
 	}
+
+	checkCatalogPermission();
 });
+
+async function checkCatalogPermission() {
+	try {
+		const [catalogResult, result] = await Promise.all([
+			call("pos_next.api.catalog.check_catalog_permission"),
+			call("pos_next.api.permissions.get_pos_permissions"),
+		]);
+		canManageCatalog.value = catalogResult?.can_manage || false;
+		canManagePurchases.value = result?.can_read_purchases || false;
+		canViewReports.value = result?.can_view_reports || false;
+		canCreateSupplierPayment.value = result?.can_create_payment_entries || false;
+		canReadSupplierPayments.value = result?.can_read_payment_entries || false;
+		canSubmitSupplierPayment.value = result?.can_submit_payment_entries || false;
+		canCancelSupplierPayment.value = result?.can_cancel_payment_entries || false;
+	} catch {
+		canManageCatalog.value = false;
+		canManagePurchases.value = false;
+		canViewReports.value = false;
+		canCreateSupplierPayment.value = false;
+		canReadSupplierPayments.value = false;
+		canSubmitSupplierPayment.value = false;
+		canCancelSupplierPayment.value = false;
+	}
+}
 
 watch(
 	() => shiftStore.hasOpenShift,
@@ -2133,6 +2257,8 @@ async function handlePaymentCompleted(paymentData) {
 			cartStore.clearCart();
 			// Reset cart hash after successful payment
 			previousCartHash = "";
+			// Refresh live shift stats
+			statsBarRef.value?.refresh();
 
 			// Delete draft after successful save
 			if (draftIdToDelete) {
@@ -2204,6 +2330,8 @@ async function handlePaymentCompleted(paymentData) {
 				cartStore.clearCart();
 				// Reset cart hash after successful payment
 				previousCartHash = "";
+				// Refresh live shift stats
+				statsBarRef.value?.refresh();
 
 				// Delete draft after successful submission
 				if (draftIdToDelete) {
@@ -2909,6 +3037,13 @@ function handleManagementMenuClick(menuItem) {
 	} else if (menuItem === "products") {
 		// Open Stock Lookup dialog in search mode
 		showStockLookup.value = true;
+	} else if (menuItem === "catalog") {
+		showCatalogManagement.value = true;
+	} else if (menuItem === "purchases") {
+		showPurchasesPanel.value = true;
+		purchaseView.value = "list";
+	} else if (menuItem === "reports") {
+		showReportsPanel.value = true;
 	}
 }
 
@@ -3065,6 +3200,35 @@ function handleTabSwitch(tab) {
 	// Use requestAnimationFrame to ensure smooth transitions
 	requestAnimationFrame(() => {
 		uiStore.setMobileTab(tab);
+	});
+}
+
+function openPurchaseInvoice(inv) {
+	currentPurchaseName.value = inv.name;
+	purchaseView.value = "form";
+}
+
+function onPurchaseSaved(name) {
+	currentPurchaseName.value = name;
+	purchaseView.value = "form";
+}
+
+function onPurchaseSubmitted(name) {
+	currentPurchaseName.value = name;
+	// Stay on form to show submitted state
+}
+
+function openSupplierPayment(invoice) {
+	supplierPaymentInvoice.value = invoice;
+}
+
+function onSupplierPaymentCreated() {
+	supplierPaymentInvoice.value = null;
+	purchaseView.value = "list";
+	// Recreate the list component so balances and statuses are refreshed.
+	showPurchasesPanel.value = false;
+	requestAnimationFrame(() => {
+		showPurchasesPanel.value = true;
 	});
 }
 </script>

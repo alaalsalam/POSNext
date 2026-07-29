@@ -1,5 +1,5 @@
 <template>
-	<div class="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8" dir="auto">
+	<div class="min-h-screen bg-emerald-50/60 px-4 py-8 sm:px-6 lg:px-8" dir="auto">
 		<div class="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl items-center gap-8 lg:grid-cols-[1.35fr_0.9fr]">
 			<section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
 				<div class="mb-5 flex flex-col gap-1 text-right">
@@ -14,7 +14,7 @@
 						v-for="account in demoAccounts"
 						:key="`${account.profile}-${account.email}`"
 						type="button"
-						class="group flex min-h-[88px] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4 text-right transition hover:border-indigo-300 hover:bg-indigo-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+						class="group flex min-h-[88px] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4 text-right transition hover:border-emerald-300 hover:bg-emerald-50/70 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2"
 						@click="fillDemoAccount(account)"
 						:disabled="session.login.loading"
 					>
@@ -29,7 +29,7 @@
 								{{ account.profile }}
 							</div>
 						</div>
-						<span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-600 transition group-hover:border-indigo-300 group-hover:bg-indigo-100 group-hover:text-indigo-700">
+						<span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition group-hover:border-emerald-300 group-hover:bg-emerald-100 group-hover:text-emerald-800">
 							<FeatherIcon :name="account.icon" class="h-6 w-6" :stroke-width="2" />
 						</span>
 					</button>
@@ -38,14 +38,14 @@
 
 			<section class="mx-auto w-full max-w-xl">
 				<div class="mb-8 text-center">
-					<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-200">
+					<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-lg shadow-emerald-200">
 						<FeatherIcon name="shopping-bag" class="h-8 w-8" :stroke-width="2" />
 					</div>
 					<h1 class="mt-6 text-3xl font-bold text-slate-950">
-						{{ __("Sign in to POS") }}
+						{{ __("Sign in to POS Digit") }}
 					</h1>
 					<p class="mt-3 text-sm text-slate-600">
-						{{ __("Enter your username and password to open the point of sale.") }}
+						{{ __("Enter your username and password to open the Digit point of sale.") }}
 					</p>
 				</div>
 
@@ -87,7 +87,7 @@
 									:type="showPassword ? 'text' : 'password'"
 									:placeholder="__('Enter your password')"
 									:disabled="session.login.loading"
-									class="form-input block w-full rounded-md border-slate-300 pe-10 placeholder-slate-400 focus:border-indigo-500 focus:ring-indigo-500"
+									class="form-input block w-full rounded-md border-slate-300 pe-10 placeholder-slate-400 focus:border-emerald-600 focus:ring-emerald-600"
 								/>
 								<button
 									type="button"
@@ -109,7 +109,7 @@
 						<Button
 							:loading="session.login.loading"
 							variant="solid"
-							class="w-full rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+							class="w-full rounded-md border border-transparent bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 disabled:opacity-50"
 							type="submit"
 						>
 							{{ session.login.loading ? __("Signing in...") : __("دخول إلى شاشة البيع") }}
@@ -117,7 +117,7 @@
 					</form>
 				</div>
 
-				<div class="mt-6 rounded-lg border border-sky-100 bg-sky-50 p-4 text-center text-sm text-slate-700">
+				<div class="mt-6 rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-center text-sm text-slate-700">
 					<div class="font-semibold text-slate-900">{{ __("ملاحظة لمستخدمي الديمو") }}</div>
 					<div class="mt-1">{{ __("كلمة المرور موحدة لجميع حسابات الديمو.") }}</div>
 				</div>

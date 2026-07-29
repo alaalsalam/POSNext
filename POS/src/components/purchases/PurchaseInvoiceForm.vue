@@ -1,0 +1,568 @@
+<template>
+  <div class="flex flex-col h-full bg-gray-50" dir="rtl">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-3 flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <button @click="$emit('back')" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div>
+          <h2 class="text-base font-bold text-gray-900">
+            {{ isNew ? __("فاتورة شراء جديدة") : __("تعديل فاتورة") }}
+          </h2>
+          <p v-if="form.name" class="text-xs text-gray-400">{{ form.name }}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- Status badge -->
+        <span v-if="!isNew" :class="docstatusClass" class="text-[10px] font-bold px-2 py-0.5 rounded-full">
+          {{ docstatusLabel }}
+        </span>
+        <button @click="$emit('close')" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Error banner -->
+    <div v-if="errorMsg" class="mx-3 mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 flex-shrink-0">
+      <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p class="text-xs text-red-700 flex-1" v-html="errorMsg"></p>
+      <button @click="errorMsg=''" class="text-red-400 hover:text-red-600 flex-shrink-0">×</button>
+    </div>
+
+    <!-- Form body -->
+    <div class="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+
+      <!-- Supplier section -->
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">{{ __("المورد") }}</h3>
+        <div class="grid grid-cols-1 gap-3">
+          <!-- Supplier autocomplete -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("المورد") }} <span class="text-red-500">*</span></label>
+            <div class="relative">
+              <input
+                v-model="supplierSearch"
+                @input="searchSuppliers"
+                @focus="supplierSearch = form.supplier_name || form.supplier; showSupplierDropdown = true"
+                :placeholder="__('ابحث عن مورد...')"
+                :disabled="isSubmitted"
+                class="w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all disabled:bg-gray-50"
+                :class="form.supplier ? 'border-green-300 bg-green-50/30' : 'border-gray-200'"
+              />
+              <div v-if="showSupplierDropdown && supplierOptions.length" class="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                <button
+                  v-for="s in supplierOptions" :key="s.name"
+                  @mousedown.prevent="selectSupplier(s)"
+                  class="w-full text-start px-3 py-2 text-sm hover:bg-orange-50 transition-colors"
+                >
+                  <span class="font-semibold">{{ s.supplier_name }}</span>
+                  <span class="text-xs text-gray-400 ms-2">{{ s.supplier_group }}</span>
+                </button>
+                <button
+                  @mousedown.prevent="showCreateSupplier = true; showSupplierDropdown = false"
+                  class="w-full text-start px-3 py-2 text-xs text-orange-600 font-semibold hover:bg-orange-50 border-t border-gray-100 flex items-center gap-1"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  {{ __("إنشاء مورد جديد: {0}", [supplierSearch]) }}
+                </button>
+              </div>
+            </div>
+            <!-- Quick create supplier -->
+            <div v-if="showCreateSupplier" class="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2">
+              <input v-model="newSupplierName" :placeholder="__('اسم المورد الجديد')" class="flex-1 h-8 px-3 text-xs rounded-lg border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              <button @click="createSupplier" :disabled="!newSupplierName || creatingSupplier" class="h-8 px-3 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
+                {{ creatingSupplier ? __("...") : __("إنشاء") }}
+              </button>
+              <button @click="showCreateSupplier = false" class="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+            </div>
+          </div>
+
+          <!-- Bill No + dates row -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("رقم فاتورة المورد") }}</label>
+              <input v-model="form.bill_no" :disabled="isSubmitted" :placeholder="__('اختياري')"
+                class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("تاريخ الفاتورة") }} <span class="text-red-500">*</span></label>
+              <input type="date" v-model="form.posting_date" :disabled="isSubmitted"
+                class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("تاريخ الاستحقاق") }}</label>
+            <input type="date" v-model="form.due_date" :disabled="isSubmitted"
+              class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Items section -->
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("الأصناف") }}</h3>
+          <button v-if="!isSubmitted" @click="addLine"
+            class="flex items-center gap-1 text-xs text-orange-600 font-semibold hover:text-orange-700 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            {{ __("إضافة صنف") }}
+          </button>
+        </div>
+
+        <div v-if="!form.items.length" class="py-6 text-center text-xs text-gray-400">
+          {{ __("لا توجد أصناف. أضف صنفًا للبدء.") }}
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <div v-for="(line, idx) in form.items" :key="idx" class="border border-gray-100 rounded-xl p-3 bg-gray-50/50 relative">
+            <div class="grid grid-cols-12 gap-2 items-start">
+              <!-- Item search -->
+              <div class="col-span-12">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("الصنف") }}</label>
+                <div class="relative">
+                  <input
+                    v-model="line._itemSearch"
+                    @input="searchItems(idx)"
+                    @focus="line._showDrop = true"
+                    :disabled="isSubmitted"
+                    :placeholder="__('ابحث عن صنف...')"
+                    class="w-full h-9 px-3 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100"
+                    :class="line.item_code ? 'border-green-300' : ''"
+                  />
+                  <div v-if="line._showDrop && line._options?.length" class="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
+                    <button v-for="it in line._options" :key="it.item_code" @mousedown.prevent="selectItem(idx, it)"
+                      class="w-full text-start px-3 py-2 text-xs hover:bg-orange-50 transition-colors">
+                      <span class="font-semibold">{{ it.item_name }}</span>
+                      <span class="text-gray-400 ms-1">({{ it.item_code }})</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- Qty -->
+              <div class="col-span-3">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("الكمية") }}</label>
+                <input v-model.number="line.qty" type="number" min="0.001" step="0.001" :disabled="isSubmitted"
+                  @change="calcLine(idx)"
+                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 text-center disabled:bg-gray-100" />
+              </div>
+              <!-- UOM -->
+              <div class="col-span-3">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("الوحدة") }}</label>
+                <input v-model="line.uom" :disabled="isSubmitted"
+                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100" />
+              </div>
+              <!-- Rate -->
+              <div class="col-span-4">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("سعر الشراء") }}</label>
+                <input v-model.number="line.rate" type="number" min="0" step="0.01" :disabled="isSubmitted"
+                  @change="calcLine(idx)"
+                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 text-end disabled:bg-gray-100" />
+              </div>
+              <!-- Amount -->
+              <div class="col-span-2 text-end">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("الإجمالي") }}</label>
+                <p class="text-sm font-bold text-gray-900 h-9 flex items-center justify-end">{{ formatAmt(line.amount) }}</p>
+              </div>
+              <!-- Delete -->
+              <button v-if="!isSubmitted" @click="removeLine(idx)" class="absolute top-2 start-2 w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Totals summary -->
+        <div v-if="form.items.length" class="mt-3 pt-3 border-t border-gray-100 space-y-1">
+          <div class="flex justify-between text-xs text-gray-500">
+            <span>{{ __("المجموع قبل الضريبة") }}</span>
+            <span class="font-semibold">{{ formatAmt(totals.net) }}</span>
+          </div>
+          <div v-if="form.taxes_and_charges || form.total_taxes_and_charges" class="flex justify-between text-xs text-gray-500">
+            <span>{{ __("الضريبة") }}</span>
+            <span class="font-semibold">{{ formatAmt(totals.tax) }}</span>
+          </div>
+          <div class="flex justify-between text-sm font-bold text-gray-900 pt-1 border-t border-gray-100">
+            <span>{{ __("الإجمالي الكلي") }}</span>
+            <span>{{ formatAmt(totals.grand) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional info -->
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">{{ __("معلومات إضافية") }}</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("ملاحظات") }}</label>
+            <textarea v-model="form.remarks" rows="2" :disabled="isSubmitted" :placeholder="__('ملاحظات اختيارية...')"
+              class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none disabled:bg-gray-50" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions footer -->
+    <div class="bg-white border-t border-gray-100 px-4 py-3 flex items-center justify-between gap-3 flex-shrink-0">
+      <div class="text-sm font-bold text-gray-900">
+        {{ __("الإجمالي:") }} {{ formatAmt(totals.grand) }}
+      </div>
+      <div class="flex items-center gap-2" v-if="!isSubmitted">
+        <button @click="saveDraft" :disabled="saving"
+          class="px-4 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50">
+          {{ saving ? __("جاري الحفظ...") : __("حفظ مسودة") }}
+        </button>
+        <button @click="confirmSubmit" :disabled="saving || !canSubmit"
+          class="px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50">
+          {{ __("اعتماد الفاتورة") }}
+        </button>
+      </div>
+      <div v-else class="text-xs text-gray-400">
+        {{ isSubmitted ? __("الفاتورة معتمدة — للتعديل يجب الإلغاء أولاً") : "" }}
+      </div>
+    </div>
+
+    <!-- Submit confirm overlay -->
+    <div v-if="showConfirm" class="absolute inset-0 bg-black/40 z-50 flex items-center justify-center p-6" dir="rtl">
+      <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        <h3 class="text-base font-bold text-gray-900 mb-2">{{ __("تأكيد الاعتماد") }}</h3>
+        <p class="text-sm text-gray-600 mb-4">
+          {{ __("سيتم اعتماد فاتورة الشراء وتحديث المخزون والحسابات. لا يمكن التراجع عن هذه العملية.") }}
+        </p>
+        <div class="bg-gray-50 rounded-xl p-3 mb-4 text-xs space-y-1">
+          <div class="flex justify-between"><span class="text-gray-500">{{ __("المورد") }}</span><span class="font-semibold">{{ form.supplier_name || form.supplier }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">{{ __("الإجمالي") }}</span><span class="font-bold text-orange-700">{{ formatAmt(totals.grand) }}</span></div>
+        </div>
+        <div class="flex gap-3">
+          <button @click="showConfirm = false" class="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">{{ __("إلغاء") }}</button>
+          <button @click="doSubmit" :disabled="submitting" class="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors">
+            {{ submitting ? __("جاري الاعتماد...") : __("تأكيد الاعتماد") }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, onMounted } from "vue";
+
+const props = defineProps({
+  invoiceName: { type: String, default: null },
+  defaults: { type: Object, default: () => ({}) },
+});
+const emit = defineEmits(["back", "close", "saved", "submitted"]);
+
+const isNew = computed(() => !form.name);
+const isSubmitted = computed(() => form.docstatus === 1 || form.docstatus === 2);
+
+const form = reactive({
+  name: null,
+  docstatus: 0,
+  supplier: "",
+  supplier_name: "",
+  posting_date: "",
+  due_date: "",
+  bill_no: "",
+  remarks: "",
+  company: "",
+  items: [],
+  taxes_and_charges: null,
+  total_taxes_and_charges: 0,
+});
+
+const saving = ref(false);
+const submitting = ref(false);
+const showConfirm = ref(false);
+const errorMsg = ref("");
+
+// Supplier autocomplete
+const supplierSearch = ref("");
+const supplierOptions = ref([]);
+const showSupplierDropdown = ref(false);
+const showCreateSupplier = ref(false);
+const newSupplierName = ref("");
+const creatingSupplier = ref(false);
+
+let supplierTimer = null;
+function searchSuppliers() {
+  clearTimeout(supplierTimer);
+  supplierTimer = setTimeout(async () => {
+    if (!supplierSearch.value) { supplierOptions.value = []; return; }
+    const res = await frappe.call({
+      method: "pos_next.api.purchases.get_suppliers",
+      args: { search: supplierSearch.value, limit: 10 },
+      error: r => { errorMsg.value = r?.message || __("فشل البحث عن الموردين"); },
+    });
+    supplierOptions.value = res?.message || [];
+    showSupplierDropdown.value = true;
+  }, 300);
+}
+
+function selectSupplier(s) {
+  form.supplier = s.name;
+  form.supplier_name = s.supplier_name;
+  supplierSearch.value = s.supplier_name;
+  showSupplierDropdown.value = false;
+  supplierOptions.value = [];
+}
+
+async function createSupplier() {
+  if (!newSupplierName.value) return;
+  creatingSupplier.value = true;
+  try {
+    const res = await frappe.call({
+      method: "pos_next.api.purchases.create_supplier",
+      args: { supplier_name: newSupplierName.value },
+      error: r => { errorMsg.value = r?.message || __("فشل إنشاء المورد"); },
+    });
+    if (res?.message) {
+      selectSupplier(res.message);
+      showCreateSupplier.value = false;
+      newSupplierName.value = "";
+    }
+  } finally {
+    creatingSupplier.value = false;
+  }
+}
+
+// Item lines
+function addLine() {
+  form.items.push({
+    item_code: "",
+    item_name: "",
+    qty: 1,
+    uom: "Nos",
+    rate: 0,
+    amount: 0,
+    _itemSearch: "",
+    _options: [],
+    _showDrop: false,
+  });
+}
+
+function removeLine(idx) {
+  form.items.splice(idx, 1);
+}
+
+function calcLine(idx) {
+  const line = form.items[idx];
+  line.amount = parseFloat(((line.qty || 0) * (line.rate || 0)).toFixed(2));
+}
+
+const itemTimers = {};
+function searchItems(idx) {
+  clearTimeout(itemTimers[idx]);
+  itemTimers[idx] = setTimeout(async () => {
+    const q = form.items[idx]._itemSearch;
+    if (!q) { form.items[idx]._options = []; return; }
+    const res = await frappe.call({
+      method: "pos_next.api.purchases.get_purchase_items",
+      args: { search: q, limit: 10 },
+      error: r => { errorMsg.value = r?.message || __("فشل البحث عن الأصناف"); },
+    });
+    form.items[idx]._options = res?.message || [];
+    form.items[idx]._showDrop = true;
+  }, 300);
+}
+
+async function selectItem(idx, it) {
+  const line = form.items[idx];
+  line.item_code = it.item_code;
+  line.item_name = it.item_name;
+  line.uom = it.stock_uom || "Nos";
+  line._itemSearch = it.item_name;
+  line._showDrop = false;
+  line._options = [];
+  // Fetch buying price
+  const res = await frappe.call({
+    method: "pos_next.api.purchases.get_item_buying_price",
+    args: { item_code: it.item_code },
+    error: () => {},
+  });
+  if (res?.message?.buying_price) {
+    line.rate = res.message.buying_price;
+  }
+  calcLine(idx);
+}
+
+// Totals
+const totals = computed(() => {
+  const net = form.items.reduce((s, l) => s + (l.amount || 0), 0);
+  const tax = parseFloat(form.total_taxes_and_charges || 0);
+  return { net, tax, grand: net + tax };
+});
+
+const canSubmit = computed(() =>
+  !!form.supplier &&
+  form.items.length > 0 &&
+  form.items.every(l => l.item_code && l.qty > 0)
+);
+
+const docstatusLabel = computed(() => {
+  const m = { 0: __("مسودة"), 1: __("معتمدة"), 2: __("ملغاة") };
+  return m[form.docstatus] || "";
+});
+const docstatusClass = computed(() => {
+  const m = {
+    0: "bg-gray-100 text-gray-600",
+    1: "bg-green-100 text-green-700",
+    2: "bg-red-100 text-red-600",
+  };
+  return m[form.docstatus] || "";
+});
+
+async function saveDraft() {
+  if (!form.supplier) { errorMsg.value = __("يرجى اختيار المورد أولاً"); return; }
+  if (!form.items.length) { errorMsg.value = __("يرجى إضافة صنف واحد على الأقل"); return; }
+  saving.value = true;
+  errorMsg.value = "";
+  try {
+    const payload = buildPayload();
+    const res = await frappe.call({
+      method: "pos_next.api.purchases.save_purchase_invoice",
+      args: { data: payload },
+      error: r => { errorMsg.value = r?.message || __("فشل الحفظ"); },
+    });
+    if (res?.message?.name) {
+      form.name = res.message.name;
+      emit("saved", res.message.name);
+      frappe.show_alert({ message: __("تم الحفظ بنجاح"), indicator: "green" });
+    }
+  } catch (e) {
+    errorMsg.value = e?.message || __("حدث خطأ أثناء الحفظ");
+  } finally {
+    saving.value = false;
+  }
+}
+
+function confirmSubmit() {
+  if (!canSubmit.value) return;
+  showConfirm.value = true;
+}
+
+async function doSubmit() {
+  submitting.value = true;
+  errorMsg.value = "";
+  try {
+    // Save first if new/unsaved
+    if (!form.name) {
+      const payload = buildPayload();
+      const saveRes = await frappe.call({
+        method: "pos_next.api.purchases.save_purchase_invoice",
+        args: { data: payload },
+        error: r => { errorMsg.value = r?.message || __("فشل الحفظ"); },
+      });
+      if (!saveRes?.message?.name) {
+        submitting.value = false;
+        showConfirm.value = false;
+        return;
+      }
+      form.name = saveRes.message.name;
+    }
+    const res = await frappe.call({
+      method: "pos_next.api.purchases.submit_purchase_invoice",
+      args: { name: form.name },
+      error: r => { errorMsg.value = r?.message || __("فشل الاعتماد"); },
+    });
+    if (res?.message) {
+      form.docstatus = 1;
+      showConfirm.value = false;
+      frappe.show_alert({ message: __("تم اعتماد الفاتورة بنجاح"), indicator: "green" });
+      emit("submitted", form.name);
+    }
+  } catch (e) {
+    errorMsg.value = e?.message || __("حدث خطأ أثناء الاعتماد");
+    showConfirm.value = false;
+  } finally {
+    submitting.value = false;
+  }
+}
+
+function buildPayload() {
+  const cleanItems = form.items
+    .filter(l => l.item_code)
+    .map(l => ({
+      item_code: l.item_code,
+      item_name: l.item_name,
+      qty: parseFloat(l.qty) || 1,
+      uom: l.uom || "Nos",
+      stock_uom: l.uom || "Nos",
+      rate: parseFloat(l.rate) || 0,
+      amount: l.amount || 0,
+    }));
+  return {
+    ...(form.name ? { name: form.name } : {}),
+    doctype: "Purchase Invoice",
+    supplier: form.supplier,
+    posting_date: form.posting_date,
+    due_date: form.due_date || null,
+    bill_no: form.bill_no || null,
+    remarks: form.remarks || null,
+    company: form.company,
+    items: cleanItems,
+    taxes_and_charges: form.taxes_and_charges || null,
+    update_stock: 1,
+  };
+}
+
+function formatAmt(v) {
+  if (v === null || v === undefined) return "0.00";
+  return parseFloat(v).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadInvoice(name) {
+  const res = await frappe.call({
+    method: "pos_next.api.purchases.get_purchase_invoice",
+    args: { name },
+    error: r => { errorMsg.value = r?.message || __("فشل تحميل الفاتورة"); },
+  });
+  if (!res?.message) return;
+  const d = res.message;
+  Object.assign(form, {
+    name: d.name,
+    docstatus: d.docstatus,
+    supplier: d.supplier,
+    supplier_name: d.supplier_name,
+    posting_date: d.posting_date,
+    due_date: d.due_date,
+    bill_no: d.bill_no,
+    remarks: d.remarks,
+    company: d.company,
+    taxes_and_charges: d.taxes_and_charges,
+    total_taxes_and_charges: d.total_taxes_and_charges || 0,
+    items: (d.items || []).map(l => ({
+      ...l,
+      _itemSearch: l.item_name || l.item_code,
+      _options: [],
+      _showDrop: false,
+    })),
+  });
+  supplierSearch.value = d.supplier_name || d.supplier;
+}
+
+onMounted(async () => {
+  // Load defaults
+  const defRes = await frappe.call({
+    method: "pos_next.api.purchases.get_new_purchase_invoice_defaults",
+    args: { company: props.defaults?.company || null },
+    error: () => {},
+  });
+  const def = defRes?.message || {};
+  form.posting_date = def.posting_date || new Date().toISOString().slice(0, 10);
+  form.due_date = def.due_date || "";
+  form.company = def.company || props.defaults?.company || "";
+  form.taxes_and_charges = props.defaults?.taxes_and_charges || null;
+
+  if (props.invoiceName) {
+    await loadInvoice(props.invoiceName);
+  }
+});
+</script>

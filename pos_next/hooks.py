@@ -82,14 +82,16 @@ doctype_js = {"Customer": "public/js/customer.js"}
 jinja = {
 	"methods": [
 		"pos_next.pos_next.utils.pos_closing_print.get_items_sold",
+		"pos_next.pos_next.utils.zatca_qr.generate_zatca_qr_dataurl",
+		"pos_next.pos_next.utils.zatca_qr.build_zatca_tlv",
 	]
 }
 
 # Fixtures
 # --------
 fixtures = [
-	{"dt": "Role", "filters": [["role_name", "in", ["POSNext Cashier", "Nexus POS Manager"]]]},
-	{"dt": "Custom DocPerm", "filters": [["role", "in", ["POSNext Cashier"]]]},
+	{"dt": "Role", "filters": [["role_name", "in", ["POSNext Cashier", "POS Manager"]]]},
+	{"dt": "Custom DocPerm", "filters": [["role", "in", ["POSNext Cashier", "POS Manager"]]]},
 ]
 
 # Installation
@@ -157,10 +159,12 @@ doc_events = {
 			"pos_next.realtime_events.emit_stock_update_event",
 			"pos_next.api.wallet.process_loyalty_to_wallet",
 			"pos_next.api.sales_invoice_hooks.record_one_time_offer_usage",
+			"pos_next.api.sales_invoice_hooks.increment_coupon_usage_on_submit",
 		],
 		"on_cancel": [
 			"pos_next.realtime_events.emit_stock_update_event",
 			"pos_next.api.sales_invoice_hooks.release_one_time_offer_usage",
+			"pos_next.api.sales_invoice_hooks.decrement_coupon_usage_on_cancel",
 		],
 		"after_insert": "pos_next.realtime_events.emit_invoice_created_event",
 	},

@@ -172,6 +172,28 @@
 									{{ __("Sales Management") }}
 								</button>
 								<button
+									@click="activeTab = 'customers'"
+									:class="[
+										'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
+										activeTab === 'customers'
+											? 'bg-white text-gray-900 shadow-sm'
+											: 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50',
+									]"
+								>
+									{{ __("Customers") }}
+								</button>
+								<button
+									@click="activeTab = 'display'"
+									:class="[
+										'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
+										activeTab === 'display'
+											? 'bg-white text-gray-900 shadow-sm'
+											: 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50',
+									]"
+								>
+									{{ __("Display & Print") }}
+								</button>
+								<button
 									@click="activeTab = 'branding'"
 									:class="[
 										'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
@@ -1119,7 +1141,446 @@
 										</div>
 									</div>
 								</div>
+
+								<!-- Returns Policy -->
+								<div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+									<div class="flex items-center gap-2 mb-4">
+										<svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+										</svg>
+										<h4 class="text-sm font-semibold text-gray-900">{{ __("Returns Policy") }}</h4>
+									</div>
+									<div class="flex flex-col gap-3">
+										<CheckboxField
+											v-model="settings.allow_return_without_invoice"
+											:label="__('Allow Return Without Invoice')"
+											:description="__('Enable returning items without referencing the original invoice')"
+										/>
+										<NumberField
+											v-model="settings.return_validity_days"
+											:label="__('Return Validity (Days)')"
+											:description="__('Number of days a return is allowed after the sale. 0 means no limit.')"
+											:min="0"
+											:max="365"
+										/>
+										<CheckboxField
+											v-model="settings.allow_free_batch_return"
+											:label="__('Allow Free Batch Return')"
+											:description="__('Allow returning items from batches that were given for free')"
+										/>
+									</div>
+								</div>
+
+								<!-- Sales Orders -->
+								<div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+									<div class="flex items-center gap-2 mb-4">
+										<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+										</svg>
+										<h4 class="text-sm font-semibold text-gray-900">{{ __("Sales Orders") }}</h4>
+									</div>
+									<div class="flex flex-col gap-3">
+										<CheckboxField
+											v-model="settings.allow_sales_order"
+											:label="__('Allow Create Sales Order')"
+											:description="__('Enable creating a Sales Order from the POS instead of a direct invoice')"
+										/>
+										<CheckboxField
+											v-model="settings.allow_select_sales_order"
+											:label="__('Allow Select Sales Order')"
+											:description="__('Allow selecting an existing Sales Order to convert to an invoice')"
+										/>
+										<CheckboxField
+											v-model="settings.create_only_sales_order"
+											:label="__('Create Only Sales Order')"
+											:description="__('Force POS to always create a Sales Order instead of an invoice')"
+										/>
+									</div>
+								</div>
+
+								<!-- Delivery Charges -->
+								<div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+									<div class="flex items-center gap-2 mb-4">
+										<svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
+										</svg>
+										<h4 class="text-sm font-semibold text-gray-900">{{ __("Delivery Charges") }}</h4>
+									</div>
+									<div class="flex flex-col gap-3">
+										<CheckboxField
+											v-model="settings.use_delivery_charges"
+											:label="__('Use Delivery Charges')"
+											:description="__('Allow adding delivery charges to invoices')"
+										/>
+										<CheckboxField
+											v-model="settings.auto_set_delivery_charges"
+											:label="__('Auto Set Delivery Charges')"
+											:description="__('Automatically apply delivery charges based on configured rules')"
+										/>
+									</div>
+								</div>
+
+								<!-- Advanced Operations -->
+								<div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
+									<div class="flex items-center gap-2 mb-4">
+										<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+										</svg>
+										<h4 class="text-sm font-semibold text-gray-900">{{ __("Advanced Operations") }}</h4>
+									</div>
+									<div class="flex flex-col gap-3">
+										<CheckboxField
+											v-model="settings.allow_customer_credit_payment"
+											:label="__('Allow Customer Credit Payment')"
+											:description="__('Allow customers to pay using their credit balance')"
+										/>
+										<CheckboxField
+											v-model="settings.use_exact_amount"
+											:label="__('Use Exact Amount for Non-Cash')"
+											:description="__('Require exact payment amount for non-cash payment methods')"
+										/>
+										<CheckboxField
+											v-model="settings.fetch_coupon"
+											:label="__('Auto Fetch Coupon Gifts')"
+											:description="__('Automatically apply coupon gifts when eligible')"
+										/>
+										<CheckboxField
+											v-model="settings.allow_change_posting_date"
+											:label="__('Allow Change Posting Date')"
+											:description="__('Allow cashiers to change the invoice posting date')"
+										/>
+										<CheckboxField
+											v-model="settings.allow_delete_offline_invoice"
+											:label="__('Allow Delete Offline Invoice')"
+											:description="__('Allow deleting invoices that were created while offline')"
+										/>
+										<CheckboxField
+											v-model="settings.allow_submissions_in_background_job"
+											:label="__('Allow Background Submissions')"
+											:description="__('Submit invoices in background jobs for faster checkout')"
+										/>
+										<div class="grid grid-cols-2 gap-3 pt-1">
+											<div>
+												<label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Sales Persons") }}</label>
+												<select v-model="settings.enable_sales_persons"
+													class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+												>
+													<option value="Disabled">{{ __("Disabled") }}</option>
+													<option value="Single">{{ __("Single") }}</option>
+													<option value="Multiple">{{ __("Multiple") }}</option>
+												</select>
+												<p class="text-xs text-gray-400 mt-1">{{ __("Assign sales persons to invoices") }}</p>
+											</div>
+											<div>
+												<label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Input Quantity") }}</label>
+												<div class="flex items-center h-10">
+													<CheckboxField
+														v-model="settings.input_qty"
+														:label="__('Use QTY Keypad')"
+													/>
+												</div>
+											</div>
+										</div>
+										<div class="flex flex-col gap-2 pt-1 border-t border-gray-200">
+											<CheckboxField
+												v-model="settings.use_limit_search"
+												:label="__('Use Search Limit')"
+												:description="__('Limit the number of items shown in search results')"
+											/>
+											<NumberField
+												v-if="settings.use_limit_search"
+												v-model="settings.search_limit"
+												:label="__('Search Result Limit')"
+												:description="__('Maximum number of items shown in search results')"
+												:min="10"
+												:max="1000"
+												:step="10"
+											/>
+										</div>
+									</div>
+								</div>
 							</div>
+						</div>
+
+						<!-- ===== CUSTOMERS TAB ===== -->
+						<div v-if="activeTab === 'customers'" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+							<div class="px-6 py-4 bg-white border-b border-gray-100">
+								<div class="flex items-center gap-3">
+									<div class="p-2 bg-blue-50 rounded-lg">
+										<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+										</svg>
+									</div>
+									<div>
+										<h3 class="text-lg font-bold text-gray-900">{{ __("Customer Settings") }}</h3>
+										<p class="text-xs text-gray-600 mt-0.5">{{ __("Configure loyalty, wallet, and customer options") }}</p>
+									</div>
+								</div>
+							</div>
+							<div class="p-6 flex flex-col gap-6">
+
+								<!-- Loyalty Program -->
+								<div class="bg-amber-50/50 rounded-xl p-5 border border-amber-100">
+									<div class="flex items-center gap-2 mb-4">
+										<svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+										</svg>
+										<h4 class="text-sm font-semibold text-gray-900">{{ __("Loyalty Program") }}</h4>
+									</div>
+									<div class="flex flex-col gap-3">
+										<CheckboxField
+											v-model="settings.enable_loyalty_program"
+											:label="__('Enable Loyalty Program')"
+											:description="__('Allow customers to earn and redeem loyalty points')"
+										/>
+										<div v-if="settings.enable_loyalty_program" class="ps-6 border-s-2 border-amber-200 flex flex-col gap-3">
+											<div>
+												<label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Default Loyalty Program") }}</label>
+												<input
+													v-model="settings.default_loyalty_program"
+													type="text"
+													:placeholder="__('Loyalty Program name...')"
+													class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+												/>
+												<p class="text-xs text-gray-400 mt-1">{{ __("Enter the exact Loyalty Program name from ERPNext") }}</p>
+											</div>
+											<CheckboxField
+												v-model="settings.loyalty_to_wallet"
+												:label="__('Convert Loyalty Points to Wallet')"
+												:description="__('Automatically convert redeemed loyalty points into wallet balance')"
+											/>
+										</div>
+									</div>
+								</div>
+
+								<!-- Wallet -->
+								<div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+									<div class="flex items-center gap-2 mb-4">
+										<svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+										</svg>
+										<h4 class="text-sm font-semibold text-gray-900">{{ __("Customer Wallet") }}</h4>
+									</div>
+									<div class="flex flex-col gap-3">
+										<div>
+											<label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Wallet Account") }}</label>
+											<input
+												v-model="settings.wallet_account"
+												type="text"
+												:placeholder="__('Account name from Chart of Accounts...')"
+												class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+											/>
+											<p class="text-xs text-gray-400 mt-1">{{ __("The ledger account used for customer wallet balances") }}</p>
+										</div>
+										<CheckboxField
+											v-model="settings.auto_create_wallet"
+											:label="__('Auto Create Wallet')"
+											:description="__('Automatically create a wallet for new customers')"
+										/>
+									</div>
+								</div>
+
+								<!-- Customer Options -->
+								<div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
+									<div class="flex items-center gap-2 mb-4">
+										<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+										</svg>
+										<h4 class="text-sm font-semibold text-gray-900">{{ __("Customer Options") }}</h4>
+									</div>
+									<div class="flex flex-col gap-3">
+										<CheckboxField
+											v-model="settings.show_customer_balance"
+											:label="__('Show Customer Balance')"
+											:description="__('Display the customer outstanding balance in the POS')"
+										/>
+										<CheckboxField
+											v-model="settings.allow_customer_purchase_order"
+											:label="__('Allow Customer Purchase Order')"
+											:description="__('Allow linking a customer PO number to the invoice')"
+										/>
+										<CheckboxField
+											v-model="settings.allow_duplicate_customer_names"
+											:label="__('Allow Duplicate Customer Names')"
+											:description="__('Allow creating customers with the same name')"
+										/>
+									</div>
+								</div>
+
+							</div>
+						</div>
+
+						<!-- ===== DISPLAY & PRINT TAB ===== -->
+						<div v-if="activeTab === 'display'" class="flex flex-col gap-6">
+
+							<!-- Display Options Card -->
+							<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+								<div class="px-6 py-4 bg-white border-b border-gray-100">
+									<div class="flex items-center gap-3">
+										<div class="p-2 bg-slate-100 rounded-lg">
+											<svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/>
+											</svg>
+										</div>
+										<div>
+											<h3 class="text-lg font-bold text-gray-900">{{ __("Display Options") }}</h3>
+											<p class="text-xs text-gray-600 mt-0.5">{{ __("Customize what information is shown in the POS interface") }}</p>
+										</div>
+									</div>
+								</div>
+								<div class="p-6 flex flex-col gap-6">
+
+									<!-- Item Display -->
+									<div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
+										<div class="flex items-center gap-2 mb-4">
+											<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+											</svg>
+											<h4 class="text-sm font-semibold text-gray-900">{{ __("Items Display") }}</h4>
+										</div>
+										<div class="flex flex-col gap-3">
+											<CheckboxField
+												v-model="settings.default_card_view"
+												:label="__('Default Card View')"
+												:description="__('Show items as cards instead of a list by default')"
+											/>
+											<CheckboxField
+												v-model="settings.display_item_code"
+												:label="__('Display Item Code')"
+												:description="__('Show the item code alongside the item name')"
+											/>
+											<CheckboxField
+												v-model="settings.show_variants_as_items"
+												:label="__('Show Variants as Items')"
+												:description="__('Display product variants as separate items in the catalog')"
+											/>
+											<CheckboxField
+												v-model="settings.input_qty"
+												:label="__('Use QTY Input Keypad')"
+												:description="__('Show a quantity keypad for faster item entry')"
+											/>
+											<div>
+												<label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Decimal Precision") }}</label>
+												<select v-model="settings.decimal_precision"
+													class="w-40 h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+												>
+													<option value="2">2 {{ __("decimals") }}</option>
+													<option value="3">3 {{ __("decimals") }}</option>
+													<option value="4">4 {{ __("decimals") }}</option>
+													<option value="5">5 {{ __("decimals") }}</option>
+													<option value="6">6 {{ __("decimals") }}</option>
+												</select>
+												<p class="text-xs text-gray-400 mt-1">{{ __("Precision for quantities and rates") }}</p>
+											</div>
+										</div>
+									</div>
+
+									<!-- Invoice Display -->
+									<div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+										<div class="flex items-center gap-2 mb-4">
+											<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+											</svg>
+											<h4 class="text-sm font-semibold text-gray-900">{{ __("Invoice Display") }}</h4>
+										</div>
+										<div class="flex flex-col gap-3">
+											<CheckboxField
+												v-model="settings.hide_expected_amount"
+												:label="__('Hide Expected Amount')"
+												:description="__('Hide the expected payment amount in the payment dialog')"
+											/>
+											<CheckboxField
+												v-model="settings.display_discount_percentage"
+												:label="__('Display Discount %')"
+												:description="__('Show the discount percentage on invoice lines')"
+											/>
+											<CheckboxField
+												v-model="settings.display_discount_amount"
+												:label="__('Display Discount Amount')"
+												:description="__('Show the discount amount on invoice lines')"
+											/>
+										</div>
+									</div>
+
+								</div>
+							</div>
+
+							<!-- Print Options Card -->
+							<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+								<div class="px-6 py-4 bg-white border-b border-gray-100">
+									<div class="flex items-center gap-3">
+										<div class="p-2 bg-slate-100 rounded-lg">
+											<svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+											</svg>
+										</div>
+										<div>
+											<h3 class="text-lg font-bold text-gray-900">{{ __("Print Settings") }}</h3>
+											<p class="text-xs text-gray-600 mt-0.5">{{ __("Configure receipt printing options") }}</p>
+										</div>
+									</div>
+								</div>
+								<div class="p-6 flex flex-col gap-6">
+									<div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+										<div class="flex items-center gap-2 mb-4">
+											<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+											</svg>
+											<h4 class="text-sm font-semibold text-gray-900">{{ __("Print Options") }}</h4>
+										</div>
+										<div class="flex flex-col gap-3">
+											<CheckboxField
+												v-model="settings.allow_print_draft_invoices"
+												:label="__('Allow Print Draft Invoices')"
+												:description="__('Allow printing invoices that are still in draft state')"
+											/>
+											<CheckboxField
+												v-model="settings.allow_print_last_invoice"
+												:label="__('Allow Print Last Invoice')"
+												:description="__('Show a button to reprint the last submitted invoice')"
+											/>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Security Card -->
+							<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+								<div class="px-6 py-4 bg-white border-b border-gray-100">
+									<div class="flex items-center gap-3">
+										<div class="p-2 bg-red-50 rounded-lg">
+											<svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+											</svg>
+										</div>
+										<div>
+											<h3 class="text-lg font-bold text-gray-900">{{ __("Security") }}</h3>
+											<p class="text-xs text-gray-600 mt-0.5">{{ __("Configure session lock and security options") }}</p>
+										</div>
+									</div>
+								</div>
+								<div class="p-6">
+									<div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+										<div class="flex flex-col gap-3">
+											<CheckboxField
+												v-model="settings.enable_session_lock"
+												:label="__('Enable Session Lock')"
+												:description="__('Automatically lock the POS after a period of inactivity')"
+											/>
+											<div v-if="settings.enable_session_lock" class="ps-6 border-s-2 border-red-200">
+												<NumberField
+													v-model="settings.session_lock_timeout"
+													:label="__('Lock Timeout (minutes)')"
+													:description="__('Minutes of inactivity before the session auto-locks')"
+													:min="1"
+													:max="120"
+												/>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+
 						</div>
 
 						<!-- Empty State -->
@@ -1212,6 +1673,54 @@ const settings = ref({
 	silent_print: 0,
 	allow_negative_stock: 0,
 	tax_inclusive: 0,
+	// Returns Policy
+	allow_return_without_invoice: 0,
+	return_validity_days: 0,
+	allow_free_batch_return: 0,
+	// Sales Orders
+	allow_sales_order: 0,
+	allow_select_sales_order: 0,
+	create_only_sales_order: 0,
+	// Delivery Charges
+	use_delivery_charges: 0,
+	auto_set_delivery_charges: 0,
+	// Advanced Operations
+	allow_customer_credit_payment: 0,
+	use_exact_amount: 0,
+	fetch_coupon: 0,
+	allow_change_posting_date: 0,
+	allow_delete_offline_invoice: 0,
+	allow_submissions_in_background_job: 0,
+	enable_sales_persons: "Disabled",
+	input_qty: 0,
+	use_limit_search: 0,
+	search_limit: 100,
+	// Customers — Loyalty
+	enable_loyalty_program: 0,
+	default_loyalty_program: "",
+	loyalty_to_wallet: 0,
+	// Customers — Wallet
+	wallet_account: "",
+	auto_create_wallet: 0,
+	// Customers — Options
+	show_customer_balance: 0,
+	allow_customer_purchase_order: 0,
+	allow_duplicate_customer_names: 0,
+	// Display — Items
+	default_card_view: 0,
+	display_item_code: 0,
+	show_variants_as_items: 0,
+	decimal_precision: "2",
+	// Display — Invoice
+	hide_expected_amount: 0,
+	display_discount_percentage: 0,
+	display_discount_amount: 0,
+	// Print
+	allow_print_draft_invoices: 0,
+	allow_print_last_invoice: 0,
+	// Security
+	enable_session_lock: 0,
+	session_lock_timeout: 5,
 });
 
 // Stock Sync Settings (localStorage persisted)

@@ -64,6 +64,20 @@
 									<span>{{ __("Coupons") }}</span>
 								</div>
 							</button>
+							<button
+								@click="activeTab = 'referrals'"
+								:class="[
+									'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+									activeTab === 'referrals'
+										? 'text-blue-600 border-blue-600'
+										: 'text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300',
+								]"
+							>
+								<div class="flex items-center gap-2">
+									<FeatherIcon name="share-2" class="w-4 h-4" />
+									<span>{{ __("Referral Codes") }}</span>
+								</div>
+							</button>
 						</div>
 					</div>
 
@@ -952,8 +966,17 @@
 							v-if="activeTab === 'coupons'"
 							:company="company"
 							:currency="currency"
-							:permissions="permissions"
+							:permissions="couponPermissions"
 							@coupon-saved="handleCouponSaved"
+						/>
+
+						<!-- REFERRALS TAB -->
+						<ReferralManagement
+							v-if="activeTab === 'referrals'"
+							:company="company"
+							:currency="currency"
+							:permissions="referralPermissions"
+							@referral-saved="loadReferrals"
 						/>
 					</div>
 				</div>
@@ -1020,12 +1043,13 @@
 </template>
 
 <script setup>
-import { usePOSPermissions } from "@/composables/usePermissions";
+import { loadPOSPermissions } from "@/composables/usePermissions";
 import { useToast } from "@/composables/useToast";
 import { useItemSearchStore } from "@/stores/itemSearch";
 import { DEFAULT_CURRENCY, DEFAULT_LOCALE } from "@/utils/currency";
 import { __ } from "@/utils/translation";
 import CouponManagement from "./CouponManagement.vue";
+import ReferralManagement from "./ReferralManagement.vue";
 import SelectInput from "../common/SelectInput.vue";
 import { Badge, Button, Card, FormControl, LoadingIndicator, createResource } from "frappe-ui";
 import { FeatherIcon } from "frappe-ui";
@@ -1035,13 +1059,11 @@ import TranslatedHTML from "../common/TranslatedHTML.vue";
 // Use shared toast
 const { showSuccess, showError, showWarning } = useToast();
 
-// Permission checks
-const { canCreatePromotion, canEditPromotion, canDeletePromotion } = usePOSPermissions();
-const permissions = ref({
-	create: true,
-	write: true,
-	delete: true,
-});
+// Permission state — loaded from backend in one batch call
+// Each tab gets its own permissions object
+const permissions = ref({ create: false, write: false, delete: false });       // promotions
+const couponPermissions = ref({ create: false, write: false, delete: false }); // coupons
+const referralPermissions = ref({ create: false, write: false, delete: false }); // referrals
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -1064,7 +1086,7 @@ const isCreating = ref(false);
 const selectedPromotion = ref(null);
 const showDeleteConfirm = ref(false);
 const promotionToDelete = ref(null);
-const activeTab = ref("promotions"); // Tab state: 'promotions' or 'coupons'
+const activeTab = ref("promotions"); // Tab state: 'promotions' | 'coupons' | 'referrals'
 
 // List view state
 const promotions = ref([]);
@@ -1403,26 +1425,33 @@ onMounted(() => {
 	checkPermissions();
 });
 
-// Check user permissions
+// Check user permissions — single batch call to backend
 async function checkPermissions() {
 	try {
-		const [create, write, del] = await Promise.all([
-			canCreatePromotion(),
-			canEditPromotion(),
-			canDeletePromotion(),
-		]);
+		const perms = await loadPOSPermissions();
+		// Promotion tab
 		permissions.value = {
-			create,
-			write,
-			delete: del,
+			create: Boolean(perms.can_create_promotions),
+			write: Boolean(perms.can_write_promotions),
+			delete: Boolean(perms.can_delete_promotions),
+		};
+		// Coupon tab
+		couponPermissions.value = {
+			create: Boolean(perms.can_create_coupons),
+			write: Boolean(perms.can_write_coupons),
+			delete: Boolean(perms.can_delete_coupons),
+		};
+		// Referral tab
+		referralPermissions.value = {
+			create: Boolean(perms.can_create_referrals),
+			write: Boolean(perms.can_write_referrals),
+			delete: Boolean(perms.can_write_referrals),
 		};
 	} catch (error) {
-		console.error("Error checking promotion permissions:", error);
-		permissions.value = {
-			create: false,
-			write: false,
-			delete: false,
-		};
+		console.error("Error checking permissions:", error);
+		permissions.value = { create: false, write: false, delete: false };
+		couponPermissions.value = { create: false, write: false, delete: false };
+		referralPermissions.value = { create: false, write: false, delete: false };
 	}
 }
 
@@ -1710,6 +1739,11 @@ function translateApplyOn(value) {
 }
 
 function handleCouponSaved(data) {
+	// Emit event to parent if needed
+	emit("promotion-saved", data);
+}
+
+function loadReferrals(data) {
 	// Emit event to parent if needed
 	emit("promotion-saved", data);
 }

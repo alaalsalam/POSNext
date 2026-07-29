@@ -61,6 +61,8 @@ def create_referral_code(
 	referee_discount_percentage=None,
 	referee_discount_amount=None,
 	campaign=None,
+	referrer_coupon_valid_days=30,
+	referee_coupon_valid_days=30,
 ):
 	"""
 	Create a new referral code with discount configuration
@@ -75,6 +77,8 @@ def create_referral_code(
 	    referee_discount_percentage: Percentage discount for referee (if type is Percentage)
 	    referee_discount_amount: Fixed amount discount for referee (if type is Amount)
 	    campaign: Optional campaign name
+	    referrer_coupon_valid_days: Days the referrer's generated coupon stays valid (default 30)
+	    referee_coupon_valid_days: Days the referee's generated coupon stays valid (default 30)
 	"""
 	doc = frappe.new_doc("Referral Code")
 	doc.company = company
@@ -91,8 +95,13 @@ def create_referral_code(
 	doc.referee_discount_percentage = referee_discount_percentage
 	doc.referee_discount_amount = referee_discount_amount
 
+	# Coupon validity periods — set before insert so hooks see correct values
+	if hasattr(doc, "referrer_coupon_valid_days"):
+		doc.referrer_coupon_valid_days = frappe.utils.cint(referrer_coupon_valid_days) or 30
+	if hasattr(doc, "referee_coupon_valid_days"):
+		doc.referee_coupon_valid_days = frappe.utils.cint(referee_coupon_valid_days) or 30
+
 	doc.insert()
-	frappe.db.commit()
 	return doc
 
 
@@ -158,7 +167,6 @@ def apply_referral_code(referral_code, referee_customer):
 	# Increment referrals count
 	referral.referrals_count = (referral.referrals_count or 0) + 1
 	referral.save()
-	frappe.db.commit()
 
 	return result
 

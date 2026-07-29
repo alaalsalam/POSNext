@@ -42,7 +42,7 @@
 							class="text-xs font-semibold mb-0.5 leading-tight"
 							style="color: #111827"
 						>
-							{{ __("Install POSNext") }}
+							{{ __("Install POS Digit") }}
 						</h3>
 						<p class="text-[10px] leading-tight mb-1" style="color: #4b5563">
 							{{ __("Faster access and offline support") }}

@@ -16,27 +16,21 @@
 				</FormControl>
 
 				<div class="grid grid-cols-2 gap-2">
-					<FormControl
-						type="select"
-						v-model="filterStatus"
-						:options="[
-							{ label: __('All Status'), value: 'all' },
-							{ label: __('Active Only'), value: 'active' },
-							{ label: __('Expired'), value: 'expired' },
-							{ label: __('Not Started'), value: 'not_started' },
-							{ label: __('Exhausted'), value: 'exhausted' },
-							{ label: __('Disabled'), value: 'disabled' },
-						]"
-					/>
-					<FormControl
-						type="select"
-						v-model="filterType"
-						:options="[
-							{ label: __('All Types'), value: 'all' },
-							{ label: __('Promotional'), value: 'Promotional' },
-							{ label: __('Gift Card'), value: 'Gift Card' },
-						]"
-					/>
+					<select v-model="filterStatus"
+						class="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+						<option value="all">{{ __("All Status") }}</option>
+						<option value="active">{{ __("Active") }}</option>
+						<option value="expired">{{ __("Expired") }}</option>
+						<option value="not_started">{{ __("Not Started") }}</option>
+						<option value="exhausted">{{ __("Exhausted") }}</option>
+						<option value="disabled">{{ __("Disabled") }}</option>
+					</select>
+					<select v-model="filterType"
+						class="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+						<option value="all">{{ __("All Types") }}</option>
+						<option value="Promotional">{{ __("Promotional") }}</option>
+						<option value="Gift Card">{{ __("Gift Card") }}</option>
+					</select>
 				</div>
 			</div>
 
@@ -152,493 +146,346 @@
 
 		<!-- RIGHT SIDE: Work Area -->
 		<div class="flex-1 overflow-y-auto bg-white">
-			<!-- Empty State: No Selection -->
-			<div
-				v-if="!selectedCoupon && !isCreating"
-				class="flex items-center justify-center h-full"
-			>
-				<div class="text-center px-8 max-w-md">
-					<div class="text-gray-300 mb-4">
-						<FeatherIcon name="gift" class="w-16 h-16 mx-auto" />
-					</div>
-					<h3 class="text-xl font-semibold text-gray-900 mb-2">
-						{{ __("Select a Coupon") }}
-					</h3>
-					<p class="text-sm text-gray-600 mb-6">
-						{{
-							__(
-								"Choose a coupon from the list to view and edit, or create a new one to get started"
-							)
-						}}
-					</p>
-					<Button v-if="permissions.create" @click="handleCreateNew" variant="solid">
-						<template #prefix>
-							<FeatherIcon name="plus" class="w-4 h-4" />
-						</template>
-						{{ __("Create New Coupon") }}
-					</Button>
-					<p v-else class="text-sm text-amber-600">
-						{{ __("You don't have permission to create coupons") }}
-					</p>
-				</div>
-			</div>
 
-			<!-- Create/Edit Form -->
-			<div v-else class="p-6">
-				<div class="max-w-5xl mx-auto">
-					<!-- Form Header -->
-					<div class="flex items-center justify-between mb-6 pb-4 border-b">
-						<div>
-							<div class="flex items-center gap-3">
-								<h3 class="text-xl font-semibold text-gray-900">
-									{{
-										isCreating ? __("Create New Coupon") : __("Coupon Details")
-									}}
-								</h3>
-								<Badge
-									v-if="!isCreating && selectedCoupon?.coupon_type"
-									variant="subtle"
-									:theme="
-										selectedCoupon.coupon_type === 'Gift Card'
-											? 'purple'
-											: 'blue'
-									"
-									size="md"
-								>
-									{{ selectedCoupon.coupon_type }}
-								</Badge>
-							</div>
-							<p class="text-sm text-gray-600 mt-1">
-								{{
-									isCreating
-										? __("Fill in the details to create a new coupon")
-										: __("View and update coupon information")
-								}}
-							</p>
-						</div>
-						<div class="flex items-center gap-2">
-							<Button
-								v-if="!isCreating && permissions.write"
-								@click="handleToggle"
-								variant="outline"
-								:theme="couponDetails.disabled ? 'green' : 'orange'"
-							>
-								<template #prefix>
-									<FeatherIcon
-										:name="
-											couponDetails.disabled ? 'check-circle' : 'x-circle'
-										"
-										class="w-4 h-4"
-									/>
-								</template>
-								{{ couponDetails.disabled ? __("Enable") : __("Disable") }}
-							</Button>
-							<Button
-								v-if="
-									!isCreating && permissions.delete && selectedCoupon.used === 0
-								"
-								@click="handleDelete"
-								variant="ghost"
-								theme="red"
-							>
-								<template #prefix>
-									<FeatherIcon name="trash-2" class="w-4 h-4" />
-								</template>
-								{{ __("Delete") }}
-							</Button>
-							<div
-								v-if="!isCreating && (permissions.write || permissions.delete)"
-								class="w-px h-6 bg-gray-200"
-							></div>
-							<Button @click="handleCancel" variant="ghost">
-								{{ __("Cancel") }}
-							</Button>
-							<Button
-								v-if="isCreating ? permissions.create : permissions.write"
-								@click="handleSubmit"
-								:loading="loading"
-								variant="solid"
-							>
-								<template #prefix>
-									<FeatherIcon
-										:name="isCreating ? 'plus' : 'save'"
-										class="w-4 h-4"
-									/>
-								</template>
-								{{ isCreating ? __("Create") : __("Update") }}
-							</Button>
-						</div>
-					</div>
+		  <!-- Empty State: No Selection -->
+		  <div v-if="!selectedCoupon && !isCreating" class="flex items-center justify-center h-full">
+		    <div class="text-center px-8 max-w-md">
+		      <div class="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+		        <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
+		        </svg>
+		      </div>
+		      <h3 class="text-lg font-bold text-gray-900 mb-2">{{ __("Select a Coupon") }}</h3>
+		      <p class="text-sm text-gray-500 mb-6">{{ __("Choose a coupon from the list, or create a new one") }}</p>
+		      <button v-if="permissions.create" @click="handleCreateNew"
+		        class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+		        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+		        </svg>
+		        {{ __("Create New Coupon") }}
+		      </button>
+		    </div>
+		  </div>
 
-					<!-- Form Content -->
-					<div class="flex flex-col gap-6">
-						<!-- Basic Information Card -->
-						<Card>
-							<div class="p-5">
-								<div class="flex items-center gap-2 mb-4">
-									<FeatherIcon name="info" class="w-4 h-4 text-blue-600" />
-									<h4 class="text-sm font-semibold text-gray-900">
-										{{ __("Basic Information") }}
-									</h4>
-								</div>
-								<div class="grid grid-cols-2 gap-4">
-									<div class="col-span-2">
-										<FormControl
-											type="text"
-											:label="__('Coupon Name')"
-											v-model="form.coupon_name"
-											:disabled="!isCreating"
-											:placeholder="__('e.g., Summer Sale Coupon 2025')"
-											required
-										/>
-									</div>
+		  <!-- CREATE / EDIT FORM -->
+		  <div v-else class="p-6 max-w-2xl mx-auto flex flex-col gap-5">
 
-									<FormControl
-										type="select"
-										:label="__('Coupon Type')"
-										v-model="form.coupon_type"
-										:disabled="!isCreating"
-										:options="[
-											{ label: __('Promotional'), value: 'Promotional' },
-											{ label: __('Gift Card'), value: 'Gift Card' },
-										]"
-										required
-									/>
+		    <!-- Header + Action Buttons -->
+		    <div class="flex items-start justify-between pb-4 border-b border-gray-100">
+		      <div>
+		        <h3 class="text-lg font-bold text-gray-900">
+		          {{ isCreating ? __("Create New Coupon") : __("Coupon Details") }}
+		        </h3>
+		        <p class="text-sm text-gray-500 mt-0.5">
+		          {{ isCreating ? __("Fill in the details to create a coupon") : __("View and edit coupon information") }}
+		        </p>
+		      </div>
+		      <div class="flex items-center gap-2 flex-shrink-0">
+		        <button v-if="!isCreating && permissions.write" @click="handleToggle"
+		          :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
+		            couponDetails.disabled
+		              ? 'border-green-200 text-green-700 hover:bg-green-50'
+		              : 'border-orange-200 text-orange-700 hover:bg-orange-50']">
+		          {{ couponDetails.disabled ? __("Enable") : __("Disable") }}
+		        </button>
+		        <button v-if="!isCreating && permissions.delete && selectedCoupon.used === 0"
+		          @click="handleDelete"
+		          class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
+		          {{ __("Delete") }}
+		        </button>
+		        <button @click="handleCancel"
+		          class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+		          {{ __("Cancel") }}
+		        </button>
+		        <button v-if="isCreating ? permissions.create : permissions.write"
+		          @click="handleSubmit" :disabled="loading"
+		          class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5">
+		          <div v-if="loading" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+		          {{ isCreating ? __("Create Coupon") : __("Save Changes") }}
+		        </button>
+		      </div>
+		    </div>
 
-									<FormControl
-										type="text"
-										:label="__('Coupon Code')"
-										v-model="form.coupon_code"
-										:disabled="!isCreating"
-										:placeholder="__('Auto-generated if empty')"
-									>
-										<template #suffix v-if="isCreating">
-											<Button
-												size="sm"
-												variant="ghost"
-												@click="generateCouponCode"
-											>
-												{{ __("Generate") }}
-											</Button>
-										</template>
-									</FormControl>
+		    <!-- ① COUPON TYPE (create mode only) — big visual cards -->
+		    <div v-if="isCreating">
+		      <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+		        {{ __("Coupon Type") }} <span class="text-red-500">*</span>
+		      </p>
+		      <div class="grid grid-cols-2 gap-3">
+		        <button @click="form.coupon_type = 'Promotional'"
+		          :class="['p-4 rounded-xl border-2 text-start transition-all',
+		            form.coupon_type === 'Promotional'
+		              ? 'border-blue-500 bg-blue-50'
+		              : 'border-gray-200 hover:border-gray-300 bg-white']">
+		          <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+		            :class="form.coupon_type === 'Promotional' ? 'bg-blue-100' : 'bg-gray-100'">
+		            <svg class="w-5 h-5" :class="form.coupon_type === 'Promotional' ? 'text-blue-600' : 'text-gray-500'"
+		              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+		                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+		            </svg>
+		          </div>
+		          <p class="text-sm font-bold" :class="form.coupon_type === 'Promotional' ? 'text-blue-900' : 'text-gray-900'">
+		            {{ __("Promotional") }}
+		          </p>
+		          <p class="text-xs text-gray-500 mt-1">{{ __("Shared publicly, usable by many customers") }}</p>
+		        </button>
+		        <button @click="form.coupon_type = 'Gift Card'"
+		          :class="['p-4 rounded-xl border-2 text-start transition-all',
+		            form.coupon_type === 'Gift Card'
+		              ? 'border-purple-500 bg-purple-50'
+		              : 'border-gray-200 hover:border-gray-300 bg-white']">
+		          <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+		            :class="form.coupon_type === 'Gift Card' ? 'bg-purple-100' : 'bg-gray-100'">
+		            <svg class="w-5 h-5" :class="form.coupon_type === 'Gift Card' ? 'text-purple-600' : 'text-gray-500'"
+		              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+		                d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+		            </svg>
+		          </div>
+		          <p class="text-sm font-bold" :class="form.coupon_type === 'Gift Card' ? 'text-purple-900' : 'text-gray-900'">
+		            {{ __("Gift Card") }}
+		          </p>
+		          <p class="text-xs text-gray-500 mt-1">{{ __("Assigned to one specific customer only") }}</p>
+		        </button>
+		      </div>
+		    </div>
 
-									<!-- Customer field for Gift Cards -->
-									<div
-										v-if="form.coupon_type === 'Gift Card'"
-										class="col-span-2"
-									>
-										<div v-if="isCreating">
-											<label
-												class="block text-xs font-medium text-gray-500 mb-1.5"
-												>{{ __("Customer") }}
-												<span class="text-red-500">*</span></label
-											>
-											<AutocompleteSelect
-												v-model="form.customer"
-												:options="customerOptions"
-												:loading="customerLoading"
-												:placeholder="
-													__('Search customer by name or mobile...')
-												"
-												@search="handleCustomerSearch"
-												required
-											/>
-										</div>
-										<div v-else>
-											<label
-												class="block text-sm font-medium text-gray-700 mb-2 text-start"
-												>{{ __("Customer") }}</label
-											>
-											<div class="px-3 py-2 bg-gray-50 rounded-lg">
-												<p class="text-sm font-medium text-gray-900">
-													{{
-														couponDetails.customer_name ||
-														couponDetails.customer
-													}}
-												</p>
-												<p class="text-xs text-gray-500">
-													{{ couponDetails.customer }}
-												</p>
-											</div>
-										</div>
-									</div>
+		    <!-- Type badge (view mode) -->
+		    <div v-if="!isCreating" class="flex items-center gap-2">
+		      <span :class="['px-3 py-1 rounded-full text-xs font-bold',
+		        couponDetails.coupon_type === 'Gift Card' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700']">
+		        {{ couponDetails.coupon_type }}
+		      </span>
+		      <span :class="['px-3 py-1 rounded-full text-xs font-bold',
+		        selectedCoupon.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600']">
+		        {{ selectedCoupon.status }}
+		      </span>
+		      <code class="ms-auto text-sm font-mono bg-gray-100 px-2 py-1 rounded text-gray-700">
+		        {{ couponDetails.coupon_code }}
+		      </code>
+		    </div>
 
-									<FormControl
-										v-if="campaigns.length > 0"
-										type="select"
-										:label="__('Campaign')"
-										v-model="form.campaign"
-										:disabled="!isCreating"
-										:options="campaignOptions"
-									/>
+		    <!-- ② CUSTOMER (Gift Card only) -->
+		    <div v-if="form.coupon_type === 'Gift Card'">
+		      <label class="block text-xs font-semibold text-gray-700 mb-1.5">
+		        {{ __("Customer") }} <span class="text-red-500">*</span>
+		      </label>
+		      <div v-if="isCreating">
+		        <AutocompleteSelect
+		          v-model="form.customer"
+		          :options="customerOptions"
+		          :loading="customerLoading"
+		          :placeholder="__('Search customer by name or mobile...')"
+		          @search="handleCustomerSearch"
+		        />
+		      </div>
+		      <div v-else class="px-3 py-2.5 bg-purple-50 border border-purple-100 rounded-lg">
+		        <p class="text-sm font-semibold text-purple-900">{{ couponDetails.customer_name || couponDetails.customer }}</p>
+		        <p class="text-xs text-purple-600">{{ couponDetails.customer }}</p>
+		      </div>
+		    </div>
 
-									<!-- Company field -->
-									<div>
-										<label
-											class="block text-sm font-medium text-gray-700 mb-2 text-start"
-											>{{ __("Company") }}</label
-										>
-										<div class="px-3 py-2 bg-gray-50 rounded-lg">
-											<p class="text-sm text-gray-900">
-												{{
-													isCreating
-														? props.company
-														: couponDetails.company
-												}}
-											</p>
-										</div>
-									</div>
+		    <!-- ③ BASIC INFO -->
+		    <div class="flex flex-col gap-3">
+		      <div>
+		        <label class="block text-xs font-semibold text-gray-700 mb-1.5">
+		          {{ __("Coupon Name") }} <span class="text-red-500">*</span>
+		        </label>
+		        <input v-model="form.coupon_name" type="text"
+		          :disabled="!isCreating"
+		          :placeholder="__('e.g., Summer Sale Coupon 2025')"
+		          class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-600"
+		        />
+		      </div>
+		      <div>
+		        <label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Coupon Code") }}</label>
+		        <div class="flex gap-2">
+		          <input v-model="form.coupon_code" type="text"
+		            :disabled="!isCreating"
+		            :placeholder="__('Auto-generated if left empty')"
+		            class="flex-1 h-10 px-3 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-600"
+		          />
+		          <button v-if="isCreating" @click="generateCouponCode"
+		            class="px-4 h-10 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors">
+		            {{ __("Generate") }}
+		          </button>
+		        </div>
+		        <p class="text-xs text-gray-400 mt-1">{{ __("Customers enter this code at checkout") }}</p>
+		      </div>
+		    </div>
 
-									<!-- Referral Code (view only when editing) -->
-									<div v-if="!isCreating && couponDetails.referral_code">
-										<label
-											class="block text-sm font-medium text-gray-700 mb-2 text-start"
-											>{{ __("Referral Code") }}</label
-										>
-										<div
-											class="px-3 py-2 bg-blue-50 rounded-lg border border-blue-200"
-										>
-											<p class="text-sm font-medium text-blue-900">
-												{{ couponDetails.referral_code }}
-											</p>
-										</div>
-									</div>
-								</div>
-							</div>
-						</Card>
+		    <!-- ④ DISCOUNT SETTINGS -->
+		    <div class="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+		      <p class="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-4">
+		        % {{ __("Discount Settings") }}
+		      </p>
 
-						<!-- Discount Configuration Card -->
-						<Card>
-							<div class="p-5">
-								<div class="flex items-center gap-2 mb-4">
-									<FeatherIcon name="percent" class="w-4 h-4 text-emerald-600" />
-									<h4 class="text-sm font-semibold text-gray-900">
-										{{ __("Discount Configuration") }}
-									</h4>
-								</div>
-								<div class="grid grid-cols-2 gap-4">
-									<FormControl
-										type="select"
-										:label="__('Discount Type')"
-										v-model="form.discount_type"
-										:options="[
-											{ label: __('Percentage'), value: 'Percentage' },
-											{ label: __('Amount'), value: 'Amount' },
-										]"
-										required
-									/>
+		      <!-- Discount Type buttons -->
+		      <div class="mb-4">
+		        <p class="text-xs font-semibold text-gray-600 mb-2">{{ __("Discount Type") }} <span class="text-red-500">*</span></p>
+		        <div class="flex gap-2">
+		          <button @click="form.discount_type = 'Percentage'"
+		            :class="['flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all',
+		              form.discount_type === 'Percentage'
+		                ? 'border-emerald-500 bg-white text-emerald-700'
+		                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300']">
+		            % {{ __("Percentage") }}
+		          </button>
+		          <button @click="form.discount_type = 'Amount'"
+		            :class="['flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all',
+		              form.discount_type === 'Amount'
+		                ? 'border-emerald-500 bg-white text-emerald-700'
+		                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300']">
+		            {{ __("Fixed Amount") }}
+		          </button>
+		        </div>
+		      </div>
 
-									<FormControl
-										type="select"
-										:label="__('Apply Discount On')"
-										v-model="form.apply_on"
-										:options="[
-											{ label: __('Grand Total'), value: 'Grand Total' },
-											{ label: __('Net Total'), value: 'Net Total' },
-										]"
-										required
-									/>
+		      <!-- Discount value + Apply On -->
+		      <div class="grid grid-cols-2 gap-3">
+		        <div>
+		          <label class="block text-xs font-semibold text-gray-700 mb-1.5">
+		            {{ form.discount_type === 'Percentage' ? __("Discount Percentage (%)") : __("Discount Amount") }}
+		            <span class="text-red-500">*</span>
+		          </label>
+		          <div class="relative">
+		            <input v-if="form.discount_type === 'Percentage'"
+		              v-model.number="form.discount_percentage" type="number" min="0.01" max="100" step="0.01"
+		              :placeholder="__('e.g., 20')"
+		              class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+		            />
+		            <input v-else
+		              v-model.number="form.discount_amount" type="number" min="0.01" step="0.01"
+		              :placeholder="__('Amount in {0}', [currency])"
+		              class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+		            />
+		          </div>
+		        </div>
+		        <div>
+		          <p class="text-xs font-semibold text-gray-700 mb-1.5">
+		            {{ __("Apply Discount On") }} <span class="text-red-500">*</span>
+		          </p>
+		          <div class="flex gap-1.5">
+		            <button @click="form.apply_on = 'Grand Total'"
+		              :class="['flex-1 py-2.5 rounded-lg border-2 text-xs font-semibold transition-all',
+		                form.apply_on === 'Grand Total'
+		                  ? 'border-emerald-500 bg-white text-emerald-700'
+		                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300']">
+		              {{ __("Grand Total") }}
+		            </button>
+		            <button @click="form.apply_on = 'Net Total'"
+		              :class="['flex-1 py-2.5 rounded-lg border-2 text-xs font-semibold transition-all',
+		                form.apply_on === 'Net Total'
+		                  ? 'border-emerald-500 bg-white text-emerald-700'
+		                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300']">
+		              {{ __("Net Total") }}
+		            </button>
+		          </div>
+		        </div>
+		        <div>
+		          <label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Min Cart Amount") }}</label>
+		          <input v-model.number="form.min_amount" type="number" min="0" step="0.01"
+		            :placeholder="__('Optional — no minimum')"
+		            class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+		          />
+		        </div>
+		        <div>
+		          <label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Max Discount Cap") }}</label>
+		          <input v-model.number="form.max_amount" type="number" min="0" step="0.01"
+		            :placeholder="__('Optional — no cap')"
+		            class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+		          />
+		        </div>
+		      </div>
 
-									<FormControl
-										v-if="form.discount_type === 'Percentage'"
-										type="number"
-										:label="__('Discount Percentage (%)')"
-										v-model="form.discount_percentage"
-										:placeholder="__('e.g., 20')"
-										:min="0"
-										:max="100"
-										required
-									/>
+		      <!-- Summary (view mode) -->
+		      <div v-if="!isCreating" class="mt-3 p-3 bg-white rounded-lg border border-emerald-200">
+		        <p class="text-sm font-semibold text-emerald-800">
+		          <span v-if="couponDetails.discount_type === 'Percentage'">
+		            {{ couponDetails.discount_percentage }}% {{ __("off") }} {{ couponDetails.apply_on }}
+		          </span>
+		          <span v-else>
+		            {{ currency }} {{ couponDetails.discount_amount }} {{ __("off") }} {{ couponDetails.apply_on }}
+		          </span>
+		          <span v-if="couponDetails.min_amount" class="text-xs text-gray-500 ms-2">
+		            · {{ __("Min: {0} {1}", [currency, couponDetails.min_amount]) }}
+		          </span>
+		        </p>
+		      </div>
+		    </div>
 
-									<FormControl
-										v-if="form.discount_type === 'Amount'"
-										type="number"
-										:label="__('Discount Amount')"
-										v-model="form.discount_amount"
-										:placeholder="__('Amount in {0}', [currency])"
-										:min="0"
-										required
-									/>
+		    <!-- ⑤ VALIDITY & USAGE -->
+		    <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+		      <p class="text-xs font-bold text-blue-700 uppercase tracking-wide mb-4">
+		        📅 {{ __("Validity & Usage Limits") }}
+		      </p>
+		      <div class="grid grid-cols-3 gap-3">
+		        <div>
+		          <label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Valid From") }}</label>
+		          <input v-model="form.valid_from" type="date"
+		            class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+		          />
+		        </div>
+		        <div>
+		          <label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Valid Until") }}</label>
+		          <input v-model="form.valid_upto" type="date"
+		            class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+		          />
+		        </div>
+		        <div v-if="form.coupon_type === 'Promotional'">
+		          <label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Max Uses") }}</label>
+		          <input v-model.number="form.maximum_use" type="number" min="1"
+		            :placeholder="__('Unlimited')"
+		            class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+		          />
+		        </div>
+		        <div v-if="!isCreating">
+		          <label class="block text-xs font-semibold text-gray-500 mb-1.5">{{ __("Times Used") }}</label>
+		          <div class="h-10 px-3 flex items-center bg-white rounded-lg border border-gray-200">
+		            <span class="text-lg font-bold text-gray-900">{{ couponDetails.used || 0 }}</span>
+		            <span v-if="couponDetails.maximum_use" class="text-xs text-gray-400 ms-1">/ {{ couponDetails.maximum_use }}</span>
+		          </div>
+		        </div>
+		      </div>
+		      <label class="flex items-center gap-2 mt-3 cursor-pointer">
+		        <input type="checkbox" v-model="form.one_use"
+		          class="w-4 h-4 rounded border-gray-300 text-blue-600"
+		        />
+		        <span class="text-sm text-gray-700">{{ __("Allow only one use per customer") }}</span>
+		      </label>
+		    </div>
 
-									<FormControl
-										type="number"
-										:label="__('Minimum Cart Amount')"
-										v-model="form.min_amount"
-										:placeholder="__('Optional minimum in {0}', [currency])"
-										:min="0"
-									/>
+		    <!-- Campaign (optional) -->
+		    <div v-if="campaigns.length > 0">
+		      <label class="block text-xs font-semibold text-gray-700 mb-1.5">{{ __("Campaign (optional)") }}</label>
+		      <select v-model="form.campaign" :disabled="!isCreating"
+		        class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white disabled:bg-gray-50">
+		        <option value="">{{ __("-- No Campaign --") }}</option>
+		        <option v-for="c in campaigns" :key="c.name" :value="c.name">{{ c.name }}</option>
+		      </select>
+		    </div>
 
-									<FormControl
-										type="number"
-										:label="__('Maximum Discount Amount')"
-										v-model="form.max_amount"
-										:placeholder="__('Optional cap in {0}', [currency])"
-										:min="0"
-									/>
-								</div>
-								<div
-									v-if="!isCreating && couponDetails.discount_type"
-									class="mt-4 p-3 bg-emerald-50 rounded-lg"
-								>
-									<p class="text-sm text-gray-700">
-										<strong>{{ __("Current Discount:") }}</strong>
-										<span v-if="couponDetails.discount_type === 'Percentage'">
-											{{
-												__("{0}% off {1}", [
-													Number(
-														couponDetails.discount_percentage
-													).toFixed(2),
-													couponDetails.apply_on,
-												])
-											}}
-										</span>
-										<span v-else>
-											{{
-												__("{0} off {1}", [
-													formatCurrency(couponDetails.discount_amount),
-													couponDetails.apply_on,
-												])
-											}}
-										</span>
-										<span v-if="couponDetails.min_amount" class="ms-2">
-											{{
-												__("(Min: {0})", [
-													formatCurrency(couponDetails.min_amount),
-												])
-											}}
-										</span>
-										<span v-if="couponDetails.max_amount" class="ms-2">
-											{{
-												__("(Max Discount: {0})", [
-													formatCurrency(couponDetails.max_amount),
-												])
-											}}
-										</span>
-									</p>
-								</div>
-							</div>
-						</Card>
+		    <!-- Referral Code (view only) -->
+		    <div v-if="!isCreating && couponDetails.referral_code"
+		      class="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+		      <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+		          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+		      </svg>
+		      <div>
+		        <p class="text-xs text-amber-700 font-semibold">{{ __("Generated from Referral Code") }}</p>
+		        <p class="text-sm font-mono text-amber-900">{{ couponDetails.referral_code }}</p>
+		      </div>
+		    </div>
 
-						<!-- Validity & Usage Card -->
-						<Card>
-							<div class="p-5">
-								<div class="flex items-center gap-2 mb-4">
-									<FeatherIcon name="calendar" class="w-4 h-4 text-green-600" />
-									<h4 class="text-sm font-semibold text-gray-900">
-										{{ __("Validity & Usage") }}
-									</h4>
-								</div>
-								<div class="grid grid-cols-3 gap-4">
-									<FormControl
-										type="date"
-										:label="__('Valid From')"
-										v-model="form.valid_from"
-									/>
-									<FormControl
-										type="date"
-										:label="__('Valid Until')"
-										v-model="form.valid_upto"
-									/>
-									<FormControl
-										v-if="form.coupon_type === 'Promotional'"
-										type="number"
-										:label="__('Maximum Use')"
-										v-model="form.maximum_use"
-										:placeholder="__('Unlimited')"
-									/>
-									<div v-if="!isCreating">
-										<label
-											class="block text-sm font-medium text-gray-700 mb-2 text-start"
-											>{{ __("Times Used") }}</label
-										>
-										<div class="px-3 py-2 bg-gray-50 rounded-lg">
-											<p class="text-lg font-bold text-gray-900">
-												{{ couponDetails.used || 0 }}
-											</p>
-										</div>
-									</div>
-								</div>
-								<div class="mt-4">
-									<label class="flex items-center gap-2">
-										<input
-											type="checkbox"
-											v-model="form.one_use"
-											class="rounded border-gray-300"
-										/>
-										<span class="text-sm text-gray-700">{{
-											__("Only One Use Per Customer")
-										}}</span>
-									</label>
-								</div>
-							</div>
-						</Card>
+		    <!-- Status Info (view mode) -->
+		    <div v-if="!isCreating" class="grid grid-cols-2 gap-3 text-xs text-gray-500">
+		      <div>{{ __("Created:") }} {{ formatDate(couponDetails.creation) }}</div>
+		      <div>{{ __("Modified:") }} {{ formatDate(couponDetails.modified) }}</div>
+		    </div>
 
-						<!-- Coupon Status & Info (View Only) -->
-						<Card v-if="!isCreating">
-							<div class="p-5">
-								<div class="flex items-center gap-2 mb-4">
-									<FeatherIcon name="activity" class="w-4 h-4 text-orange-600" />
-									<h4 class="text-sm font-semibold text-gray-900">
-										{{ __("Coupon Status & Info") }}
-									</h4>
-								</div>
-								<div class="grid grid-cols-3 gap-4">
-									<div>
-										<label
-											class="block text-xs font-medium text-gray-500 mb-1 text-start"
-											>{{ __("Current Status") }}</label
-										>
-										<Badge
-											:theme="getStatusTheme(selectedCoupon.status)"
-											variant="subtle"
-											size="md"
-										>
-											{{ selectedCoupon.status }}
-										</Badge>
-									</div>
-									<div>
-										<label
-											class="block text-xs font-medium text-gray-500 mb-1 text-start"
-											>{{ __("Created On") }}</label
-										>
-										<p class="text-sm text-gray-900">
-											{{ formatDate(couponDetails.creation) }}
-										</p>
-									</div>
-									<div>
-										<label
-											class="block text-xs font-medium text-gray-500 mb-1 text-start"
-											>{{ __("Last Modified") }}</label
-										>
-										<p class="text-sm text-gray-900">
-											{{ formatDate(couponDetails.modified) }}
-										</p>
-									</div>
-									<div v-if="couponDetails.email_id">
-										<label
-											class="block text-xs font-medium text-gray-500 mb-1 text-start"
-											>{{ __("Email") }}</label
-										>
-										<p class="text-sm text-gray-900">
-											{{ couponDetails.email_id }}
-										</p>
-									</div>
-									<div v-if="couponDetails.mobile_no">
-										<label
-											class="block text-xs font-medium text-gray-500 mb-1 text-start"
-											>{{ __("Mobile") }}</label
-										>
-										<p class="text-sm text-gray-900">
-											{{ couponDetails.mobile_no }}
-										</p>
-									</div>
-								</div>
-							</div>
-						</Card>
-					</div>
-				</div>
-			</div>
+		  </div>
 		</div>
 	</div>
 
@@ -781,7 +628,7 @@ const filteredCoupons = computed(() => {
 	// Filter by status
 	if (filterStatus.value !== "all") {
 		filtered = filtered.filter((c) => {
-			const status = c.status.toLowerCase().replace(" ", "_");
+			const status = (c.status || "").toLowerCase().replace(" ", "_");
 			return status === filterStatus.value;
 		});
 	}
@@ -1101,14 +948,14 @@ function resetForm() {
 function populateFormFromCoupon(coupon) {
 	form.value = {
 		coupon_name: coupon.coupon_name || "",
-		coupon_type: coupon.coupon_type || __("Promotional"),
+		coupon_type: coupon.coupon_type || "Promotional",
 		coupon_code: coupon.coupon_code || "",
-		discount_type: coupon.discount_type || __("Percentage"),
+		discount_type: coupon.discount_type || "Percentage",
 		discount_percentage: coupon.discount_percentage || null,
 		discount_amount: coupon.discount_amount || null,
 		min_amount: coupon.min_amount || null,
 		max_amount: coupon.max_amount || null,
-		apply_on: coupon.apply_on || __("Grand Total"),
+		apply_on: coupon.apply_on || "Grand Total",
 		customer: coupon.customer || "",
 		campaign: coupon.campaign || "",
 		valid_from: coupon.valid_from || "",

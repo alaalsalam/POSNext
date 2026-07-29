@@ -83,6 +83,10 @@ def create_customer(
 	pos_profile=None,
 	custom_governorate=None,
 	custom_district=None,
+	tax_id=None,
+	custom_commercial_registration=None,
+	customer_type=None,
+	customer_address=None,
 ):
 	"""
 	Create a new customer from POS.
@@ -90,13 +94,17 @@ def create_customer(
 	Args:
 	    customer_name (str): Customer name (required)
 	    mobile_no (str): Mobile number (optional)
-	    email_id (str): Email address (optional)
+	    email_id (str): Email address (optional, deprecated - kept for compatibility)
 	    customer_group (str): Customer group (default: from Selling Settings)
 	    territory (str): Territory (default: from Selling Settings)
 	    company (str): Company (optional, used to auto-assign loyalty program)
 	    pos_profile (str): POS Profile (optional, preferred for context-aware loyalty assignment)
 	    custom_governorate (str): Governorate (optional)
 	    custom_district (str): District (optional, must belong to the governorate)
+	    tax_id (str): VAT / Tax registration number (optional)
+	    custom_commercial_registration (str): Commercial Registration CR number (optional)
+	    customer_type (str): Individual or Company (default: Individual)
+	    customer_address (str): Street address (optional)
 
 	Returns:
 	    dict: Created customer document
@@ -130,15 +138,18 @@ def create_customer(
 			frappe.db.get_value("Territory", {"is_group": 0}, "name", order_by="lft") or "All Territories"
 		)
 
+	resolved_customer_type = customer_type if customer_type in ("Individual", "Company") else "Individual"
+
 	customer = frappe.get_doc(
 		{
 			"doctype": "Customer",
 			"customer_name": customer_name,
-			"customer_type": "Individual",
+			"customer_type": resolved_customer_type,
 			"customer_group": resolved_customer_group,
 			"territory": resolved_territory,
 			"mobile_no": mobile_no or "",
-			"email_id": email_id or "",
+			"tax_id": tax_id or "",
+			"custom_commercial_registration": custom_commercial_registration or "",
 			"loyalty_program": loyalty_program,
 			"custom_governorate": custom_governorate or None,
 			"custom_district": custom_district or None,

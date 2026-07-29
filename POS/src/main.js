@@ -13,6 +13,7 @@ import { createPinia } from "pinia";
 import { createApp } from "vue";
 
 import App from "./App.vue";
+import { useBrandingStore } from "./stores/branding";
 import { session, sessionUser } from "./data/session";
 import { userResource } from "./data/user";
 import router from "./router";
@@ -120,6 +121,13 @@ async function initializeApp() {
 
 	// Register plugins
 	app.use(pinia);
+
+	// Apply the Digit brand identity immediately (from defaults) so there is no
+	// flash of un-branded blue, then refine from server settings in background.
+	const brandingStore = useBrandingStore();
+	brandingStore.applyBranding();
+	brandingStore.loadBranding().catch(() => {});
+
 	app.use(resourcesPlugin);
 	app.use(pageMetaPlugin);
 	app.use(translationPlugin);
