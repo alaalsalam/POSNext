@@ -331,14 +331,21 @@ def _materialize_rate(item, base_rate, discount_percentage, qty):
 
 
 def _rate_precision(item):
-	"""Best-effort currency precision for ``rate``; defaults to 2 for plain dicts."""
+	"""Best-effort precision for ``rate``; keep POS mock rates precise.
+
+	The POS offer API uses plain dictionaries without DocField precision metadata.
+	Using currency precision (usually 2) for those rows can lose a cent when a
+	discount applies to only part of a multi-quantity line. ERPNext rate fields
+	support higher precision, so use 9 decimals for the mock path and let real
+	document rows provide their configured precision.
+	"""
 	getter = getattr(item, "precision", None)
 	if callable(getter):
 		try:
-			return getter("rate") or 2
+			return getter("rate") or 9
 		except Exception:
-			return 2
-	return 2
+			return 9
+	return 9
 
 
 def _item_qty(item):
