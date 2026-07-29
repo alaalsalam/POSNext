@@ -1309,6 +1309,11 @@ const showStockLookup = ref(false);
 // Invoice Management dialog
 const showInvoiceManagement = ref(false);
 
+// Temporary release gate for the new management modules.
+// Keep the implementation available in source while hiding it from all POS users
+// until purchasing, supplier payments, catalog management, and reports are ready.
+const ENABLE_NEW_MANAGEMENT_FEATURES = false;
+
 // Catalog Management panel
 const showCatalogManagement = ref(false);
 const canManageCatalog = ref(false);
@@ -1662,6 +1667,17 @@ onMounted(async () => {
 });
 
 async function checkCatalogPermission() {
+	if (!ENABLE_NEW_MANAGEMENT_FEATURES) {
+		canManageCatalog.value = false;
+		canManagePurchases.value = false;
+		canViewReports.value = false;
+		canCreateSupplierPayment.value = false;
+		canReadSupplierPayments.value = false;
+		canSubmitSupplierPayment.value = false;
+		canCancelSupplierPayment.value = false;
+		return;
+	}
+
 	try {
 		const [catalogResult, result] = await Promise.all([
 			call("pos_next.api.catalog.check_catalog_permission"),
