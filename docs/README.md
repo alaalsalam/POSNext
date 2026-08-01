@@ -57,6 +57,21 @@ Welcome to the POS Next documentation directory. This folder contains comprehens
   - Current purchasing, supplier payment, catalog, and reporting baseline
   - Safe build, migration, verification, and recovery workflow
 
+- **[PROJECT_MEMORY.md](PROJECT_MEMORY.md)** - Durable development-program memory
+  - Protected production boundary and current verified state
+  - Engineering rules, definition of done, and progress ledger
+  - Resume protocol for new development sessions
+
+- **[DEVELOPMENT_MASTER_PLAN.md](DEVELOPMENT_MASTER_PLAN.md)** - Complete milestone plan
+  - Feature-flag architecture and dependency model
+  - Reports, purchasing, offline, payments, gift cards, loyalty, and restock roadmap
+  - Acceptance criteria, test strategy, and delivery order
+
+- **[SOL_5_6_EXECUTION_PROMPT.md](SOL_5_6_EXECUTION_PROMPT.md)** - Dedicated Sol 5.6 handoff prompt
+  - One-branch execution policy
+  - Production protection rules
+  - Required first implementation milestones
+
 - **[VERSION_CONTROL.md](VERSION_CONTROL.md)** - Complete guide to the version control system
   - Architecture overview
   - Version types and strategies

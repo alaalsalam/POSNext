@@ -11,17 +11,19 @@ development and production run in separate benches.
 
 | Purpose | Bench | Repository checkout | Branch |
 |---|---|---|---|
-| Development and Lovable/BildFast | `frappe-bench16` | `/home/erpnext/frappe-bench16/apps/posnext` | `digitpos` |
+| Development and Lovable/BildFast | `frappe-bench16` | `/home/erpnext/frappe-bench16/apps/posnext` | `develop` |
 | Production deployment | `frappe-bench-startd-prod` | `/home/erpnext/frappe-bench-startd-prod/apps/posnext` | `digitpos` |
 
-The development checkout is the only source of new changes. The production checkout
-must receive changes through Git fast-forward synchronization; never edit application
-source directly in production.
+The development checkout is the only source of new changes. Production remains pinned
+to its approved `digitpos` baseline until the user explicitly approves a tested
+release; never edit application source directly in production.
 
-The `github` remote (`alaalsalam/POSNext`) is the Digit-owned repository. The
+The `yemenfrappe` remote (`YemenFrappe/posnext`) is the canonical Digit-owned
+repository. The legacy `github` remote (`alaalsalam/POSNext`) is retained only as a
+reference. The
 `upstream` remote (`BrainWise-DEV/POSNext`) is a read-only reference: inspect and port
 useful fixes from `upstream/develop`, but never replace or wholesale-merge the
-customized `digitpos` branch.
+customized Digit history.
 
 ## `posnext` and `pos_next` Are the Same App
 
@@ -81,7 +83,7 @@ Lovable/BildFast must work only in:
 
 ```bash
 cd /home/erpnext/frappe-bench16/apps/posnext
-git switch digitpos
+git switch develop
 ```
 
 Before committing:
@@ -99,20 +101,28 @@ Commit from the development checkout:
 cd /home/erpnext/frappe-bench16/apps/posnext
 git add <intentional-files>
 git commit -m "<clear change description>"
-git push -u github digitpos
+git push -u yemenfrappe develop
 ```
+
+Pushing, merging, and deploying require explicit user approval. Normal development
+milestones should stop after a focused local commit.
 
 Do not commit generated platform-analysis directories such as `.bildfast/`, `.claude/`,
 or `graphify-out/` as application source.
 
 ## Production Deployment
 
-Synchronize production from the development checkout with a fast-forward merge:
+Do not synchronize production during feature development. After explicit acceptance
+of a release candidate, synchronize only the approved commit into `digitpos` using a
+reviewed fast-forward or release procedure. Never deploy the moving `develop` head
+directly.
+
+Example only after explicit approval:
 
 ```bash
 cd /home/erpnext/frappe-bench-startd-prod/apps/posnext
-git fetch origin digitpos
-git merge --ff-only origin/digitpos
+git fetch origin develop
+git merge --ff-only <approved-release-commit>
 ```
 
 Build with readable production permissions:
@@ -135,12 +145,15 @@ bench --site pos.digit-erp.com clear-website-cache
 bench restart
 ```
 
-## Mandatory Verification
+## Mandatory Release Verification
 
-Both checkouts must resolve to the same commit:
+During active development the two checkouts are intentionally different: development
+advances on `develop`, while production stays pinned to the approved `digitpos`
+baseline. Only during an explicitly approved release must the production checkout
+resolve to the exact approved release commit:
 
 ```bash
-git -C /home/erpnext/frappe-bench16/apps/posnext rev-parse HEAD
+git -C /home/erpnext/frappe-bench16/apps/posnext rev-parse <approved-release-commit>
 git -C /home/erpnext/frappe-bench-startd-prod/apps/posnext rev-parse HEAD
 ```
 
