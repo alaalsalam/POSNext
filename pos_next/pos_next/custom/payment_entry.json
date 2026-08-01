@@ -1,0 +1,38 @@
+{
+ "custom_fields": [
+  {
+   "dt": "Payment Entry",
+   "fieldname": "custom_posnext_pos_profile",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "insert_after": "company",
+   "label": "POSNext POS Profile",
+   "module": "POS Next",
+   "name": "Payment Entry-custom_posnext_pos_profile",
+   "no_copy": 1,
+   "options": "POS Profile",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "dt": "Payment Entry",
+   "fieldname": "custom_posnext_idempotency_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "insert_after": "custom_posnext_pos_profile",
+   "label": "POSNext Idempotency Key",
+   "length": 140,
+   "module": "POS Next",
+   "name": "Payment Entry-custom_posnext_idempotency_key",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "unique": 1
+  }
+ ],
+ "custom_perms": [],
+ "doctype": "Payment Entry",
+ "links": [],
+ "property_setters": [],
+ "sync_on_migrate": 1
+}

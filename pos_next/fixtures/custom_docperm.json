@@ -1467,7 +1467,7 @@
  {
   "amend": 0,
   "cancel": 0,
-  "create": 0,
+  "create": 1,
   "delete": 0,
   "docstatus": 0,
   "doctype": "Custom DocPerm",
@@ -1486,7 +1486,7 @@
   "select": 1,
   "share": 0,
   "submit": 0,
-  "write": 0
+  "write": 1
  },
  {
   "amend": 0,
@@ -1823,5 +1823,53 @@
   "share": 0,
   "submit": 0,
   "write": 0
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "item_price_pos_manager", "parent": "Item Price",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "write": 1, "create": 1, "report": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "purchase_invoice_pos_manager", "parent": "Purchase Invoice",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "write": 1, "create": 1, "submit": 1, "cancel": 1, "report": 1, "print": 1, "email": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "supplier_pos_manager", "parent": "Supplier",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "write": 1, "create": 1, "report": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "supplier_group_pos_manager", "parent": "Supplier Group",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "report": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "price_list_pos_manager", "parent": "Price List",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "report": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "uom_pos_manager", "parent": "UOM",
+  "role": "POS Manager", "permlevel": 0, "read": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "account_pos_manager", "parent": "Account",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "report": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "cost_center_pos_manager", "parent": "Cost Center",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "report": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "currency_pos_manager", "parent": "Currency",
+  "role": "POS Manager", "permlevel": 0, "read": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "mode_of_payment_pos_manager", "parent": "Mode of Payment",
+  "role": "POS Manager", "permlevel": 0, "read": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "company_pos_manager", "parent": "Company",
+  "role": "POS Manager", "permlevel": 0, "read": 1, "report": 1
+ },
+ {
+  "doctype": "Custom DocPerm", "name": "purchase_taxes_template_pos_manager", "parent": "Purchase Taxes and Charges Template",
+  "role": "POS Manager", "permlevel": 0, "read": 1
  }
 ]

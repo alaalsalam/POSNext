@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full bg-gray-50" dir="rtl">
+  <div class="flex flex-col h-full bg-gray-50">
     <!-- Header -->
     <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-3 flex-shrink-0">
       <div class="flex items-center gap-3">
@@ -157,126 +157,146 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted } from "vue"
+import { managerTranslate as __ } from "@/utils/managementI18n"
 
 const props = defineProps({
-  canCreate: { type: Boolean, default: false },
-  canCreatePayment: { type: Boolean, default: false },
-  canReadPayments: { type: Boolean, default: false },
-});
-const emit = defineEmits(["close", "new-invoice", "open-invoice", "pay-invoice", "open-payments"]);
+	canCreate: { type: Boolean, default: false },
+	canCreatePayment: { type: Boolean, default: false },
+	canReadPayments: { type: Boolean, default: false },
+	posProfile: { type: String, required: true },
+})
+const emit = defineEmits([
+	"close",
+	"new-invoice",
+	"open-invoice",
+	"pay-invoice",
+	"open-payments",
+])
 
-const invoices = ref([]);
-const total = ref(0);
-const loading = ref(false);
-const loadingMore = ref(false);
-const summary = ref(null);
-const search = ref("");
-const statusFilter = ref("");
-const fromDate = ref("");
-const toDate = ref("");
-const PAGE_SIZE = 20;
+const invoices = ref([])
+const total = ref(0)
+const loading = ref(false)
+const loadingMore = ref(false)
+const summary = ref(null)
+const search = ref("")
+const statusFilter = ref("")
+const fromDate = ref("")
+const toDate = ref("")
+const PAGE_SIZE = 20
 
-let debounceTimer = null;
+let debounceTimer = null
 function debouncedLoad() {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(load, 350);
+	clearTimeout(debounceTimer)
+	debounceTimer = setTimeout(load, 350)
 }
 
 async function load() {
-  loading.value = true;
-  try {
-    const res = await frappe.call({
-      method: "pos_next.api.purchases.get_purchase_invoices",
-      args: {
-        search: search.value || null,
-        status: statusFilter.value || null,
-        from_date: fromDate.value || null,
-        to_date: toDate.value || null,
-        limit: PAGE_SIZE,
-        start: 0,
-      },
-      error: (r) => { console.error("Error loading purchase invoices", r); },
-    });
-    invoices.value = res?.message?.invoices || [];
-    total.value = res?.message?.total || 0;
-    const summaryResponse = await frappe.call({
-      method: "pos_next.api.purchases.get_purchase_outstanding_summary",
-      args: {
-        from_date: fromDate.value || null,
-        to_date: toDate.value || null,
-      },
-    });
-    summary.value = summaryResponse?.message || null;
-  } catch (e) {
-    console.error(e);
-  } finally {
-    loading.value = false;
-  }
+	loading.value = true
+	try {
+		const res = await frappe.call({
+			method: "pos_next.api.purchases.get_purchase_invoices",
+			args: {
+				search: search.value || null,
+				status: statusFilter.value || null,
+				from_date: fromDate.value || null,
+				to_date: toDate.value || null,
+				limit: PAGE_SIZE,
+				start: 0,
+				pos_profile: props.posProfile,
+			},
+			error: (r) => {
+				console.error("Error loading purchase invoices", r)
+			},
+		})
+		invoices.value = res?.message?.invoices || []
+		total.value = res?.message?.total || 0
+		const summaryResponse = await frappe.call({
+			method: "pos_next.api.purchases.get_purchase_outstanding_summary",
+			args: {
+				from_date: fromDate.value || null,
+				to_date: toDate.value || null,
+				pos_profile: props.posProfile,
+			},
+		})
+		summary.value = summaryResponse?.message || null
+	} catch (e) {
+		console.error(e)
+	} finally {
+		loading.value = false
+	}
 }
 
 async function loadMore() {
-  loadingMore.value = true;
-  try {
-    const res = await frappe.call({
-      method: "pos_next.api.purchases.get_purchase_invoices",
-      args: {
-        search: search.value || null,
-        status: statusFilter.value || null,
-        from_date: fromDate.value || null,
-        to_date: toDate.value || null,
-        limit: PAGE_SIZE,
-        start: invoices.value.length,
-      },
-    });
-    invoices.value.push(...(res?.message?.invoices || []));
-    total.value = res?.message?.total || 0;
-  } finally {
-    loadingMore.value = false;
-  }
+	loadingMore.value = true
+	try {
+		const res = await frappe.call({
+			method: "pos_next.api.purchases.get_purchase_invoices",
+			args: {
+				search: search.value || null,
+				status: statusFilter.value || null,
+				from_date: fromDate.value || null,
+				to_date: toDate.value || null,
+				limit: PAGE_SIZE,
+				start: invoices.value.length,
+				pos_profile: props.posProfile,
+			},
+		})
+		invoices.value.push(...(res?.message?.invoices || []))
+		total.value = res?.message?.total || 0
+	} finally {
+		loadingMore.value = false
+	}
 }
 
 function resetFilters() {
-  search.value = "";
-  statusFilter.value = "";
-  fromDate.value = "";
-  toDate.value = "";
-  load();
+	search.value = ""
+	statusFilter.value = ""
+	fromDate.value = ""
+	toDate.value = ""
+	load()
 }
 
 function statusLabel(inv) {
-  if (inv.docstatus === 0) return __("مسودة");
-  if (inv.docstatus === 2) return __("ملغاة");
-  const s = inv.status || "";
-  const map = {
-    Paid: __("مدفوعة"),
-    Unpaid: __("غير مدفوعة"),
-    Overdue: __("متأخرة"),
-    "Partly Paid": __("مدفوعة جزئيًا"),
-    Return: __("مرتجع"),
-  };
-  return map[s] || s;
+	if (inv.docstatus === 0) return __("مسودة")
+	if (inv.docstatus === 2) return __("ملغاة")
+	const s = inv.status || ""
+	const map = {
+		Paid: __("مدفوعة"),
+		Unpaid: __("غير مدفوعة"),
+		Overdue: __("متأخرة"),
+		"Partly Paid": __("مدفوعة جزئيًا"),
+		Return: __("مرتجع"),
+	}
+	return map[s] || s
 }
 
 function statusClass(inv) {
-  if (inv.docstatus === 0) return "bg-gray-100 text-gray-600";
-  if (inv.docstatus === 2) return "bg-red-100 text-red-600";
-  const s = inv.status || "";
-  if (s === "Paid") return "bg-green-100 text-green-700";
-  if (s === "Partly Paid") return "bg-blue-100 text-blue-700";
-  if (s === "Overdue") return "bg-red-100 text-red-700";
-  return "bg-orange-100 text-orange-700";
+	if (inv.docstatus === 0) return "bg-gray-100 text-gray-600"
+	if (inv.docstatus === 2) return "bg-red-100 text-red-600"
+	const s = inv.status || ""
+	if (s === "Paid") return "bg-green-100 text-green-700"
+	if (s === "Partly Paid") return "bg-blue-100 text-blue-700"
+	if (s === "Overdue") return "bg-red-100 text-red-700"
+	return "bg-orange-100 text-orange-700"
 }
 
 function formatDate(d) {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" });
+	if (!d) return ""
+	return new Date(d).toLocaleDateString(frappe.boot?.lang || undefined, {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+	})
 }
 
 function formatAmount(v) {
-  if (v === null || v === undefined) return "0.00";
-  return Number.parseFloat(v).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	if (v === null || v === undefined) return "0.00"
+	return Number.parseFloat(v).toLocaleString(frappe.boot?.lang || undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})
 }
 
-onMounted(load);
+onMounted(load)
 </script>

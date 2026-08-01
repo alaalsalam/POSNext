@@ -1,5 +1,5 @@
 <template>
-  <div class="absolute inset-0 z-[360] bg-black/45 flex items-center justify-center p-3" dir="rtl">
+  <div class="absolute inset-0 z-[360] bg-black/45 flex items-center justify-center p-3">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[94vh] overflow-y-auto">
       <div class="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between z-10">
         <div>
@@ -93,103 +93,117 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from "vue";
+import { reactive, ref, onMounted } from "vue"
+import { managerTranslate as __ } from "@/utils/managementI18n"
 
 const props = defineProps({
-  invoice: { type: Object, required: true },
-});
-const emit = defineEmits(["close", "created"]);
+	invoice: { type: Object, required: true },
+	posProfile: { type: String, required: true },
+})
+const emit = defineEmits(["close", "created"])
 
-const loading = ref(true);
-const saving = ref(false);
-const errorMsg = ref("");
-const details = reactive({});
-const accounts = ref([]);
-const modes = ref([]);
-const canSubmit = ref(false);
+const loading = ref(true)
+const saving = ref(false)
+const errorMsg = ref("")
+const details = reactive({})
+const accounts = ref([])
+const modes = ref([])
+const canSubmit = ref(false)
 const form = reactive({
-  amount: 0,
-  posting_date: "",
-  mode_of_payment: "",
-  paid_from: "",
-  reference_no: "",
-  reference_date: "",
-  remarks: "",
-});
+	amount: 0,
+	posting_date: "",
+	mode_of_payment: "",
+	paid_from: "",
+	reference_no: "",
+	reference_date: "",
+	remarks: "",
+})
+const paymentIdempotencyKey =
+	globalThis.crypto?.randomUUID?.() ||
+	`payment-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 function messageFrom(error, fallback) {
-  return error?.message || error?._server_messages || fallback;
+	return error?.message || error?._server_messages || fallback
 }
 
 async function loadDefaults() {
-  loading.value = true;
-  try {
-    const response = await frappe.call({
-      method: "pos_next.api.purchases.get_supplier_payment_defaults",
-      args: { invoice_name: props.invoice.name },
-    });
-    const data = response?.message || {};
-    Object.assign(details, data.invoice || {});
-    accounts.value = data.accounts || [];
-    modes.value = data.modes_of_payment || [];
-    canSubmit.value = Boolean(data.can_submit);
-    form.amount = Number(details.outstanding_amount || 0);
-    form.posting_date = data.posting_date;
-    form.reference_date = data.posting_date;
-  } catch (error) {
-    errorMsg.value = messageFrom(error, __("تعذر تحميل بيانات الدفع"));
-  } finally {
-    loading.value = false;
-  }
+	loading.value = true
+	try {
+		const response = await frappe.call({
+			method: "pos_next.api.purchases.get_supplier_payment_defaults",
+			args: { invoice_name: props.invoice.name, pos_profile: props.posProfile },
+		})
+		const data = response?.message || {}
+		Object.assign(details, data.invoice || {})
+		accounts.value = data.accounts || []
+		modes.value = data.modes_of_payment || []
+		canSubmit.value = Boolean(data.can_submit)
+		form.amount = Number(details.outstanding_amount || 0)
+		form.posting_date = data.posting_date
+		form.reference_date = data.posting_date
+	} catch (error) {
+		errorMsg.value = messageFrom(error, __("تعذر تحميل بيانات الدفع"))
+	} finally {
+		loading.value = false
+	}
 }
 
 function applyModeAccount() {
-  const mode = modes.value.find((row) => row.name === form.mode_of_payment);
-  if (mode?.default_account && accounts.value.some((row) => row.name === mode.default_account)) {
-    form.paid_from = mode.default_account;
-  }
+	const mode = modes.value.find((row) => row.name === form.mode_of_payment)
+	if (
+		mode?.default_account &&
+		accounts.value.some((row) => row.name === mode.default_account)
+	) {
+		form.paid_from = mode.default_account
+	}
 }
 
 function validate() {
-  const amount = Number(form.amount || 0);
-  if (amount <= 0) return __("أدخل مبلغ دفع أكبر من صفر");
-  if (amount > Number(details.outstanding_amount || 0) + 0.005) return __("مبلغ الدفع أكبر من الرصيد المستحق");
-  if (!form.paid_from) return __("اختر حساب الصندوق أو البنك");
-  return "";
+	const amount = Number(form.amount || 0)
+	if (amount <= 0) return __("أدخل مبلغ دفع أكبر من صفر")
+	if (amount > Number(details.outstanding_amount || 0) + 0.005)
+		return __("مبلغ الدفع أكبر من الرصيد المستحق")
+	if (!form.paid_from) return __("اختر حساب الصندوق أو البنك")
+	return ""
 }
 
 async function save(submit) {
-  errorMsg.value = validate();
-  if (errorMsg.value) return;
-  saving.value = true;
-  try {
-    const response = await frappe.call({
-      method: "pos_next.api.purchases.create_supplier_payment",
-      args: {
-        invoice_name: details.name,
-        amount: form.amount,
-        posting_date: form.posting_date,
-        mode_of_payment: form.mode_of_payment || null,
-        paid_from: form.paid_from,
-        reference_no: form.reference_no || null,
-        reference_date: form.reference_date || form.posting_date,
-        remarks: form.remarks || null,
-        submit: submit ? 1 : 0,
-      },
-    });
-    emit("created", response?.message || {});
-  } catch (error) {
-    errorMsg.value = messageFrom(error, __("تعذر إنشاء دفعة المورد"));
-  } finally {
-    saving.value = false;
-  }
+	errorMsg.value = validate()
+	if (errorMsg.value) return
+	saving.value = true
+	try {
+		const response = await frappe.call({
+			method: "pos_next.api.purchases.create_supplier_payment",
+			args: {
+				invoice_name: details.name,
+				amount: form.amount,
+				posting_date: form.posting_date,
+				mode_of_payment: form.mode_of_payment || null,
+				paid_from: form.paid_from,
+				reference_no: form.reference_no || null,
+				reference_date: form.reference_date || form.posting_date,
+				remarks: form.remarks || null,
+				submit: submit ? 1 : 0,
+				idempotency_key: paymentIdempotencyKey,
+				pos_profile: props.posProfile,
+			},
+		})
+		emit("created", response?.message || {})
+	} catch (error) {
+		errorMsg.value = messageFrom(error, __("تعذر إنشاء دفعة المورد"))
+	} finally {
+		saving.value = false
+	}
 }
 
 function formatAmount(value) {
-  return Number(value || 0).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	return Number(value || 0).toLocaleString(frappe.boot?.lang || undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})
 }
 
-onMounted(loadDefaults);
+onMounted(loadDefaults)
 </script>
 
 <style scoped>

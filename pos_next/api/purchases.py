@@ -1,571 +1,636 @@
-# Copyright (c) 2025, POS Next and contributors
-# For license information, please see license.txt
+"""Profile-scoped Purchase Invoice and supplier Payment Entry APIs."""
 
 import json
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
+from frappe.utils import add_days, cint, flt, getdate, nowdate
 
-from pos_next.api.feature_flags import require_feature
+from pos_next.api.management_scope import (
+	assert_company_resource,
+	assert_doc_permission,
+	lock_document,
+	normalize_idempotency_key,
+	require_manager_feature,
+)
 
 AMOUNT_TOLERANCE = 0.005
+PURCHASE_FIELDS = {
+	"supplier", "posting_date", "due_date", "bill_no", "bill_date", "update_stock",
+	"currency", "conversion_rate", "plc_conversion_rate", "buying_price_list", "apply_discount_on",
+	"discount_amount", "additional_discount_percentage", "remarks", "taxes_and_charges",
+	"credit_to", "set_warehouse",
+}
+ITEM_FIELDS = {
+	"item_code", "item_name", "description", "qty", "uom", "conversion_factor", "rate",
+	"warehouse", "expense_account", "cost_center",
+}
+TAX_FIELDS = {
+	"charge_type", "account_head", "description", "rate", "tax_amount",
+	"included_in_print_rate", "cost_center", "add_deduct_tax", "category", "row_id",
+	"reference_row",
+}
 
 
-def _get_payable_invoice(name):
-    """Load and validate a submitted Purchase Invoice the user may pay."""
-    frappe.has_permission("Purchase Invoice", "read", throw=True)
-    doc = frappe.get_doc("Purchase Invoice", name)
-    frappe.has_permission("Purchase Invoice", "read", doc=doc, throw=True)
-    if doc.docstatus != 1:
-        frappe.throw(_("Only submitted purchase invoices can be paid"))
-    if flt(doc.outstanding_amount) <= AMOUNT_TOLERANCE:
-        frappe.throw(_("This purchase invoice has no outstanding amount"))
-    return doc
+def _context(feature, pos_profile=None, company=None):
+	return require_manager_feature(feature, pos_profile=pos_profile, company=company)
+
+
+def _parse_data(data):
+	if isinstance(data, str):
+		try:
+			data = json.loads(data)
+		except (TypeError, ValueError):
+			frappe.throw(_("Invalid purchase invoice data"))
+	if not isinstance(data, dict):
+		frappe.throw(_("Purchase invoice data must be an object"))
+	return data
+
+
+def _purchase_doc_result(doc):
+	return {
+		"name": doc.name,
+		"modified": str(doc.modified),
+		"docstatus": doc.docstatus,
+		"status": doc.status,
+		"company": doc.company,
+		"currency": doc.currency,
+		"total": flt(doc.total),
+		"total_taxes_and_charges": flt(doc.total_taxes_and_charges),
+		"grand_total": flt(doc.grand_total),
+		"outstanding_amount": flt(doc.outstanding_amount),
+	}
+
+
+def _assert_purchase_replay_matches(doc, data):
+	"""Reject reuse of a retry key for a materially different invoice request."""
+	for field in ("supplier", "bill_no", "currency", "buying_price_list", "update_stock"):
+		if data.get(field) is not None and str(doc.get(field) or "") != str(data.get(field) or ""):
+			frappe.throw(_("This idempotency key belongs to a different Purchase Invoice"), frappe.PermissionError)
+	requested_items = sorted(
+		(
+			row.get("item_code"),
+			flt(row.get("qty")),
+			flt(row.get("rate")),
+			(row.get("warehouse") or data.get("set_warehouse") or "") if cint(data.get("update_stock")) else "",
+		)
+		for row in data.get("items") or []
+	)
+	actual_items = sorted(
+		(
+			row.item_code,
+			flt(row.qty),
+			flt(row.rate),
+			(row.warehouse or "") if doc.update_stock else "",
+		)
+		for row in doc.get("items") or []
+	)
+	if requested_items and requested_items != actual_items:
+		frappe.throw(_("This idempotency key belongs to a different Purchase Invoice"), frappe.PermissionError)
+
+
+def _assert_profile_document(doc, profile, company):
+	if doc.company != company:
+		frappe.throw(_("The document belongs to a different company"), frappe.PermissionError)
+	if doc.get("custom_posnext_pos_profile") != profile:
+		frappe.throw(_("The document belongs to a different POS Profile"), frappe.PermissionError)
+
+
+def _assert_supplier(name):
+	doc = assert_doc_permission("Supplier", name)
+	if doc.disabled:
+		frappe.throw(_("The selected Supplier is disabled"))
+	return doc
+
+
+def _assert_price_list(name, company):
+	doc = assert_doc_permission("Price List", name)
+	if not doc.enabled or not doc.buying:
+		frappe.throw(_("The selected Price List is not enabled for buying"))
+	return doc
+
+
+def _default_buying_price_list(company):
+	return frappe.db.get_single_value("Buying Settings", "buying_price_list") or "Standard Buying"
+
+
+def _validate_currency(currency, company, conversion_rate):
+	assert_doc_permission("Currency", currency)
+	company_currency = frappe.db.get_value("Company", company, "default_currency")
+	if currency != company_currency and flt(conversion_rate) <= 0:
+		frappe.throw(_("A positive conversion rate is required for a foreign-currency invoice"))
+
+
+def _validate_purchase_payload(data, profile, company):
+	unknown = set(data) - PURCHASE_FIELDS - {
+		"name", "modified", "expected_modified", "idempotency_key", "company", "items", "taxes"
+	}
+	if unknown:
+		frappe.throw(_("Unsupported purchase invoice fields: {0}").format(", ".join(sorted(unknown))))
+	if not data.get("supplier"):
+		frappe.throw(_("Supplier is required"))
+	_assert_supplier(data["supplier"])
+	price_list = data.get("buying_price_list") or _default_buying_price_list(company)
+	price_list_doc = _assert_price_list(price_list, company)
+	currency = data.get("currency") or frappe.db.get_value("Company", company, "default_currency")
+	_validate_currency(currency, company, data.get("conversion_rate"))
+	if price_list_doc.currency != currency and flt(data.get("plc_conversion_rate")) <= 0:
+		frappe.throw(_("A positive Price List Currency conversion rate is required"))
+	items = data.get("items")
+	if not isinstance(items, list) or not items:
+		frappe.throw(_("At least one purchase item is required"))
+	clean_items = []
+	for index, row in enumerate(items, 1):
+		if not isinstance(row, dict) or set(row) - ITEM_FIELDS:
+			frappe.throw(_("Unsupported fields in purchase item row {0}").format(index))
+		item = assert_doc_permission("Item", row.get("item_code"))
+		if item.disabled or not item.is_purchase_item:
+			frappe.throw(_("Item {0} is not enabled for purchasing").format(item.name))
+		if flt(row.get("qty")) <= 0 or flt(row.get("rate")) < 0:
+			frappe.throw(_("Quantity must be positive and rate cannot be negative in row {0}").format(index))
+		uom = row.get("uom") or item.stock_uom
+		assert_doc_permission("UOM", uom)
+		warehouse = row.get("warehouse") or data.get("set_warehouse")
+		if cint(data.get("update_stock")) and not warehouse:
+			frappe.throw(_("Warehouse is required when Update Stock is enabled"))
+		if warehouse:
+			assert_company_resource("Warehouse", warehouse, company)
+		if row.get("expense_account"):
+			assert_company_resource("Account", row["expense_account"], company)
+		if row.get("cost_center"):
+			assert_company_resource("Cost Center", row["cost_center"], company)
+		clean_items.append({field: row.get(field) for field in ITEM_FIELDS if row.get(field) is not None} | {"uom": uom})
+	clean_taxes = []
+	for index, row in enumerate(data.get("taxes") or [], 1):
+		if not isinstance(row, dict) or set(row) - TAX_FIELDS:
+			frappe.throw(_("Unsupported fields in tax row {0}").format(index))
+		if row.get("account_head"):
+			assert_company_resource("Account", row["account_head"], company)
+		if row.get("cost_center"):
+			assert_company_resource("Cost Center", row["cost_center"], company)
+		clean_taxes.append({field: row.get(field) for field in TAX_FIELDS if row.get(field) is not None})
+	if data.get("credit_to"):
+		account = assert_company_resource("Account", data["credit_to"], company)
+		if account.root_type != "Liability":
+			frappe.throw(_("Credit To must be a liability account"))
+	if data.get("taxes_and_charges"):
+		assert_company_resource(
+			"Purchase Taxes and Charges Template",
+			data["taxes_and_charges"],
+			company,
+		)
+	return {
+		**{field: data.get(field) for field in PURCHASE_FIELDS if data.get(field) is not None},
+		"company": company,
+		"buying_price_list": price_list,
+		"currency": currency,
+		"items": clean_items,
+		"taxes": clean_taxes,
+		"custom_posnext_pos_profile": profile,
+	}
+
+
+def _get_purchase_invoice(name, profile, company, ptype="read"):
+	doc = assert_doc_permission("Purchase Invoice", name, ptype)
+	_assert_profile_document(doc, profile, company)
+	return doc
+
+
+def _get_payable_invoice(name, profile=None, company=None, *, lock=False):
+	if lock:
+		lock_document("Purchase Invoice", name, ["name", "outstanding_amount"])
+	doc = assert_doc_permission("Purchase Invoice", name)
+	if profile and company:
+		_assert_profile_document(doc, profile, company)
+	if doc.docstatus != 1:
+		frappe.throw(_("Only submitted purchase invoices can be paid"))
+	if flt(doc.outstanding_amount) <= AMOUNT_TOLERANCE:
+		frappe.throw(_("This purchase invoice has no outstanding amount"))
+	return doc
 
 
 def _validate_payment_amount(amount, outstanding):
-    amount = flt(amount)
-    outstanding = flt(outstanding)
-    if amount <= 0:
-        frappe.throw(_("Payment amount must be greater than zero"))
-    if amount > outstanding + AMOUNT_TOLERANCE:
-        frappe.throw(
-            _("Payment amount {0} exceeds the outstanding amount {1}").format(
-                frappe.format_value(amount, {"fieldtype": "Currency"}),
-                frappe.format_value(outstanding, {"fieldtype": "Currency"}),
-            )
-        )
-    return amount
-
-
-# ─── Suppliers ───────────────────────────────────────────────────────────────
-
-@frappe.whitelist()
-def get_suppliers(search="", limit=30):
-    """Return supplier list for autocomplete."""
-    require_feature("purchases")
-    frappe.has_permission("Supplier", "read", throw=True)
-    filters = {"disabled": 0}
-    if search:
-        return frappe.get_all(
-            "Supplier",
-            filters={"disabled": 0, "supplier_name": ["like", f"%{search}%"]},
-            fields=["name", "supplier_name", "supplier_group"],
-            order_by="supplier_name asc",
-            limit=cint(limit),
-        )
-    return frappe.get_all(
-        "Supplier",
-        filters=filters,
-        fields=["name", "supplier_name", "supplier_group"],
-        order_by="supplier_name asc",
-        limit=cint(limit),
-    )
+	amount = flt(amount)
+	if amount <= 0:
+		frappe.throw(_("Payment amount must be greater than zero"))
+	if amount > flt(outstanding) + AMOUNT_TOLERANCE:
+		frappe.throw(_("Payment amount exceeds the current outstanding amount"))
+	return amount
 
 
 @frappe.whitelist()
-def create_supplier(supplier_name, supplier_group="All Supplier Groups"):
-    """Quick-create a supplier."""
-    require_feature("purchases")
-    frappe.has_permission("Supplier", "create", throw=True)
-    if not supplier_name:
-        frappe.throw(_("Supplier name is required"))
-    if frappe.db.exists("Supplier", supplier_name):
-        frappe.throw(_("Supplier '{0}' already exists").format(supplier_name))
-    doc = frappe.get_doc({
-        "doctype": "Supplier",
-        "supplier_name": supplier_name,
-        "supplier_group": supplier_group or "All Supplier Groups",
-        "supplier_type": "Company",
-    })
-    doc.insert(ignore_permissions=False)
-    return {"name": doc.name, "supplier_name": doc.supplier_name}
-
-
-# ─── Purchase Invoices ───────────────────────────────────────────────────────
-
-@frappe.whitelist()
-def get_purchase_invoices(supplier=None, status=None, from_date=None, to_date=None, search=None, limit=50, start=0):
-    """Return paginated list of Purchase Invoices with filters."""
-    require_feature("purchases")
-    frappe.has_permission("Purchase Invoice", "read", throw=True)
-
-    filters = {}
-    if supplier:
-        filters["supplier"] = supplier
-    if status:
-        filters["status"] = status
-    if from_date:
-        filters["posting_date"] = [">=", getdate(from_date)]
-    if to_date:
-        existing = filters.get("posting_date")
-        if existing:
-            filters["posting_date"] = ["between", [getdate(from_date), getdate(to_date)]]
-        else:
-            filters["posting_date"] = ["<=", getdate(to_date)]
-    if search:
-        filters["name"] = ["like", f"%{search}%"]
-
-    invoices = frappe.get_list(
-        "Purchase Invoice",
-        filters=filters,
-        fields=["name", "supplier", "supplier_name", "posting_date", "due_date",
-                "grand_total", "outstanding_amount", "status", "docstatus",
-                "bill_no", "currency"],
-        order_by="posting_date desc, name desc",
-        limit=cint(limit),
-        start=cint(start),
-    )
-
-    total_count = len(
-        frappe.get_list("Purchase Invoice", filters=filters, pluck="name", limit=0)
-    )
-    return {"invoices": invoices, "total": total_count}
+def get_suppliers(search="", limit=30, pos_profile=None):
+	_context("purchases", pos_profile)
+	frappe.has_permission("Supplier", "read", throw=True)
+	filters = {"disabled": 0}
+	if search:
+		filters["supplier_name"] = ["like", f"%{search}%"]
+	return frappe.get_list("Supplier", filters=filters, fields=["name", "supplier_name", "supplier_group", "supplier_type"], order_by="supplier_name", limit=min(cint(limit), 100))
 
 
 @frappe.whitelist()
-def get_purchase_invoice(name):
-    """Return a single Purchase Invoice with its items."""
-    require_feature("purchases")
-    frappe.has_permission("Purchase Invoice", "read", throw=True)
-    doc = frappe.get_doc("Purchase Invoice", name)
-    frappe.has_permission("Purchase Invoice", "read", doc=doc, throw=True)
-    result = doc.as_dict()
-    return result
+def get_supplier_groups(pos_profile=None):
+	_context("purchases", pos_profile)
+	frappe.has_permission("Supplier Group", "read", throw=True)
+	return frappe.get_list("Supplier Group", filters={"is_group": 0}, fields=["name"], order_by="name", limit=200)
 
 
 @frappe.whitelist()
-def get_new_purchase_invoice_defaults(company=None):
-    """Return sensible defaults for a new Purchase Invoice form."""
-    require_feature("purchases", company=company)
-    frappe.has_permission("Purchase Invoice", "create", throw=True)
-    if not company:
-        company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
-
-    buying_price_list = frappe.db.get_value("Company", company, "default_buying_price_list") or "Standard Buying"
-
-    return {
-        "company": company,
-        "posting_date": nowdate(),
-        "due_date": add_days(nowdate(), 30),
-        "buying_price_list": buying_price_list,
-        "currency": frappe.db.get_value("Company", company, "default_currency") or "SAR",
-    }
-
-
-@frappe.whitelist()
-def save_purchase_invoice(data):
-    """Save (insert or update) a Purchase Invoice draft. Returns the doc name."""
-    require_feature("purchases")
-    frappe.has_permission("Purchase Invoice", "create", throw=True)
-
-    if isinstance(data, str):
-        data = json.loads(data)
-
-    name = data.get("name")
-
-    try:
-        if name and frappe.db.exists("Purchase Invoice", name):
-            # Update existing draft
-            doc = frappe.get_doc("Purchase Invoice", name)
-            if doc.docstatus != 0:
-                frappe.throw(_("Cannot edit a submitted or cancelled invoice"))
-            frappe.has_permission("Purchase Invoice", "write", doc=doc, throw=True)
-            doc.update(data)
-        else:
-            # New document
-            doc = frappe.get_doc({"doctype": "Purchase Invoice", **data})
-
-        doc.flags.ignore_mandatory = False
-        doc.save(ignore_permissions=False)
-        return {"name": doc.name, "status": "Saved"}
-
-    except frappe.ValidationError:
-        raise
-    except Exception as e:
-        error_doc = frappe.log_error(
-            "error in purchases API: save_purchase_invoice",
-            json.dumps({"user": frappe.session.user, "datetime": str(now_datetime()), "data_name": name, "error": str(e)}, default=str),
-        )
-        frappe.throw(_("An error occurred. Error ID: {0}").format(error_doc.name))
+def create_supplier(supplier_name, supplier_group, supplier_type="Company", pos_profile=None):
+	_context("purchases", pos_profile)
+	frappe.has_permission("Supplier", "create", throw=True)
+	supplier_name = (supplier_name or "").strip()
+	if not supplier_name:
+		frappe.throw(_("Supplier name is required"))
+	group = assert_doc_permission("Supplier Group", supplier_group)
+	if group.is_group:
+		frappe.throw(_("Supplier Group must be a leaf group"))
+	if supplier_type not in {"Company", "Individual"}:
+		frappe.throw(_("Invalid Supplier Type"))
+	existing = frappe.db.get_value("Supplier", {"supplier_name": supplier_name}, "name")
+	if existing:
+		doc = assert_doc_permission("Supplier", existing)
+		return {"name": doc.name, "supplier_name": doc.supplier_name, "created": False}
+	doc = frappe.get_doc({"doctype": "Supplier", "supplier_name": supplier_name, "supplier_group": supplier_group, "supplier_type": supplier_type}).insert(ignore_permissions=False)
+	return {"name": doc.name, "supplier_name": doc.supplier_name, "created": True}
 
 
 @frappe.whitelist()
-def submit_purchase_invoice(name):
-    """Submit a Purchase Invoice (docstatus 0 → 1). Updates stock and accounts via ERPNext hooks."""
-    require_feature("purchases")
-    frappe.has_permission("Purchase Invoice", "submit", throw=True)
-
-    doc = frappe.get_doc("Purchase Invoice", name)
-    if doc.docstatus != 0:
-        frappe.throw(_("Invoice is not in Draft status"))
-    frappe.has_permission("Purchase Invoice", "submit", doc=doc, throw=True)
-
-    try:
-        doc.submit()
-        return {"name": doc.name, "status": "Submitted", "docstatus": doc.docstatus}
-    except frappe.ValidationError:
-        raise
-    except Exception as e:
-        error_doc = frappe.log_error(
-            "error in purchases API: submit_purchase_invoice",
-            json.dumps({"user": frappe.session.user, "datetime": str(now_datetime()), "name": name, "error": str(e)}, default=str),
-        )
-        frappe.throw(_("An error occurred. Error ID: {0}").format(error_doc.name))
+def get_purchase_invoices(supplier=None, status=None, from_date=None, to_date=None, search=None, limit=50, start=0, pos_profile=None):
+	profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Purchase Invoice", "read", throw=True)
+	filters = {"company": company, "custom_posnext_pos_profile": profile}
+	for key, value in (("supplier", supplier), ("status", status)):
+		if value:
+			filters[key] = value
+	if from_date and to_date:
+		filters["posting_date"] = ["between", [getdate(from_date), getdate(to_date)]]
+	elif from_date:
+		filters["posting_date"] = [">=", getdate(from_date)]
+	elif to_date:
+		filters["posting_date"] = ["<=", getdate(to_date)]
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	fields = ["name", "supplier", "supplier_name", "posting_date", "due_date", "grand_total", "total_taxes_and_charges", "outstanding_amount", "status", "docstatus", "bill_no", "currency", "modified"]
+	rows = frappe.get_list("Purchase Invoice", filters=filters, fields=fields, order_by="posting_date desc, creation desc", limit=min(cint(limit), 100), start=cint(start))
+	total = len(frappe.get_list("Purchase Invoice", filters=filters, pluck="name", limit=0))
+	return {"invoices": rows, "total": total}
 
 
 @frappe.whitelist()
-def cancel_purchase_invoice(name):
-    """Cancel a submitted Purchase Invoice."""
-    require_feature("purchases")
-    frappe.has_permission("Purchase Invoice", "cancel", throw=True)
-    doc = frappe.get_doc("Purchase Invoice", name)
-    if doc.docstatus != 1:
-        frappe.throw(_("Invoice is not submitted"))
-    frappe.has_permission("Purchase Invoice", "cancel", doc=doc, throw=True)
-    try:
-        doc.cancel()
-        return {"name": doc.name, "status": "Cancelled"}
-    except frappe.ValidationError:
-        raise
-    except Exception as e:
-        error_doc = frappe.log_error(
-            "error in purchases API: cancel_purchase_invoice",
-            json.dumps({"user": frappe.session.user, "datetime": str(now_datetime()), "name": name, "error": str(e)}, default=str),
-        )
-        frappe.throw(_("An error occurred. Error ID: {0}").format(error_doc.name))
-
-
-# ─── Items for Purchasing ────────────────────────────────────────────────────
-
-@frappe.whitelist()
-def get_purchase_items(search="", limit=30):
-    """Return items for autocomplete in purchase invoice lines."""
-    require_feature("purchases")
-    frappe.has_permission("Item", "read", throw=True)
-    filters = {"disabled": 0, "is_purchase_item": 1}
-    if search:
-        filters["item_name"] = ["like", f"%{search}%"]
-
-    items = frappe.get_all(
-        "Item",
-        filters=filters,
-        fields=["name as item_code", "item_name", "stock_uom", "item_group"],
-        order_by="item_name asc",
-        limit=cint(limit),
-    )
-
-    if not items and search:
-        # fallback: search by code too
-        items = frappe.get_all(
-            "Item",
-            filters={"disabled": 0, "name": ["like", f"%{search}%"]},
-            fields=["name as item_code", "item_name", "stock_uom", "item_group"],
-            order_by="item_name asc",
-            limit=cint(limit),
-        )
-
-    return items
+def get_purchase_invoice(name, pos_profile=None):
+	profile, company = _context("purchases", pos_profile)
+	return _get_purchase_invoice(name, profile, company).as_dict()
 
 
 @frappe.whitelist()
-def get_item_buying_price(item_code, buying_price_list="Standard Buying"):
-    """Return the buying price for an item from the given price list."""
-    require_feature("purchases")
-    frappe.has_permission("Item Price", "read", throw=True)
-    price = frappe.db.get_value(
-        "Item Price",
-        {"item_code": item_code, "price_list": buying_price_list, "buying": 1},
-        "price_list_rate",
-    )
-    return {"item_code": item_code, "buying_price": flt(price), "price_list": buying_price_list}
+def get_new_purchase_invoice_defaults(pos_profile=None):
+	profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Purchase Invoice", "create", throw=True)
+	price_list = _default_buying_price_list(company)
+	price = _assert_price_list(price_list, company)
+	return {
+		"pos_profile": profile,
+		"company": company,
+		"posting_date": nowdate(),
+		"due_date": add_days(nowdate(), 30),
+		"buying_price_list": price.name,
+		"price_list_currency": price.currency,
+		"currency": frappe.db.get_value("Company", company, "default_currency"),
+		"company_currency": frappe.db.get_value("Company", company, "default_currency"),
+	}
 
 
 @frappe.whitelist()
-def get_warehouses(company=None):
-    """Return non-group warehouses for the given company."""
-    require_feature("purchases", company=company)
-    frappe.has_permission("Warehouse", "read", throw=True)
-    filters = {"is_group": 0, "disabled": 0}
-    if company:
-        filters["company"] = company
-    return frappe.get_all(
-        "Warehouse",
-        filters=filters,
-        fields=["name", "warehouse_name", "company"],
-        order_by="warehouse_name asc",
-        limit=100,
-    )
+def get_purchase_currencies(pos_profile=None):
+	_context("purchases", pos_profile)
+	frappe.has_permission("Currency", "read", throw=True)
+	return frappe.get_list("Currency", filters={"enabled": 1}, fields=["name", "fraction", "fraction_units"], order_by="name", limit=200)
 
 
 @frappe.whitelist()
-def get_expense_accounts(company):
-    """Return expense accounts for a company for use in purchase invoice line."""
-    require_feature("purchases", company=company)
-    frappe.has_permission("Account", "read", throw=True)
-    return frappe.get_all(
-        "Account",
-        filters={"company": company, "is_group": 0, "root_type": ["in", ["Expense", "Asset"]], "account_type": ["in", ["Stock", "Expense Account", "Fixed Asset", ""]]},
-        fields=["name", "account_name", "account_type"],
-        order_by="account_name asc",
-        limit=50,
-    )
+def save_purchase_invoice(data, idempotency_key=None, expected_modified=None, pos_profile=None):
+	data = _parse_data(data)
+	profile, company = _context("purchases", pos_profile, data.get("company"))
+	name = data.get("name")
+	if name:
+		frappe.has_permission("Purchase Invoice", "write", throw=True)
+		locked = lock_document("Purchase Invoice", name, ["name", "modified", "docstatus"])
+		doc = _get_purchase_invoice(name, profile, company, "write")
+		if doc.docstatus != 0:
+			frappe.throw(_("Only draft purchase invoices can be edited"))
+		expected = str(expected_modified or data.get("expected_modified") or "")
+		if not expected or expected != str(locked.modified):
+			frappe.throw(_("This draft changed after you opened it. Reload before saving."), frappe.TimestampMismatchError)
+		payload = _validate_purchase_payload(data, profile, company)
+		for field, value in payload.items():
+			doc.set(field, value)
+		doc.save(ignore_permissions=False)
+		return _purchase_doc_result(doc)
 
-
-# ─── Supplier Payments ──────────────────────────────────────────────────────
-
-@frappe.whitelist()
-def get_supplier_payment_defaults(invoice_name):
-    """Return safe defaults and selectable cash/bank accounts for a supplier payment."""
-    require_feature("supplier_payments")
-    frappe.has_permission("Payment Entry", "create", throw=True)
-    invoice = _get_payable_invoice(invoice_name)
-    frappe.has_permission("Account", "read", throw=True)
-    frappe.has_permission("Mode of Payment", "read", throw=True)
-
-    accounts = frappe.get_list(
-        "Account",
-        filters={
-            "company": invoice.company,
-            "is_group": 0,
-            "disabled": 0,
-            "account_type": ["in", ["Cash", "Bank"]],
-        },
-        fields=["name", "account_name", "account_type", "account_currency"],
-        order_by="account_type asc, account_name asc",
-        limit=200,
-    )
-    modes = frappe.get_list(
-        "Mode of Payment",
-        fields=["name", "type"],
-        order_by="name asc",
-        limit=100,
-    )
-    mode_accounts = frappe.get_all(
-        "Mode of Payment Account",
-        filters={"company": invoice.company, "parent": ["in", [m.name for m in modes] or [""]]},
-        fields=["parent", "default_account"],
-        limit=0,
-    )
-    default_by_mode = {row.parent: row.default_account for row in mode_accounts}
-    for mode in modes:
-        mode["default_account"] = default_by_mode.get(mode.name)
-
-    return {
-        "invoice": {
-            "name": invoice.name,
-            "supplier": invoice.supplier,
-            "supplier_name": invoice.supplier_name,
-            "company": invoice.company,
-            "currency": invoice.currency,
-            "grand_total": flt(invoice.grand_total),
-            "outstanding_amount": flt(invoice.outstanding_amount),
-        },
-        "posting_date": nowdate(),
-        "accounts": accounts,
-        "modes_of_payment": modes,
-        "can_submit": bool(frappe.has_permission("Payment Entry", "submit")),
-    }
+	frappe.has_permission("Purchase Invoice", "create", throw=True)
+	key = normalize_idempotency_key(idempotency_key or data.get("idempotency_key"))
+	existing = frappe.db.get_value("Purchase Invoice", {"custom_posnext_idempotency_key": key}, "name")
+	if existing:
+		doc = _get_purchase_invoice(existing, profile, company)
+		_assert_purchase_replay_matches(doc, data)
+		return {**_purchase_doc_result(doc), "idempotent_replay": True}
+	payload = _validate_purchase_payload(data, profile, company)
+	payload["custom_posnext_idempotency_key"] = key
+	frappe.db.savepoint("posnext_purchase_create")
+	try:
+		doc = frappe.get_doc({"doctype": "Purchase Invoice", **payload}).insert(ignore_permissions=False)
+		return {**_purchase_doc_result(doc), "idempotent_replay": False}
+	except frappe.UniqueValidationError:
+		frappe.db.rollback(save_point="posnext_purchase_create")
+		existing = frappe.db.get_value("Purchase Invoice", {"custom_posnext_idempotency_key": key}, "name")
+		if existing:
+			doc = _get_purchase_invoice(existing, profile, company)
+			_assert_purchase_replay_matches(doc, data)
+			return {**_purchase_doc_result(doc), "idempotent_replay": True}
+		raise
+	except Exception:
+		frappe.db.rollback(save_point="posnext_purchase_create")
+		raise
 
 
 @frappe.whitelist()
-def create_supplier_payment(
-    invoice_name,
-    amount,
-    posting_date=None,
-    mode_of_payment=None,
-    paid_from=None,
-    reference_no=None,
-    reference_date=None,
-    remarks=None,
-    submit=0,
-):
-    """Create a standard Payment Entry allocated to a Purchase Invoice."""
-    require_feature("supplier_payments")
-    frappe.has_permission("Payment Entry", "create", throw=True)
-    invoice = _get_payable_invoice(invoice_name)
-    amount = _validate_payment_amount(amount, invoice.outstanding_amount)
-    submit = cint(submit)
-    if submit:
-        frappe.has_permission("Payment Entry", "submit", throw=True)
-
-    if not paid_from:
-        frappe.throw(_("Please select a cash or bank account"))
-    account = frappe.get_doc("Account", paid_from)
-    frappe.has_permission("Account", "read", doc=account, throw=True)
-    if account.company != invoice.company or account.is_group or account.disabled:
-        frappe.throw(_("The selected payment account is not valid for this company"))
-    if account.account_type not in ("Cash", "Bank"):
-        frappe.throw(_("The payment account must be a Cash or Bank account"))
-
-    if mode_of_payment:
-        frappe.has_permission("Mode of Payment", "read", throw=True)
-        if not frappe.db.exists("Mode of Payment", mode_of_payment):
-            frappe.throw(_("Invalid mode of payment"))
-
-    posting_date = getdate(posting_date or nowdate())
-    reference_date = getdate(reference_date or posting_date)
-
-    try:
-        from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
-
-        payment = get_payment_entry(
-            "Purchase Invoice",
-            invoice.name,
-            party_amount=amount,
-            bank_account=paid_from,
-            payment_type="Pay",
-            reference_date=reference_date,
-        )
-        payment.posting_date = posting_date
-        payment.reference_date = reference_date
-        payment.mode_of_payment = mode_of_payment
-        payment.reference_no = reference_no
-        payment.remarks = remarks
-        payment.paid_from = paid_from
-
-        # Keep the allocation exact even when the invoice uses payment terms.
-        remaining = amount
-        for row in payment.references:
-            allocation = min(flt(row.outstanding_amount), remaining)
-            row.allocated_amount = allocation
-            remaining -= allocation
-        if remaining > AMOUNT_TOLERANCE:
-            frappe.throw(_("Unable to allocate the full payment amount to the invoice"))
-
-        payment.set_amounts()
-        payment.insert(ignore_permissions=False)
-        if submit:
-            payment.submit()
-
-        invoice.reload()
-        return {
-            "name": payment.name,
-            "docstatus": payment.docstatus,
-            "status": _("Submitted") if payment.docstatus == 1 else _("Draft"),
-            "invoice": invoice.name,
-            "outstanding_amount": flt(invoice.outstanding_amount),
-            "invoice_status": invoice.status,
-        }
-    except frappe.ValidationError:
-        raise
-    except Exception as e:
-        error_doc = frappe.log_error(
-            "error in purchases API: create_supplier_payment",
-            json.dumps(
-                {
-                    "user": frappe.session.user,
-                    "datetime": str(now_datetime()),
-                    "invoice": invoice_name,
-                    "error": str(e),
-                },
-                default=str,
-            ),
-        )
-        frappe.throw(_("Could not create the supplier payment. Error ID: {0}").format(error_doc.name))
+def submit_purchase_invoice(name, expected_modified, pos_profile=None):
+	profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Purchase Invoice", "submit", throw=True)
+	locked = lock_document("Purchase Invoice", name, ["name", "modified", "docstatus"])
+	doc = _get_purchase_invoice(name, profile, company, "submit")
+	if doc.docstatus != 0:
+		frappe.throw(_("Invoice is not in Draft status"))
+	if str(locked.modified) != str(expected_modified or ""):
+		frappe.throw(_("This draft changed after you opened it. Reload before submitting."), frappe.TimestampMismatchError)
+	doc.submit()
+	return _purchase_doc_result(doc)
 
 
 @frappe.whitelist()
-def get_supplier_payments(supplier=None, company=None, from_date=None, to_date=None, limit=50, start=0):
-    """List supplier Payment Entries visible to the current user."""
-    require_feature("supplier_payments", company=company)
-    frappe.has_permission("Payment Entry", "read", throw=True)
-    filters = {"party_type": "Supplier", "payment_type": "Pay"}
-    if supplier:
-        filters["party"] = supplier
-    if company:
-        filters["company"] = company
-    if from_date and to_date:
-        filters["posting_date"] = ["between", [getdate(from_date), getdate(to_date)]]
-    elif from_date:
-        filters["posting_date"] = [">=", getdate(from_date)]
-    elif to_date:
-        filters["posting_date"] = ["<=", getdate(to_date)]
-
-    fields = [
-        "name", "posting_date", "party", "party_name", "company", "paid_amount",
-        "paid_from_account_currency", "mode_of_payment", "reference_no",
-        "docstatus", "paid_from", "remarks",
-    ]
-    payments = frappe.get_list(
-        "Payment Entry",
-        filters=filters,
-        fields=fields,
-        order_by="posting_date desc, creation desc",
-        limit=cint(limit),
-        start=cint(start),
-    )
-    total = len(
-        frappe.get_list("Payment Entry", filters=filters, pluck="name", limit=0)
-    )
-    return {"payments": payments, "total": total}
+def cancel_purchase_invoice(name, pos_profile=None):
+	profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Purchase Invoice", "cancel", throw=True)
+	lock_document("Purchase Invoice", name)
+	doc = _get_purchase_invoice(name, profile, company, "cancel")
+	if doc.docstatus != 1:
+		frappe.throw(_("Invoice is not submitted"))
+	doc.cancel()
+	return _purchase_doc_result(doc)
 
 
 @frappe.whitelist()
-def submit_supplier_payment(name):
-    """Submit a supplier Payment Entry draft."""
-    require_feature("supplier_payments")
-    frappe.has_permission("Payment Entry", "submit", throw=True)
-    payment = frappe.get_doc("Payment Entry", name)
-    frappe.has_permission("Payment Entry", "submit", doc=payment, throw=True)
-    if payment.party_type != "Supplier" or payment.payment_type != "Pay":
-        frappe.throw(_("This payment is not a supplier payment"))
-    if payment.docstatus != 0:
-        frappe.throw(_("Only draft payments can be submitted"))
-    payment.submit()
-    return {"name": payment.name, "docstatus": payment.docstatus}
+def get_purchase_items(search="", limit=30, pos_profile=None):
+	_context("purchases", pos_profile)
+	frappe.has_permission("Item", "read", throw=True)
+	filters = {"disabled": 0, "is_purchase_item": 1}
+	if search:
+		filters["item_name"] = ["like", f"%{search}%"]
+	return frappe.get_list("Item", filters=filters, fields=["name as item_code", "item_name", "stock_uom", "item_group", "is_stock_item"], order_by="item_name", limit=min(cint(limit), 100))
 
 
 @frappe.whitelist()
-def cancel_supplier_payment(name):
-    """Cancel a submitted supplier Payment Entry."""
-    require_feature("supplier_payments")
-    frappe.has_permission("Payment Entry", "cancel", throw=True)
-    payment = frappe.get_doc("Payment Entry", name)
-    frappe.has_permission("Payment Entry", "cancel", doc=payment, throw=True)
-    if payment.party_type != "Supplier" or payment.payment_type != "Pay":
-        frappe.throw(_("This payment is not a supplier payment"))
-    if payment.docstatus != 1:
-        frappe.throw(_("Only submitted payments can be cancelled"))
-    payment.cancel()
-    return {"name": payment.name, "docstatus": payment.docstatus}
+def get_item_buying_price(item_code, buying_price_list=None, uom=None, pos_profile=None):
+	_profile, company = _context("purchases", pos_profile)
+	item = assert_doc_permission("Item", item_code)
+	price_list = _assert_price_list(buying_price_list or _default_buying_price_list(company), company)
+	filters = {"item_code": item.name, "price_list": price_list.name, "buying": 1, "uom": uom or item.stock_uom}
+	prices = frappe.get_list("Item Price", filters=filters, fields=["name", "price_list_rate", "currency", "uom", "valid_from", "valid_upto"], order_by="valid_from desc", limit=2)
+	if len(prices) > 1:
+		frappe.throw(_("Multiple applicable buying prices exist; select the rate explicitly"))
+	return {"item_code": item.name, "buying_price": flt(prices[0].price_list_rate) if prices else 0, "price_list": price_list.name, "currency": price_list.currency}
 
 
 @frappe.whitelist()
-def get_purchase_outstanding_summary(supplier=None, company=None, from_date=None, to_date=None):
-    """Summarize submitted purchase invoices using permission-aware document queries."""
-    require_feature("purchases", company=company)
-    frappe.has_permission("Purchase Invoice", "read", throw=True)
-    filters = {"docstatus": 1}
-    if supplier:
-        filters["supplier"] = supplier
-    if company:
-        filters["company"] = company
-    if from_date and to_date:
-        filters["posting_date"] = ["between", [getdate(from_date), getdate(to_date)]]
-    elif from_date:
-        filters["posting_date"] = [">=", getdate(from_date)]
-    elif to_date:
-        filters["posting_date"] = ["<=", getdate(to_date)]
+def get_warehouses(pos_profile=None):
+	_profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Warehouse", "read", throw=True)
+	return frappe.get_list("Warehouse", filters={"company": company, "is_group": 0, "disabled": 0}, fields=["name", "warehouse_name", "company"], order_by="warehouse_name", limit=200)
 
-    rows = frappe.get_list(
-        "Purchase Invoice",
-        filters=filters,
-        fields=["grand_total", "outstanding_amount", "status"],
-        limit=0,
-    )
-    outstanding = sum(flt(row.outstanding_amount) for row in rows if flt(row.outstanding_amount) > 0)
-    unpaid = sum(1 for row in rows if flt(row.outstanding_amount) >= flt(row.grand_total) - AMOUNT_TOLERANCE)
-    partial = sum(
-        1 for row in rows
-        if AMOUNT_TOLERANCE < flt(row.outstanding_amount) < flt(row.grand_total) - AMOUNT_TOLERANCE
-    )
-    paid = sum(1 for row in rows if flt(row.outstanding_amount) <= AMOUNT_TOLERANCE)
-    return {
-        "total_outstanding": outstanding,
-        "invoice_count": len(rows),
-        "unpaid_count": unpaid,
-        "partial_count": partial,
-        "paid_count": paid,
-    }
+
+@frappe.whitelist()
+def get_expense_accounts(pos_profile=None):
+	_profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Account", "read", throw=True)
+	return frappe.get_list("Account", filters={"company": company, "is_group": 0, "disabled": 0, "root_type": ["in", ["Expense", "Asset"]]}, fields=["name", "account_name", "account_type"], order_by="account_name", limit=200)
+
+
+@frappe.whitelist()
+def get_purchase_tax_templates(pos_profile=None):
+	_profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Purchase Taxes and Charges Template", "read", throw=True)
+	return frappe.get_list(
+		"Purchase Taxes and Charges Template",
+		filters={"company": company, "disabled": 0},
+		fields=["name", "title", "is_default", "company"],
+		order_by="is_default desc, title asc",
+		limit=200,
+	)
+
+
+@frappe.whitelist()
+def get_supplier_payment_defaults(invoice_name, pos_profile=None):
+	profile, company = _context("supplier_payments", pos_profile)
+	frappe.has_permission("Payment Entry", "create", throw=True)
+	invoice = _get_payable_invoice(invoice_name, profile, company)
+	accounts = frappe.get_list("Account", filters={"company": company, "is_group": 0, "disabled": 0, "account_type": ["in", ["Cash", "Bank"]]}, fields=["name", "account_name", "account_type", "account_currency"], order_by="account_type, account_name", limit=200)
+	modes = frappe.get_list("Mode of Payment", fields=["name", "type"], order_by="name", limit=100)
+	mode_accounts = frappe.get_all("Mode of Payment Account", filters={"company": company, "parent": ["in", [row.name for row in modes] or [""]]}, fields=["parent", "default_account"], limit=0)
+	defaults = {row.parent: row.default_account for row in mode_accounts}
+	for mode in modes:
+		mode["default_account"] = defaults.get(mode.name)
+	return {
+		"invoice": {"name": invoice.name, "supplier": invoice.supplier, "supplier_name": invoice.supplier_name, "company": company, "currency": invoice.currency, "grand_total": flt(invoice.grand_total), "outstanding_amount": flt(invoice.outstanding_amount)},
+		"posting_date": nowdate(),
+		"accounts": accounts,
+		"modes_of_payment": modes,
+		"can_submit": bool(frappe.has_permission("Payment Entry", "submit")),
+	}
+
+
+def _payment_result(payment, invoice=None):
+	if invoice:
+		invoice.reload()
+	return {
+		"name": payment.name,
+		"modified": str(payment.modified),
+		"docstatus": payment.docstatus,
+		"invoice": invoice.name if invoice else None,
+		"outstanding_amount": flt(invoice.outstanding_amount) if invoice else None,
+	}
+
+
+@frappe.whitelist()
+def create_supplier_payment(invoice_name, amount, paid_from, idempotency_key, posting_date=None, mode_of_payment=None, reference_no=None, reference_date=None, remarks=None, submit=0, pos_profile=None):
+	profile, company = _context("supplier_payments", pos_profile)
+	frappe.has_permission("Payment Entry", "create", throw=True)
+	if cint(submit):
+		frappe.has_permission("Payment Entry", "submit", throw=True)
+	key = normalize_idempotency_key(idempotency_key)
+	existing = frappe.db.get_value("Payment Entry", {"custom_posnext_idempotency_key": key}, "name")
+	if existing:
+		payment = assert_doc_permission("Payment Entry", existing)
+		_assert_profile_document(payment, profile, company)
+		refs = [row.reference_name for row in payment.references if row.reference_doctype == "Purchase Invoice"]
+		if refs != [invoice_name]:
+			frappe.throw(_("This idempotency key belongs to a different payment"), frappe.PermissionError)
+		if payment.docstatus == 2 or abs(flt(payment.paid_amount) - flt(amount)) > AMOUNT_TOLERANCE or payment.paid_from != paid_from:
+			frappe.throw(_("This idempotency key belongs to a different payment"), frappe.PermissionError)
+		invoice = assert_doc_permission("Purchase Invoice", invoice_name)
+		if cint(submit) and payment.docstatus == 0:
+			result = submit_supplier_payment(payment.name, str(payment.modified), profile)
+			return {**result, "idempotent_replay": True}
+		return {**_payment_result(payment, invoice), "idempotent_replay": True}
+	invoice = _get_payable_invoice(invoice_name, profile, company, lock=True)
+	amount = _validate_payment_amount(amount, invoice.outstanding_amount)
+	account = assert_company_resource("Account", paid_from, company)
+	if account.account_type not in {"Cash", "Bank"}:
+		frappe.throw(_("The payment account must be a Cash or Bank account"))
+	if mode_of_payment:
+		assert_doc_permission("Mode of Payment", mode_of_payment)
+	posting_date = getdate(posting_date or nowdate())
+	reference_date = getdate(reference_date or posting_date)
+	frappe.db.savepoint("posnext_supplier_payment")
+	try:
+		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+		payment = get_payment_entry("Purchase Invoice", invoice.name, party_amount=amount, bank_account=paid_from, payment_type="Pay", reference_date=reference_date)
+		payment.update({
+			"posting_date": posting_date,
+			"reference_date": reference_date,
+			"mode_of_payment": mode_of_payment,
+			"reference_no": reference_no,
+			"remarks": remarks,
+			"paid_from": paid_from,
+			"custom_posnext_pos_profile": profile,
+			"custom_posnext_idempotency_key": key,
+		})
+		remaining = amount
+		for row in payment.references:
+			if row.reference_doctype != "Purchase Invoice" or row.reference_name != invoice.name:
+				row.allocated_amount = 0
+				continue
+			row.allocated_amount = min(flt(row.outstanding_amount), remaining)
+			remaining -= row.allocated_amount
+		if remaining > AMOUNT_TOLERANCE:
+			frappe.throw(_("Unable to allocate the full payment amount"))
+		payment.set_amounts()
+		payment.insert(ignore_permissions=False)
+		if cint(submit):
+			invoice = _get_payable_invoice(invoice_name, profile, company, lock=True)
+			_validate_payment_amount(amount, invoice.outstanding_amount)
+			payment.submit()
+		return {**_payment_result(payment, invoice), "idempotent_replay": False}
+	except frappe.UniqueValidationError:
+		frappe.db.rollback(save_point="posnext_supplier_payment")
+		existing = frappe.db.get_value("Payment Entry", {"custom_posnext_idempotency_key": key}, "name")
+		if existing:
+			payment = assert_doc_permission("Payment Entry", existing)
+			_assert_profile_document(payment, profile, company)
+			return {**_payment_result(payment, assert_doc_permission("Purchase Invoice", invoice_name)), "idempotent_replay": True}
+		raise
+	except Exception:
+		frappe.db.rollback(save_point="posnext_supplier_payment")
+		raise
+
+
+def _get_supplier_payment(name, profile, company, ptype="read"):
+	payment = assert_doc_permission("Payment Entry", name, ptype)
+	_assert_profile_document(payment, profile, company)
+	if payment.party_type != "Supplier" or payment.payment_type != "Pay":
+		frappe.throw(_("This payment is not a supplier payment"))
+	return payment
+
+
+@frappe.whitelist()
+def submit_supplier_payment(name, expected_modified, pos_profile=None):
+	profile, company = _context("supplier_payments", pos_profile)
+	frappe.has_permission("Payment Entry", "submit", throw=True)
+	locked = lock_document("Payment Entry", name, ["name", "modified", "docstatus"])
+	payment = _get_supplier_payment(name, profile, company, "submit")
+	if payment.docstatus != 0:
+		frappe.throw(_("Only draft payments can be submitted"))
+	if str(locked.modified) != str(expected_modified or ""):
+		frappe.throw(_("This payment changed after you opened it. Reload before submitting."), frappe.TimestampMismatchError)
+	refs = [row for row in payment.references if row.reference_doctype == "Purchase Invoice" and flt(row.allocated_amount) > 0]
+	if len(refs) != 1:
+		frappe.throw(_("A supplier payment must allocate exactly one Purchase Invoice"))
+	invoice = _get_payable_invoice(refs[0].reference_name, profile, company, lock=True)
+	_validate_payment_amount(refs[0].allocated_amount, invoice.outstanding_amount)
+	payment.submit()
+	return _payment_result(payment, invoice)
+
+
+@frappe.whitelist()
+def cancel_supplier_payment(name, pos_profile=None):
+	profile, company = _context("supplier_payments", pos_profile)
+	frappe.has_permission("Payment Entry", "cancel", throw=True)
+	lock_document("Payment Entry", name)
+	payment = _get_supplier_payment(name, profile, company, "cancel")
+	if payment.docstatus != 1:
+		frappe.throw(_("Only submitted payments can be cancelled"))
+	for row in payment.references:
+		if row.reference_doctype == "Purchase Invoice":
+			lock_document("Purchase Invoice", row.reference_name)
+	payment.cancel()
+	return _payment_result(payment)
+
+
+@frappe.whitelist()
+def get_supplier_payments(supplier=None, from_date=None, to_date=None, limit=50, start=0, pos_profile=None):
+	profile, company = _context("supplier_payments", pos_profile)
+	frappe.has_permission("Payment Entry", "read", throw=True)
+	filters = {"party_type": "Supplier", "payment_type": "Pay", "company": company, "custom_posnext_pos_profile": profile}
+	if supplier:
+		filters["party"] = supplier
+	if from_date and to_date:
+		filters["posting_date"] = ["between", [getdate(from_date), getdate(to_date)]]
+	elif from_date:
+		filters["posting_date"] = [">=", getdate(from_date)]
+	elif to_date:
+		filters["posting_date"] = ["<=", getdate(to_date)]
+	fields = ["name", "posting_date", "party", "party_name", "company", "paid_amount", "paid_from_account_currency", "mode_of_payment", "reference_no", "docstatus", "paid_from", "remarks", "modified"]
+	rows = frappe.get_list("Payment Entry", filters=filters, fields=fields, order_by="posting_date desc, creation desc", limit=min(cint(limit), 100), start=cint(start))
+	payment_names = [row.name for row in rows]
+	allocations_by_payment = {name: [] for name in payment_names}
+	if payment_names:
+		allocations = frappe.get_all(
+			"Payment Entry Reference",
+			filters={
+				"parent": ["in", payment_names],
+				"reference_doctype": "Purchase Invoice",
+			},
+			fields=["parent", "reference_name", "allocated_amount", "outstanding_amount"],
+			order_by="idx asc",
+			limit=0,
+		)
+		for allocation in allocations:
+			allocations_by_payment[allocation.parent].append(allocation)
+	for row in rows:
+		row["allocations"] = allocations_by_payment[row.name]
+	total = len(frappe.get_list("Payment Entry", filters=filters, pluck="name", limit=0))
+	return {"payments": rows, "total": total}
+
+
+@frappe.whitelist()
+def get_purchase_outstanding_summary(supplier=None, from_date=None, to_date=None, pos_profile=None):
+	profile, company = _context("purchases", pos_profile)
+	filters = {"docstatus": 1, "company": company, "custom_posnext_pos_profile": profile}
+	if supplier:
+		filters["supplier"] = supplier
+	if from_date and to_date:
+		filters["posting_date"] = ["between", [getdate(from_date), getdate(to_date)]]
+	elif from_date:
+		filters["posting_date"] = [">=", getdate(from_date)]
+	elif to_date:
+		filters["posting_date"] = ["<=", getdate(to_date)]
+	rows = frappe.get_list("Purchase Invoice", filters=filters, fields=["grand_total", "outstanding_amount", "status"], limit=0)
+	outstanding = sum(max(flt(row.outstanding_amount), 0) for row in rows)
+	return {
+		"total_outstanding": outstanding,
+		"invoice_count": len(rows),
+		"unpaid_count": sum(flt(row.outstanding_amount) >= flt(row.grand_total) - AMOUNT_TOLERANCE for row in rows),
+		"partial_count": sum(AMOUNT_TOLERANCE < flt(row.outstanding_amount) < flt(row.grand_total) - AMOUNT_TOLERANCE for row in rows),
+		"paid_count": sum(flt(row.outstanding_amount) <= AMOUNT_TOLERANCE for row in rows),
+	}

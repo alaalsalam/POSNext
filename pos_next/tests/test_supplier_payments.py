@@ -1,18 +1,12 @@
-from unittest.mock import MagicMock, patch
+from unittest import TestCase
+from unittest.mock import MagicMock, call, patch
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
 
 from pos_next.api import purchases
 
 
-class TestSupplierPayments(FrappeTestCase):
-	def setUp(self):
-		super().setUp()
-		feature_patch = patch.object(purchases, "require_feature", return_value="Test POS Profile")
-		feature_patch.start()
-		self.addCleanup(feature_patch.stop)
-
+class TestSupplierPayments(TestCase):
 	def test_validate_partial_and_full_amounts(self):
 		self.assertEqual(purchases._validate_payment_amount(40, 100), 40)
 		self.assertEqual(purchases._validate_payment_amount(100, 100), 100)
@@ -23,7 +17,8 @@ class TestSupplierPayments(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			purchases._validate_payment_amount(100.02, 100)
 
-	def _invoice(self, outstanding=100):
+	@staticmethod
+	def _invoice(outstanding=100):
 		invoice = frappe._dict(
 			name="PINV-TEST-001",
 			supplier="SUP-TEST",
@@ -34,104 +29,137 @@ class TestSupplierPayments(FrappeTestCase):
 			outstanding_amount=outstanding,
 			status="Unpaid",
 			docstatus=1,
+			custom_posnext_pos_profile="POS-TEST",
 		)
 		invoice.reload = MagicMock()
 		return invoice
 
-	def _account(self):
-		return frappe._dict(
-			name="Cash - TC",
-			company="Test Company",
-			is_group=0,
-			disabled=0,
-			account_type="Cash",
+	@staticmethod
+	def _payment(docstatus=0, allocated=40):
+		reference = frappe._dict(
+			reference_doctype="Purchase Invoice",
+			reference_name="PINV-TEST-001",
+			outstanding_amount=100,
+			allocated_amount=allocated,
 		)
-
-	@patch("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry")
-	def test_creates_draft_payment_with_invoice_reference(self, get_payment_entry):
-		invoice = self._invoice()
-		reference = frappe._dict(outstanding_amount=100, allocated_amount=100)
-		payment = frappe._dict(name="ACC-PAY-TEST", docstatus=0, references=[reference])
-		payment.set_amounts = MagicMock()
-		payment.insert = MagicMock()
-		payment.submit = MagicMock()
-		get_payment_entry.return_value = payment
-
-		with (
-			patch.object(purchases, "_get_payable_invoice", return_value=invoice),
-			patch.object(purchases.frappe, "has_permission", return_value=True),
-			patch.object(purchases.frappe, "get_doc", return_value=self._account()),
-		):
-			result = purchases.create_supplier_payment(
-				"PINV-TEST-001", 40, paid_from="Cash - TC", submit=0
-			)
-
-		self.assertEqual(reference.allocated_amount, 40)
-		payment.insert.assert_called_once_with(ignore_permissions=False)
-		payment.submit.assert_not_called()
-		self.assertEqual(result["name"], "ACC-PAY-TEST")
-
-	@patch("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry")
-	def test_submits_full_payment_when_authorized(self, get_payment_entry):
-		invoice = self._invoice()
-		reference = frappe._dict(outstanding_amount=100, allocated_amount=100)
-		payment = frappe._dict(name="ACC-PAY-TEST", docstatus=1, references=[reference])
-		payment.set_amounts = MagicMock()
-		payment.insert = MagicMock()
-		payment.submit = MagicMock()
-		get_payment_entry.return_value = payment
-
-		with (
-			patch.object(purchases, "_get_payable_invoice", return_value=invoice),
-			patch.object(purchases.frappe, "has_permission", return_value=True),
-			patch.object(purchases.frappe, "get_doc", return_value=self._account()),
-		):
-			result = purchases.create_supplier_payment(
-				"PINV-TEST-001", 100, paid_from="Cash - TC", submit=1
-			)
-
-		payment.submit.assert_called_once()
-		self.assertEqual(reference.allocated_amount, 100)
-		self.assertEqual(result["docstatus"], 1)
-
-	def test_denies_user_without_payment_entry_create_permission(self):
-		def deny_payment_entry(doctype, ptype, **kwargs):
-			if doctype == "Payment Entry" and ptype == "create":
-				raise frappe.PermissionError
-			return True
-
-		with patch.object(purchases.frappe, "has_permission", side_effect=deny_payment_entry):
-			with self.assertRaises(frappe.PermissionError):
-				purchases.create_supplier_payment(
-					"PINV-TEST-001", 25, paid_from="Cash - TC", submit=0
-				)
-
-	def test_submits_existing_supplier_payment_draft(self):
 		payment = frappe._dict(
 			name="ACC-PAY-TEST",
+			modified="2026-08-01 10:00:00",
+			docstatus=docstatus,
+			company="Test Company",
 			party_type="Supplier",
 			payment_type="Pay",
-			docstatus=0,
+			paid_amount=allocated,
+			paid_from="Cash - TC",
+			custom_posnext_pos_profile="POS-TEST",
+			references=[reference],
 		)
-		payment.submit = MagicMock(side_effect=lambda: payment.update({"docstatus": 1}))
+		payment.set_amounts = MagicMock()
+		payment.insert = MagicMock()
+		payment.submit = MagicMock(side_effect=lambda: payment.update(docstatus=1))
+		payment.cancel = MagicMock(side_effect=lambda: payment.update(docstatus=2))
+		return payment
+
+	@patch("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry")
+	def test_create_is_exact_and_locks_outstanding(self, get_payment_entry):
+		invoice = self._invoice()
+		payment = self._payment(allocated=100)
+		get_payment_entry.return_value = payment
+		database = MagicMock()
+		database.get_value.return_value = None
 		with (
+			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(purchases, "_get_payable_invoice", return_value=invoice) as payable,
+			patch.object(purchases, "assert_company_resource", return_value=frappe._dict(account_type="Cash")),
 			patch.object(purchases.frappe, "has_permission", return_value=True),
-			patch.object(purchases.frappe, "get_doc", return_value=payment),
+			patch.dict(purchases.frappe.__dict__, {"db": database}),
 		):
-			result = purchases.submit_supplier_payment(payment.name)
+			result = purchases.create_supplier_payment(
+				invoice.name,
+				40,
+				paid_from="Cash - TC",
+				idempotency_key="payment-test-0001",
+				pos_profile="POS-TEST",
+			)
+
+		self.assertEqual(payment.references[0].allocated_amount, 40)
+		payment.insert.assert_called_once_with(ignore_permissions=False)
+		payable.assert_called_once_with(invoice.name, "POS-TEST", "Test Company", lock=True)
+		self.assertFalse(result["idempotent_replay"])
+
+	def test_retry_returns_same_payment_without_creating_another(self):
+		invoice = self._invoice(60)
+		payment = self._payment(allocated=40)
+		database = MagicMock()
+		database.get_value.return_value = payment.name
+
+		def get_doc(doctype, name, ptype="read"):
+			return payment if doctype == "Payment Entry" else invoice
+
+		with (
+			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(purchases, "assert_doc_permission", side_effect=get_doc),
+			patch.object(purchases.frappe, "has_permission", return_value=True),
+			patch.dict(purchases.frappe.__dict__, {"db": database}),
+		):
+			result = purchases.create_supplier_payment(
+				invoice.name,
+				40,
+				paid_from="Cash - TC",
+				idempotency_key="payment-test-0001",
+				pos_profile="POS-TEST",
+			)
+		self.assertTrue(result["idempotent_replay"])
+		payment.insert.assert_not_called()
+
+	def test_retry_key_cannot_be_reused_for_a_different_amount(self):
+		invoice = self._invoice(60)
+		payment = self._payment(allocated=40)
+		database = MagicMock()
+		database.get_value.return_value = payment.name
+
+		def get_doc(doctype, name, ptype="read"):
+			return payment if doctype == "Payment Entry" else invoice
+
+		with (
+			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(purchases, "assert_doc_permission", side_effect=get_doc),
+			patch.object(purchases.frappe, "has_permission", return_value=True),
+			patch.dict(purchases.frappe.__dict__, {"db": database}),
+			self.assertRaises(frappe.PermissionError),
+		):
+			purchases.create_supplier_payment(
+				invoice.name,
+				30,
+				paid_from="Cash - TC",
+				idempotency_key="payment-test-0001",
+				pos_profile="POS-TEST",
+			)
+
+	def test_submit_serializes_payment_and_invoice(self):
+		invoice = self._invoice(40)
+		payment = self._payment(allocated=40)
+		with (
+			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(purchases, "lock_document", return_value=frappe._dict(modified=payment.modified, docstatus=0)) as lock,
+			patch.object(purchases, "_get_supplier_payment", return_value=payment),
+			patch.object(purchases, "_get_payable_invoice", return_value=invoice) as payable,
+			patch.object(purchases.frappe, "has_permission", return_value=True),
+		):
+			result = purchases.submit_supplier_payment(payment.name, payment.modified, "POS-TEST")
+		self.assertEqual(lock.call_args_list[0], call("Payment Entry", payment.name, ["name", "modified", "docstatus"]))
+		payable.assert_called_once_with(invoice.name, "POS-TEST", "Test Company", lock=True)
 		payment.submit.assert_called_once()
 		self.assertEqual(result["docstatus"], 1)
 
-	def test_rejects_non_supplier_payment(self):
-		payment = frappe._dict(
-			name="ACC-PAY-TEST",
-			party_type="Customer",
-			payment_type="Receive",
-			docstatus=0,
-		)
+	def test_stale_payment_is_rejected_before_submit(self):
+		payment = self._payment()
 		with (
+			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(purchases, "lock_document", return_value=frappe._dict(modified="newer", docstatus=0)),
+			patch.object(purchases, "_get_supplier_payment", return_value=payment),
 			patch.object(purchases.frappe, "has_permission", return_value=True),
-			patch.object(purchases.frappe, "get_doc", return_value=payment),
-			self.assertRaises(frappe.ValidationError),
+			self.assertRaises(frappe.TimestampMismatchError),
 		):
-			purchases.submit_supplier_payment(payment.name)
+			purchases.submit_supplier_payment(payment.name, "older", "POS-TEST")
+		payment.submit.assert_not_called()

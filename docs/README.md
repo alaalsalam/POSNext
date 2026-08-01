@@ -37,6 +37,10 @@ Welcome to the POS Next documentation directory. This folder contains comprehens
   - Accounting reconciliation and ERPNext 16 datetime model
   - Profile/company isolation, five Desk reports, and acceptance data
 
+- **[CATALOG_PURCHASES_PAYMENTS.md](CATALOG_PURCHASES_PAYMENTS.md)** - Hardened manager buying workflows
+  - Catalog, purchase invoice, and supplier payment scope and permissions
+  - Accounting, stock, idempotency, concurrency, and reversal design
+
 - **[OFFLINE_SYNC.md](OFFLINE_SYNC.md)** - Offline invoice synchronization system
   - Architecture overview
   - Deduplication mechanism (offline_id)

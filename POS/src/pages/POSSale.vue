@@ -781,6 +781,7 @@
 			<!-- Catalog Management Panel -->
 			<CatalogManagement
 				:show="showCatalogManagement"
+				:pos-profile="shiftStore.profileName"
 				@close="showCatalogManagement = false"
 			/>
 
@@ -792,9 +793,10 @@
 				<div class="flex-1 flex flex-col overflow-hidden">
 					<PurchaseInvoiceList
 						v-if="purchaseView === 'list'"
-						:can-create="canManagePurchases"
+						:can-create="canCreatePurchases"
 						:can-create-payment="canCreateSupplierPayment"
 						:can-read-payments="canReadSupplierPayments"
+						:pos-profile="shiftStore.profileName"
 						@close="showPurchasesPanel = false"
 						@new-invoice="purchaseView = 'form'; currentPurchaseName = null"
 						@open-invoice="openPurchaseInvoice"
@@ -805,6 +807,11 @@
 						v-else-if="purchaseView === 'form'"
 						:invoice-name="currentPurchaseName"
 						:defaults="purchaseDefaults"
+						:pos-profile="shiftStore.profileName"
+						:can-create="canCreatePurchases"
+						:can-write="canWritePurchases"
+						:can-submit="canSubmitPurchases"
+						:can-cancel="canCancelPurchases"
 						@back="purchaseView = 'list'"
 						@close="showPurchasesPanel = false"
 						@saved="onPurchaseSaved"
@@ -814,6 +821,7 @@
 						v-else-if="purchaseView === 'payments'"
 						:can-submit="canSubmitSupplierPayment"
 						:can-cancel="canCancelSupplierPayment"
+						:pos-profile="shiftStore.profileName"
 						@back="purchaseView = 'list'"
 						@close="showPurchasesPanel = false"
 					/>
@@ -822,6 +830,7 @@
 			<SupplierPaymentDialog
 				v-if="supplierPaymentInvoice"
 				:invoice="supplierPaymentInvoice"
+				:pos-profile="shiftStore.profileName"
 				@close="supplierPaymentInvoice = null"
 				@created="onSupplierPaymentCreated"
 			/>
@@ -1141,8 +1150,8 @@
 // Module-scoped init guard — prevents redundant heavy initialization
 // when component remounts due to translationVersion changes.
 // Tracks the profile+shift key so a user/shift change correctly re-initializes.
-let _initializedKey = null;
-let _posInitPromise = null;
+const _initializedKey = null
+const _posInitPromise = null
 </script>
 
 <script setup>
@@ -1324,6 +1333,10 @@ const purchaseView = ref("list"); // "list" | "form"
 const currentPurchaseName = ref(null);
 const purchaseDefaults = ref({});
 const canManagePurchases = ref(false);
+const canCreatePurchases = ref(false);
+const canWritePurchases = ref(false);
+const canSubmitPurchases = ref(false);
+const canCancelPurchases = ref(false);
 const canCreateSupplierPayment = ref(false);
 const canReadSupplierPayments = ref(false);
 const canSubmitSupplierPayment = ref(false);
@@ -1671,6 +1684,10 @@ async function checkCatalogPermission() {
 		const result = await refreshPOSPermissions(shiftStore.profileName);
 		canManageCatalog.value = result?.can_create_items || result?.can_write_items || false;
 		canManagePurchases.value = result?.can_read_purchases || false;
+		canCreatePurchases.value = result?.can_create_purchases || false;
+		canWritePurchases.value = result?.can_write_purchases || false;
+		canSubmitPurchases.value = result?.can_submit_purchases || false;
+		canCancelPurchases.value = result?.can_cancel_purchases || false;
 		canViewReports.value = result?.can_view_reports || false;
 		canManageFeatureFlags.value = result?.can_manage_feature_flags || false;
 		canCreateSupplierPayment.value = result?.can_create_payment_entries || false;
@@ -1680,6 +1697,10 @@ async function checkCatalogPermission() {
 	} catch {
 		canManageCatalog.value = false;
 		canManagePurchases.value = false;
+		canCreatePurchases.value = false;
+		canWritePurchases.value = false;
+		canSubmitPurchases.value = false;
+		canCancelPurchases.value = false;
 		canViewReports.value = false;
 		canCreateSupplierPayment.value = false;
 		canReadSupplierPayments.value = false;

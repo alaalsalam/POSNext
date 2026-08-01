@@ -59,7 +59,7 @@ class TestFeatureFlags(TestCase):
 
 	def test_catalog_api_cannot_bypass_disabled_flag(self):
 		with (
-			patch.object(catalog, "require_feature", side_effect=frappe.PermissionError),
+			patch.object(catalog, "_context", side_effect=frappe.PermissionError),
 			patch.object(catalog.frappe, "has_permission") as permission,
 			self.assertRaises(frappe.PermissionError),
 		):
@@ -68,7 +68,7 @@ class TestFeatureFlags(TestCase):
 
 	def test_purchase_api_cannot_bypass_disabled_flag(self):
 		with (
-			patch.object(purchases, "require_feature", side_effect=frappe.PermissionError),
+			patch.object(purchases, "_context", side_effect=frappe.PermissionError),
 			patch.object(purchases.frappe, "has_permission") as permission,
 			self.assertRaises(frappe.PermissionError),
 		):
@@ -77,7 +77,7 @@ class TestFeatureFlags(TestCase):
 
 	def test_supplier_payment_api_cannot_bypass_disabled_flag(self):
 		with (
-			patch.object(purchases, "require_feature", side_effect=frappe.PermissionError),
+			patch.object(purchases, "_context", side_effect=frappe.PermissionError),
 			patch.object(purchases.frappe, "has_permission") as permission,
 			self.assertRaises(frappe.PermissionError),
 		):
@@ -86,7 +86,7 @@ class TestFeatureFlags(TestCase):
 
 	def test_reports_api_cannot_bypass_disabled_flag(self):
 		with (
-			patch.object(reports, "require_feature", side_effect=frappe.PermissionError),
+			patch.object(reports, "_authorize", side_effect=frappe.PermissionError),
 			patch.object(reports.frappe, "has_permission") as permission,
 			self.assertRaises(frappe.PermissionError),
 		):

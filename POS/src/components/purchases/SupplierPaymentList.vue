@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full bg-gray-50" dir="rtl">
+  <div class="flex flex-col h-full bg-gray-50">
     <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <button @click="$emit('back')" class="w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100">→</button>
@@ -20,6 +20,9 @@
 
     <div class="flex-1 overflow-y-auto p-3">
       <div v-if="loading" class="py-12 text-center text-sm text-gray-500">{{ __("جاري التحميل...") }}</div>
+      <div v-else-if="errorMessage" class="p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-700">
+        {{ errorMessage }}
+      </div>
       <div v-else-if="!payments.length" class="py-16 text-center text-sm text-gray-400">{{ __("لا توجد دفعات موردين") }}</div>
       <div v-else class="space-y-2">
         <div v-for="payment in payments" :key="payment.name" class="bg-white border border-gray-100 rounded-xl p-3">
@@ -32,6 +35,13 @@
               <p class="text-sm font-semibold text-gray-800 mt-1">{{ payment.party_name || payment.party }}</p>
               <p class="text-xs text-gray-400">{{ formatDate(payment.posting_date) }} · {{ payment.mode_of_payment || __("غير محدد") }}</p>
               <p v-if="payment.reference_no" class="text-[11px] text-gray-400">{{ __("المرجع: {0}", [payment.reference_no]) }}</p>
+              <div v-if="payment.allocations?.length" class="mt-2 space-y-1">
+                <p v-for="allocation in payment.allocations" :key="allocation.reference_name"
+                  class="text-[11px] text-gray-500 bg-gray-50 rounded-md px-2 py-1">
+                  {{ allocation.reference_name }} · {{ __("Allocated") }}:
+                  {{ formatAmount(allocation.allocated_amount) }} {{ payment.paid_from_account_currency }}
+                </p>
+              </div>
               <div class="flex gap-2 mt-2">
                 <button
                   v-if="payment.docstatus === 0 && canSubmit"
@@ -60,65 +70,95 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted } from "vue"
+import { managerTranslate as __ } from "@/utils/managementI18n"
 
 const props = defineProps({
-  canSubmit: { type: Boolean, default: false },
-  canCancel: { type: Boolean, default: false },
-});
-defineEmits(["back", "close"]);
-const payments = ref([]);
-const loading = ref(false);
-const supplier = ref("");
-const fromDate = ref("");
-const toDate = ref("");
-const actionName = ref("");
+	canSubmit: { type: Boolean, default: false },
+	canCancel: { type: Boolean, default: false },
+	posProfile: { type: String, required: true },
+})
+defineEmits(["back", "close"])
+const payments = ref([])
+const loading = ref(false)
+const supplier = ref("")
+const fromDate = ref("")
+const toDate = ref("")
+const actionName = ref("")
+const errorMessage = ref("")
 
 async function load() {
-  loading.value = true;
-  try {
-    const response = await frappe.call({
-      method: "pos_next.api.purchases.get_supplier_payments",
-      args: {
-        supplier: supplier.value || null,
-        from_date: fromDate.value || null,
-        to_date: toDate.value || null,
-      },
-    });
-    payments.value = response?.message?.payments || [];
-  } finally {
-    loading.value = false;
-  }
+	loading.value = true
+	errorMessage.value = ""
+	try {
+		const response = await frappe.call({
+			method: "pos_next.api.purchases.get_supplier_payments",
+			args: {
+				supplier: supplier.value || null,
+				from_date: fromDate.value || null,
+				to_date: toDate.value || null,
+				pos_profile: props.posProfile,
+			},
+		})
+		payments.value = response?.message?.payments || []
+	} catch (error) {
+		errorMessage.value =
+			error?.message || __("Could not load supplier payments")
+	} finally {
+		loading.value = false
+	}
 }
 
 async function changeStatus(payment, action) {
-  if (action === "cancel" && !window.confirm(__("هل تريد إلغاء هذه الدفعة؟"))) return;
-  actionName.value = payment.name;
-  try {
-    await frappe.call({
-      method: action === "submit"
-        ? "pos_next.api.purchases.submit_supplier_payment"
-        : "pos_next.api.purchases.cancel_supplier_payment",
-      args: { name: payment.name },
-    });
-    await load();
-  } finally {
-    actionName.value = "";
-  }
+	if (action === "cancel" && !window.confirm(__("هل تريد إلغاء هذه الدفعة؟")))
+		return
+	actionName.value = payment.name
+	try {
+		await frappe.call({
+			method:
+				action === "submit"
+					? "pos_next.api.purchases.submit_supplier_payment"
+					: "pos_next.api.purchases.cancel_supplier_payment",
+			args:
+				action === "submit"
+					? {
+							name: payment.name,
+							expected_modified: payment.modified,
+							pos_profile: props.posProfile,
+						}
+					: { name: payment.name, pos_profile: props.posProfile },
+		})
+		await load()
+	} finally {
+		actionName.value = ""
+	}
 }
 
 function statusLabel(row) {
-  return row.docstatus === 1 ? __("معتمدة") : row.docstatus === 2 ? __("ملغاة") : __("مسودة");
+	return row.docstatus === 1
+		? __("معتمدة")
+		: row.docstatus === 2
+			? __("ملغاة")
+			: __("مسودة")
 }
 function statusClass(row) {
-  return row.docstatus === 1 ? "bg-green-100 text-green-700" : row.docstatus === 2 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600";
+	return row.docstatus === 1
+		? "bg-green-100 text-green-700"
+		: row.docstatus === 2
+			? "bg-red-100 text-red-700"
+			: "bg-gray-100 text-gray-600"
 }
 function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString("ar-SA") : "";
+	return value
+		? new Date(value).toLocaleDateString(frappe.boot?.lang || undefined)
+		: ""
 }
 function formatAmount(value) {
-  return Number(value || 0).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	return Number(value || 0).toLocaleString(frappe.boot?.lang || undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})
 }
 
-onMounted(load);
+onMounted(load)
 </script>
