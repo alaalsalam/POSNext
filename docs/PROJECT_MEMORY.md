@@ -141,7 +141,7 @@ A feature is complete only when all applicable conditions are true:
 | Program setup and durable planning | Completed | Planning baseline commit | Production protected; `develop` created |
 | Feature flag foundation | Completed | `35194aa` | Four profile-scoped management flags; secure-off and manager-controlled |
 | Reports compatibility and in-POS access | Completed | `2a39d82` | Manager-only, profile/company isolated, ERPNext-reconciled, five reports integrated |
-| Catalog/purchases/supplier payments hardening | Not started | — | Existing hidden code |
+| Catalog/purchases/supplier payments hardening | Completed | `8b5145d` | Manager/profile/company scoped; ERPNext GL/SLE/Payment Ledger acceptance passed |
 | Offline end-to-end hardening | Not started | — | Must produce real sync records |
 | Keyboard productivity | Not started | — | Quick, isolated milestone |
 | Credit approval workflow | Not started | — | Accounting/permissions sensitive |
@@ -338,3 +338,77 @@ development feature flag remained off.
 - Python compile, Ruff, JSON/diff validation, and `git diff --check` passed. The standard
   selected `bench run-tests` command was reattempted and failed before test loading at
   the same duplicate `Standard Buying` ERPNext bootstrap record.
+
+## Milestone Evidence — Catalog, Purchases, and Supplier Payments Hardening
+
+Completed on 2026-08-01 in development commit `8b5145d`. Production was read-only
+verified before work as clean on protected branch `digitpos` at `49c70f5`; it was not
+built, migrated, restarted, written, pushed, merged, or deployed.
+
+### Decisions and implementation
+
+- Reused ERPNext Item/Item Group/Item Price, Supplier, Purchase Invoice, Payment Entry,
+  GL Entry, Payment Ledger Entry, and Stock Ledger Entry controllers. No ledger or stock
+  row is created manually.
+- Added a shared manager/profile/company guard and applied explicit POS Profile scope,
+  normal document permissions, and User Permissions to every catalog, purchase, and
+  supplier-payment endpoint. Cashier bootstrap permissions and direct calls fail closed.
+- Catalog now validates group hierarchy, UOM, stock settings, barcode uniqueness, scoped
+  price lists/currencies/validity, and idempotent Item Price identity. Misleading quick
+  opening stock is rejected.
+- Purchase Invoice uses allow-listed headers/items/taxes, scoped linked resources,
+  durable retry keys, stale-draft detection, row locks, and native draft/submit/cancel.
+  UI supports supplier creation, tax templates, expense accounts, stock warehouse,
+  currency/exchange rates, totals, status, and history.
+- Supplier Payment uses native Payment Entry with one exact Purchase Invoice allocation,
+  positive/no-overpay validation, unique retry key, locked outstanding recheck,
+  savepoint rollback, standard submit/cancel, and batch-loaded allocation history.
+- Added responsive active-locale Arabic/English manager UI with independent
+  read/create/write/submit/cancel controls, confirmation, safe errors, and double-action
+  prevention. Detailed design and rollback semantics are in
+  `docs/CATALOG_PURCHASES_PAYMENTS.md`.
+
+### Schema and data safety
+
+- Development backup before schema:
+  `sites/digitpos.trilogy-erp.com/private/backups/20260801_173532-digitpos_trilogy-erp_com-database.sql.gz`.
+- `bench --site digitpos.trilogy-erp.com migrate` passed for the custom fields; a second
+  development-only migrate applied DocPerm fixtures. No restart was performed.
+- Acceptance used unique `POSNEXT-QA-*` documents/users in one uncommitted transaction.
+  Standard cancellations were exercised, then the entire QA transaction was rolled
+  back. No persistent financial or catalog QA data remains.
+- The runner temporarily enabled only the selected QA profile inside that transaction.
+  Final values were catalog `0`, purchases `0`, supplier payments `0`.
+
+### Verification evidence
+
+- Repeatable backend runner:
+  `/home/erpnext/frappe-bench16/env/bin/python run_milestone2_tests.py` — 36/36 passed.
+- Selected standard Frappe tests passed normally on the development site:
+  `test_feature_flags` 14/14, `test_management_hardening` 15/15, and
+  `test_supplier_payments` 7/7. The prior Standard Buying bootstrap failure did not
+  recur for these selected modules; no data was deleted to influence the result.
+- Real acceptance:
+  `/home/erpnext/frappe-bench16/env/bin/python apps/posnext/run_milestone2_acceptance.py`
+  — passed with rollback. It covered manager/cashier and foreign-profile denial,
+  catalog prices/barcode/idempotency, tax, no-stock and update-stock purchases, USD
+  currency, partial/full payment, duplicate/concurrent guards, and cancellations.
+- Accounting evidence: six balanced GL rows across the measured purchases; stock SLE
+  quantity `3` before cancellation and no active effect afterward; Purchase Invoice
+  outstanding `18`, then `9` after partial payment, then `0` after full payment, and
+  restored to `18` after cancelling both Payment Entries. Payment Ledger allocations
+  and Purchase Invoice outstanding agreed at each boundary.
+- `yarn test:run` — 4 files/8 tests passed. Targeted Biome passed. Development build
+  with `NODE_OPTIONS=--experimental-global-webcrypto yarn build` passed with 2,192
+  modules. Ruff, Python compile, JSON validation, and `git diff --check` passed.
+
+### Known limitations
+
+- Supplier payment allocation is deliberately one Purchase Invoice per manager action;
+  multi-invoice allocation and advances remain disabled.
+- Quick catalog opening stock remains disabled; it requires a separate standard stock
+  workflow rather than hidden ledger creation.
+- Node 18 needs the Web Crypto option for this Vite build. Existing deployment-time
+  asset and mixed-import warnings remain non-fatal technical debt.
+- ERPNext emitted its upstream v16 stock-controller deprecation warning during real
+  acceptance; GL/SLE/Payment Ledger reconciliation still passed.
