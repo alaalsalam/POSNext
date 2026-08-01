@@ -28,6 +28,11 @@ Welcome to the POS Next documentation directory. This folder contains comprehens
   - Performance optimizations
   - Offline worker integration
 
+- **[FEATURE_FLAGS.md](FEATURE_FLAGS.md)** - Manager-controlled feature foundation
+  - Profile-scoped secure defaults and dependencies
+  - Backend enforcement, audit, bootstrap, and realtime invalidation
+  - Development migration, rollback, and acceptance scenarios
+
 - **[OFFLINE_SYNC.md](OFFLINE_SYNC.md)** - Offline invoice synchronization system
   - Architecture overview
   - Deduplication mechanism (offline_id)

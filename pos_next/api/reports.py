@@ -2,10 +2,12 @@
 # For license information, please see license.txt
 
 import json
+
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, getdate, nowdate, add_days, add_to_date, now_datetime
+from frappe.utils import add_days, add_to_date, cint, flt, getdate, now_datetime, nowdate
 
+from pos_next.api.feature_flags import require_feature
 
 # ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -91,6 +93,7 @@ def _get_invoice_names(pos_profile, from_date, to_date, include_returns=True):
 @frappe.whitelist()
 def get_report_filters():
     """Return the POS profiles the current user may report on, plus date-period options."""
+    require_feature("pos_reports")
     frappe.has_permission("Sales Invoice", "read", throw=True)
     allowed = _get_user_pos_profiles()
     profiles = []
@@ -119,6 +122,7 @@ def get_daily_summary(pos_profile, period="today", from_date=None, to_date=None)
     Return KPI summary for the given POS profile + date range.
     Only counts submitted (docstatus=1) Sales Invoices.
     """
+    require_feature("pos_reports", pos_profile=pos_profile)
     frappe.has_permission("Sales Invoice", "read", throw=True)
     _assert_profile_access(pos_profile)
 
@@ -163,6 +167,7 @@ def get_payment_breakdown(pos_profile, period="today", from_date=None, to_date=N
     """
     Return payment method breakdown for submitted, non-return Sales Invoices.
     """
+    require_feature("pos_reports", pos_profile=pos_profile)
     frappe.has_permission("Sales Invoice", "read", throw=True)
     _assert_profile_access(pos_profile)
 
@@ -213,6 +218,7 @@ def get_payment_breakdown(pos_profile, period="today", from_date=None, to_date=N
 @frappe.whitelist()
 def get_recent_transactions(pos_profile, period="today", from_date=None, to_date=None, limit=20):
     """Return the most recent Sales Invoices for the given profile + period."""
+    require_feature("pos_reports", pos_profile=pos_profile)
     frappe.has_permission("Sales Invoice", "read", throw=True)
     _assert_profile_access(pos_profile)
 
@@ -265,6 +271,7 @@ def get_recent_transactions(pos_profile, period="today", from_date=None, to_date
 @frappe.whitelist()
 def get_current_shift_profile():
     """Return the open shift's POS profile for the current user, if any."""
+    require_feature("pos_reports")
     shift = frappe.get_all(
         "POS Opening Shift",
         filters={"user": frappe.session.user, "docstatus": 1, "status": "Open"},

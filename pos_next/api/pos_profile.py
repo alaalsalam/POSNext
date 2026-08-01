@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from pos_next.api.utilities import _parse_list_parameter, check_user_company
 
@@ -271,8 +272,12 @@ def get_default_customer(pos_profile):
 def update_warehouse(pos_profile, warehouse):
 	"""Update warehouse in POS Profile"""
 	try:
+		from pos_next.api.feature_flags import assert_feature_manager, assert_profile_access
+
 		if not pos_profile:
 			frappe.throw(_("POS Profile is required"))
+		assert_feature_manager()
+		assert_profile_access(pos_profile)
 
 		if not warehouse:
 			frappe.throw(_("Warehouse is required"))
@@ -306,6 +311,8 @@ def update_warehouse(pos_profile, warehouse):
 		profile_doc.save()
 
 		return {"success": True, "message": _("Warehouse updated successfully"), "warehouse": warehouse}
+	except (frappe.PermissionError, frappe.ValidationError):
+		raise
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Update Warehouse Error")
 		frappe.throw(_("Error updating warehouse: {0}").format(str(e)))

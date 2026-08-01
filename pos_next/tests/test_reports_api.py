@@ -2,8 +2,11 @@
 # For license information, please see license.txt
 
 import unittest
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
+
 from pos_next.api import reports
 
 
@@ -14,6 +17,9 @@ class TestReportsAPI(FrappeTestCase):
     def setUp(self):
         super().setUp()
         frappe.set_user("Administrator")
+        feature_patch = patch.object(reports, "require_feature", return_value="Test POS Profile")
+        feature_patch.start()
+        self.addCleanup(feature_patch.stop)
 
     def tearDown(self):
         frappe.set_user("Administrator")
@@ -26,7 +32,7 @@ class TestReportsAPI(FrappeTestCase):
         self.assertEqual(fd, nowdate())
 
     def test_date_range_yesterday(self):
-        from frappe.utils import nowdate, add_days
+        from frappe.utils import add_days, nowdate
         fd, td = reports._date_range("yesterday")
         self.assertEqual(fd, td)
         self.assertEqual(fd, add_days(nowdate(), -1))
@@ -39,7 +45,7 @@ class TestReportsAPI(FrappeTestCase):
     def test_date_range_fallback(self):
         """Unknown period falls back to today."""
         from frappe.utils import nowdate
-        fd, td = reports._date_range("unknown_period")
+        fd, _td = reports._date_range("unknown_period")
         self.assertEqual(fd, nowdate())
 
     # ── _get_user_pos_profiles ───────────────────────────────────────────────

@@ -118,6 +118,10 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 		return data.value?.payment_methods || [];
 	}
 
+	function getPreloadedFeatureFlags() {
+		return data.value?.feature_flags || {};
+	}
+
 	/**
 	 * Get preloaded precision settings or defaults if not available
 	 * Settings from Date and Number Format section in System Settings
@@ -165,6 +169,7 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 		getPreloadedPOSProfile,
 		getPreloadedPOSSettings,
 		getPreloadedPaymentMethods,
+		getPreloadedFeatureFlags,
 		getPreloadedPrecision,
 		hasBootstrapData,
 		reset,

@@ -7,6 +7,12 @@ from pos_next.api import purchases
 
 
 class TestSupplierPayments(FrappeTestCase):
+	def setUp(self):
+		super().setUp()
+		feature_patch = patch.object(purchases, "require_feature", return_value="Test POS Profile")
+		feature_patch.start()
+		self.addCleanup(feature_patch.stop)
+
 	def test_validate_partial_and_full_amounts(self):
 		self.assertEqual(purchases._validate_payment_amount(40, 100), 40)
 		self.assertEqual(purchases._validate_payment_amount(100, 100), 100)

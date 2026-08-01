@@ -2,13 +2,25 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt
+
+from pos_next.api.constants import DEFAULT_POS_SETTINGS
+from pos_next.api.feature_flags import (
+	assert_feature_manager,
+	assert_profile_access,
+	publish_feature_flag_update,
+	validate_feature_dependencies,
+)
 
 
 class POSSettings(Document):
 	def validate(self):
 		"""Validate POS Settings"""
+		assert_feature_manager()
+		validate_feature_dependencies(self)
+
 		# Guard against None values and validate discount percentage
 		max_discount = flt(self.max_discount_allowed)
 		if max_discount < 0 or max_discount > 100:
@@ -36,6 +48,7 @@ class POSSettings(Document):
 	def on_update(self):
 		"""Sync allow_negative_stock with Stock Settings"""
 		self.sync_negative_stock_setting()
+		publish_feature_flag_update(self)
 
 	def sync_negative_stock_setting(self):
 		"""
@@ -93,22 +106,19 @@ def get_pos_settings(pos_profile):
 	source of truth, preventing confusion when the checkbox appears enabled
 	but the global setting was changed elsewhere.
 	"""
-	from frappe import _
-
 	if not pos_profile:
 		return None
 
-	# Check if user has access to this POS Profile
-	has_access = frappe.db.exists("POS Profile User", {"parent": pos_profile, "user": frappe.session.user})
-
-	if not has_access and not frappe.has_permission("POS Settings", "read"):
-		frappe.throw(_("You don't have access to this POS Profile"))
+	assert_profile_access(pos_profile)
+	frappe.has_permission("POS Settings", "read", throw=True)
 
 	settings = frappe.db.get_value("POS Settings", {"pos_profile": pos_profile}, "*", as_dict=True)
 
-	# If no settings exist, create default settings
+	# A read must never create administrative configuration. Return secure defaults
+	# until an authorized manager saves a POS Settings document.
 	if not settings:
-		settings = create_default_settings(pos_profile)
+		settings = frappe._dict(DEFAULT_POS_SETTINGS.copy())
+		settings.pos_profile = pos_profile
 
 	# Inject the current global Stock Settings value for transparency
 	# This helps UI reflect the actual state even if multiple POS Settings exist
@@ -134,16 +144,13 @@ def update_pos_settings(pos_profile, settings):
 	"""Update POS Settings for a POS Profile"""
 	import json
 
-	from frappe import _
-
 	if isinstance(settings, str):
 		settings = json.loads(settings)
 
-	# Check if user has access to this POS Profile
-	has_access = frappe.db.exists("POS Profile User", {"parent": pos_profile, "user": frappe.session.user})
-
-	if not has_access and not frappe.has_permission("POS Settings", "write"):
-		frappe.throw(_("You don't have permission to update this POS Profile"))
+	assert_feature_manager()
+	assert_profile_access(pos_profile)
+	frappe.has_permission("POS Settings", "write", throw=True)
+	settings = _sanitize_settings_payload(pos_profile, settings)
 
 	# Check if settings exist
 	existing = frappe.db.exists("POS Settings", {"pos_profile": pos_profile})
@@ -159,3 +166,20 @@ def update_pos_settings(pos_profile, settings):
 		doc.insert()
 
 	return doc.as_dict()
+
+
+def _sanitize_settings_payload(pos_profile, settings):
+	"""Keep the profile link immutable and accept only writable POS Settings fields."""
+	if settings.get("pos_profile") and settings.get("pos_profile") != pos_profile:
+		frappe.throw(_("POS Profile cannot be changed through the settings API"), frappe.PermissionError)
+
+	meta = frappe.get_meta("POS Settings")
+	layout_fields = {"Section Break", "Column Break", "Tab Break", "HTML", "Button"}
+	return {
+		fieldname: value
+		for fieldname, value in settings.items()
+		if fieldname != "pos_profile"
+		and (df := meta.get_field(fieldname))
+		and not df.read_only
+		and df.fieldtype not in layout_fields
+	}

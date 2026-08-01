@@ -295,6 +295,10 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			session_lock_timeout: 5,
 			// Return Payment Modes
 			allowed_return_payment_modes: [],
+			enable_catalog_management: 0,
+			enable_purchases: 0,
+			enable_supplier_payments: 0,
+			enable_pos_reports: 0,
 		};
 		isLoaded.value = false;
 	}

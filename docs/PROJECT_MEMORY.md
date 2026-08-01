@@ -139,7 +139,7 @@ A feature is complete only when all applicable conditions are true:
 | Milestone | Status | Evidence/commit | Notes |
 |---|---|---|---|
 | Program setup and durable planning | Completed | Planning baseline commit | Production protected; `develop` created |
-| Feature flag foundation | Not started | — | First implementation milestone |
+| Feature flag foundation | Completed | Local milestone commit (this change) | Four profile-scoped management flags; secure-off and manager-controlled |
 | Reports compatibility and in-POS access | Not started | — | First product feature milestone |
 | Catalog/purchases/supplier payments hardening | Not started | — | Existing hidden code |
 | Offline end-to-end hardening | Not started | — | Must produce real sync records |
@@ -163,3 +163,62 @@ At the start of every new development session:
 4. Confirm production remains on `digitpos` and do not mutate it.
 5. Continue the first incomplete milestone in the Progress Ledger.
 6. Update the ledger before ending the session.
+
+## Milestone Evidence — Feature Flag Foundation
+
+Completed on 2026-08-01 in the development checkout only. Production was re-verified
+unchanged on `digitpos` at `49c70f5` after implementation.
+
+### Decisions and implementation
+
+- Added independent `POS Settings` flags for catalog, purchases, supplier payments,
+  and in-POS reports. All default to off; Supplier Payments requires Purchases.
+- Removed `POSNext Cashier` write permission from `POS Settings`. The generic settings
+  mutation API and profile warehouse mutation are manager-only. Non-Administrator
+  access requires explicit POS Profile assignment plus POS Profile and Company user
+  permission.
+- Added `require_feature()` and applied it before document permissions on every public
+  endpoint in the four management areas. Missing settings and invalid profiles fail
+  closed.
+- Reused native tracked Version history for actor/time/old/new audit evidence. Added
+  session bootstrap flags and realtime invalidation of bootstrap, settings, and the
+  shared frontend permission cache.
+- Added a responsive manager Feature Flags tab using active-locale translation keys;
+  Arabic translations are in `pos_next/translations/ar.csv` and layout remains
+  direction-aware through existing RTL/LTR infrastructure.
+- Detailed architecture, rollback, and manual acceptance are documented in
+  `docs/FEATURE_FLAGS.md`.
+
+### Verification evidence
+
+- Development migration: `bench --site digitpos.trilogy-erp.com migrate` — passed.
+- Runtime schema/default audit: all four fields present; all 16 POS Settings records
+  remained `0`; runtime cashier DocPerm reports `write=0`.
+- Python unit/API-negative suite: direct unittest, 14/14 passed.
+- Frappe-connected console suite: feature flags plus supplier-payment regression,
+  21/21 passed.
+- Real development-user negative acceptance: `chocolates@trilogy.com.sa` was denied
+  access to foreign profile `الألعاب` and denied mutation of `allow_credit_sale` on
+  assigned profile `الشوكولاتة`; no data was changed.
+- Frontend Vitest: `yarn test:run src/composables/usePermissions.test.js` — 2/2 passed.
+- Python lint: `uvx ruff check <changed Python files>` — passed.
+- Python compile, JSON validation, and `git diff --check` — passed.
+- Targeted Biome lint for the new shared permission cache and test — passed.
+- Development frontend build:
+  `NODE_OPTIONS=--experimental-global-webcrypto yarn build` — passed.
+
+### Known limitations and harness notes
+
+- Standard `bench run-tests` discovery is blocked before selected tests run because
+  the existing ERPNext test bootstrap attempts to insert duplicate `Standard Buying`
+  Price List data. No user data was deleted to work around it. The same tests were run
+  through a Frappe-initialized development-site console, which executed 21 tests
+  successfully; the standalone flag suite also passed independently.
+- Full Biome checking of legacy Vue files hits a known parser assertion and reports
+  pre-existing style findings. Targeted JavaScript lint and the Vite Vue compilation
+  passed; the milestone does not reformat unrelated legacy components.
+- Vite retains existing warnings for duplicate PWA configuration keys and unresolved
+  deployment-time Digit assets. The build completes and these warnings predate this
+  milestone.
+- Flags for later Master Plan milestones will be added with their accepted vertical
+  slices; they remain unavailable rather than exposing inactive placeholder controls.

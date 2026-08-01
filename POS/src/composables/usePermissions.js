@@ -17,8 +17,7 @@ const _posPermsLoading = ref(false);
  * Load all POS permissions in one API call.
  * Shared across all components — only fetches once per session.
  */
-export async function loadPOSPermissions() {
-	if (_posPerms.value) return _posPerms.value;
+export async function loadPOSPermissions({ force = false, posProfile = null } = {}) {
 	if (_posPermsLoading.value) {
 		// Wait for in-flight request
 		await new Promise((resolve) => {
@@ -26,11 +25,15 @@ export async function loadPOSPermissions() {
 				if (!_posPermsLoading.value) { clearInterval(stop); resolve(); }
 			}, 50);
 		});
-		return _posPerms.value;
+		if (!force) return _posPerms.value;
 	}
+	if (force) _posPerms.value = null;
+	if (_posPerms.value) return _posPerms.value;
 	_posPermsLoading.value = true;
 	try {
-		const result = await call("pos_next.api.permissions.get_pos_permissions");
+		const result = await call("pos_next.api.permissions.get_pos_permissions", {
+			pos_profile: posProfile,
+		});
 		_posPerms.value = result || {};
 	} catch (e) {
 		console.error("[POS Permissions] Failed to load:", e);
@@ -39,6 +42,16 @@ export async function loadPOSPermissions() {
 		_posPermsLoading.value = false;
 	}
 	return _posPerms.value;
+}
+
+export function invalidatePOSPermissions() {
+	_posPerms.value = null;
+	permissionCache.value = {};
+}
+
+export async function refreshPOSPermissions(posProfile = null) {
+	invalidatePOSPermissions();
+	return loadPOSPermissions({ force: true, posProfile });
 }
 
 /** Reactive ref to the loaded POS permissions object */

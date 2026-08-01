@@ -2,10 +2,12 @@
 # For license information, please see license.txt
 
 import json
+
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, nowdate, getdate, add_days, now_datetime
+from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 
+from pos_next.api.feature_flags import require_feature
 
 AMOUNT_TOLERANCE = 0.005
 
@@ -42,6 +44,7 @@ def _validate_payment_amount(amount, outstanding):
 @frappe.whitelist()
 def get_suppliers(search="", limit=30):
     """Return supplier list for autocomplete."""
+    require_feature("purchases")
     frappe.has_permission("Supplier", "read", throw=True)
     filters = {"disabled": 0}
     if search:
@@ -64,6 +67,7 @@ def get_suppliers(search="", limit=30):
 @frappe.whitelist()
 def create_supplier(supplier_name, supplier_group="All Supplier Groups"):
     """Quick-create a supplier."""
+    require_feature("purchases")
     frappe.has_permission("Supplier", "create", throw=True)
     if not supplier_name:
         frappe.throw(_("Supplier name is required"))
@@ -84,6 +88,7 @@ def create_supplier(supplier_name, supplier_group="All Supplier Groups"):
 @frappe.whitelist()
 def get_purchase_invoices(supplier=None, status=None, from_date=None, to_date=None, search=None, limit=50, start=0):
     """Return paginated list of Purchase Invoices with filters."""
+    require_feature("purchases")
     frappe.has_permission("Purchase Invoice", "read", throw=True)
 
     filters = {}
@@ -122,6 +127,7 @@ def get_purchase_invoices(supplier=None, status=None, from_date=None, to_date=No
 @frappe.whitelist()
 def get_purchase_invoice(name):
     """Return a single Purchase Invoice with its items."""
+    require_feature("purchases")
     frappe.has_permission("Purchase Invoice", "read", throw=True)
     doc = frappe.get_doc("Purchase Invoice", name)
     frappe.has_permission("Purchase Invoice", "read", doc=doc, throw=True)
@@ -132,13 +138,12 @@ def get_purchase_invoice(name):
 @frappe.whitelist()
 def get_new_purchase_invoice_defaults(company=None):
     """Return sensible defaults for a new Purchase Invoice form."""
+    require_feature("purchases", company=company)
     frappe.has_permission("Purchase Invoice", "create", throw=True)
     if not company:
         company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
 
     buying_price_list = frappe.db.get_value("Company", company, "default_buying_price_list") or "Standard Buying"
-    expense_account = frappe.db.get_value("Company", company, "default_expense_account")
-    stock_received_account = frappe.db.get_value("Company", company, "stock_received_but_not_billed")
 
     return {
         "company": company,
@@ -152,6 +157,7 @@ def get_new_purchase_invoice_defaults(company=None):
 @frappe.whitelist()
 def save_purchase_invoice(data):
     """Save (insert or update) a Purchase Invoice draft. Returns the doc name."""
+    require_feature("purchases")
     frappe.has_permission("Purchase Invoice", "create", throw=True)
 
     if isinstance(data, str):
@@ -188,6 +194,7 @@ def save_purchase_invoice(data):
 @frappe.whitelist()
 def submit_purchase_invoice(name):
     """Submit a Purchase Invoice (docstatus 0 → 1). Updates stock and accounts via ERPNext hooks."""
+    require_feature("purchases")
     frappe.has_permission("Purchase Invoice", "submit", throw=True)
 
     doc = frappe.get_doc("Purchase Invoice", name)
@@ -211,6 +218,7 @@ def submit_purchase_invoice(name):
 @frappe.whitelist()
 def cancel_purchase_invoice(name):
     """Cancel a submitted Purchase Invoice."""
+    require_feature("purchases")
     frappe.has_permission("Purchase Invoice", "cancel", throw=True)
     doc = frappe.get_doc("Purchase Invoice", name)
     if doc.docstatus != 1:
@@ -234,6 +242,7 @@ def cancel_purchase_invoice(name):
 @frappe.whitelist()
 def get_purchase_items(search="", limit=30):
     """Return items for autocomplete in purchase invoice lines."""
+    require_feature("purchases")
     frappe.has_permission("Item", "read", throw=True)
     filters = {"disabled": 0, "is_purchase_item": 1}
     if search:
@@ -263,6 +272,7 @@ def get_purchase_items(search="", limit=30):
 @frappe.whitelist()
 def get_item_buying_price(item_code, buying_price_list="Standard Buying"):
     """Return the buying price for an item from the given price list."""
+    require_feature("purchases")
     frappe.has_permission("Item Price", "read", throw=True)
     price = frappe.db.get_value(
         "Item Price",
@@ -275,6 +285,7 @@ def get_item_buying_price(item_code, buying_price_list="Standard Buying"):
 @frappe.whitelist()
 def get_warehouses(company=None):
     """Return non-group warehouses for the given company."""
+    require_feature("purchases", company=company)
     frappe.has_permission("Warehouse", "read", throw=True)
     filters = {"is_group": 0, "disabled": 0}
     if company:
@@ -291,6 +302,7 @@ def get_warehouses(company=None):
 @frappe.whitelist()
 def get_expense_accounts(company):
     """Return expense accounts for a company for use in purchase invoice line."""
+    require_feature("purchases", company=company)
     frappe.has_permission("Account", "read", throw=True)
     return frappe.get_all(
         "Account",
@@ -306,6 +318,7 @@ def get_expense_accounts(company):
 @frappe.whitelist()
 def get_supplier_payment_defaults(invoice_name):
     """Return safe defaults and selectable cash/bank accounts for a supplier payment."""
+    require_feature("supplier_payments")
     frappe.has_permission("Payment Entry", "create", throw=True)
     invoice = _get_payable_invoice(invoice_name)
     frappe.has_permission("Account", "read", throw=True)
@@ -369,6 +382,7 @@ def create_supplier_payment(
     submit=0,
 ):
     """Create a standard Payment Entry allocated to a Purchase Invoice."""
+    require_feature("supplier_payments")
     frappe.has_permission("Payment Entry", "create", throw=True)
     invoice = _get_payable_invoice(invoice_name)
     amount = _validate_payment_amount(amount, invoice.outstanding_amount)
@@ -455,6 +469,7 @@ def create_supplier_payment(
 @frappe.whitelist()
 def get_supplier_payments(supplier=None, company=None, from_date=None, to_date=None, limit=50, start=0):
     """List supplier Payment Entries visible to the current user."""
+    require_feature("supplier_payments", company=company)
     frappe.has_permission("Payment Entry", "read", throw=True)
     filters = {"party_type": "Supplier", "payment_type": "Pay"}
     if supplier:
@@ -490,6 +505,7 @@ def get_supplier_payments(supplier=None, company=None, from_date=None, to_date=N
 @frappe.whitelist()
 def submit_supplier_payment(name):
     """Submit a supplier Payment Entry draft."""
+    require_feature("supplier_payments")
     frappe.has_permission("Payment Entry", "submit", throw=True)
     payment = frappe.get_doc("Payment Entry", name)
     frappe.has_permission("Payment Entry", "submit", doc=payment, throw=True)
@@ -504,6 +520,7 @@ def submit_supplier_payment(name):
 @frappe.whitelist()
 def cancel_supplier_payment(name):
     """Cancel a submitted supplier Payment Entry."""
+    require_feature("supplier_payments")
     frappe.has_permission("Payment Entry", "cancel", throw=True)
     payment = frappe.get_doc("Payment Entry", name)
     frappe.has_permission("Payment Entry", "cancel", doc=payment, throw=True)
@@ -518,6 +535,7 @@ def cancel_supplier_payment(name):
 @frappe.whitelist()
 def get_purchase_outstanding_summary(supplier=None, company=None, from_date=None, to_date=None):
     """Summarize submitted purchase invoices using permission-aware document queries."""
+    require_feature("purchases", company=company)
     frappe.has_permission("Purchase Invoice", "read", throw=True)
     filters = {"docstatus": 1}
     if supplier:

@@ -4,10 +4,13 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from pos_next.api.feature_flags import require_feature
+
 
 @frappe.whitelist()
 def check_catalog_permission():
 	"""Return whether the current user can manage catalog items."""
+	require_feature("catalog")
 	can_manage = frappe.has_permission("Item", "create")
 	return {"can_manage": can_manage}
 
@@ -23,6 +26,7 @@ def create_quick_item(
 	warehouse=None,
 ):
 	"""Create a new Item with an optional standard selling price."""
+	require_feature("catalog")
 	frappe.has_permission("Item", "create", throw=True)
 
 	if not item_name:
@@ -100,6 +104,7 @@ def create_quick_item(
 @frappe.whitelist()
 def create_item_group(group_name, parent_item_group="All Item Groups"):
 	"""Create a new leaf-level Item Group."""
+	require_feature("catalog")
 	frappe.has_permission("Item Group", "create", throw=True)
 
 	if not group_name:
@@ -145,6 +150,8 @@ def create_item_group(group_name, parent_item_group="All Item Groups"):
 @frappe.whitelist()
 def get_item_groups_for_select():
 	"""Return a flat list of leaf item group names for use in select inputs."""
+	require_feature("catalog")
+	frappe.has_permission("Item Group", "read", throw=True)
 	groups = frappe.get_all(
 		"Item Group",
 		filters={"is_group": 0, "show_in_website": ["!=", 0]},
@@ -168,6 +175,7 @@ def get_item_groups_for_select():
 @frappe.whitelist()
 def get_item_prices(item_code):
     """Return selling and buying prices for an item across standard price lists."""
+    require_feature("catalog")
     frappe.has_permission("Item Price", "read", throw=True)
 
     prices = frappe.get_all(
@@ -203,6 +211,7 @@ def get_item_prices(item_code):
 def update_item_prices(item_code, selling_price=None, buying_price=None,
                         selling_price_list="Standard Selling", buying_price_list="Standard Buying"):
     """Upsert selling and/or buying Item Price records for an item."""
+    require_feature("catalog")
     frappe.has_permission("Item Price", "write", throw=True)
 
     if not frappe.db.exists("Item", item_code):

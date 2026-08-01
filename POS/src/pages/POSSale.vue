@@ -270,7 +270,8 @@
 					@menu-clicked="handleManagementMenuClick"
 					:can-manage-catalog="canManageCatalog"
 					:can-manage-purchases="canManagePurchases"
-				:can-view-reports="canViewReports"
+					:can-view-reports="canViewReports"
+					:can-manage-settings="canManageFeatureFlags"
 				/>
 
 				<!-- Main Content Container -->
@@ -739,9 +740,11 @@
 
 			<!-- POS Settings -->
 			<POSSettings
+				v-if="canManageFeatureFlags"
 				v-model="showPOSSettings"
 				:pos-profile="shiftStore.profileName"
 				:current-warehouse="shiftStore.profileWarehouse"
+				:can-manage-feature-flags="canManageFeatureFlags"
 			/>
 
 			<!-- Stock Lookup Dialog (Products Menu) -->
@@ -1198,6 +1201,7 @@ import { Button, Dialog, createResource } from "frappe-ui";
 import { call } from "@/utils/apiWrapper";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useToast } from "@/composables/useToast";
+import { refreshPOSPermissions } from "@/composables/usePermissions";
 
 import { useCustomerSearchStore } from "@/stores/customerSearch";
 import { useItemSearchStore } from "@/stores/itemSearch";
@@ -1309,14 +1313,10 @@ const showStockLookup = ref(false);
 // Invoice Management dialog
 const showInvoiceManagement = ref(false);
 
-// Temporary release gate for the new management modules.
-// Keep the implementation available in source while hiding it from all POS users
-// until purchasing, supplier payments, catalog management, and reports are ready.
-const ENABLE_NEW_MANAGEMENT_FEATURES = false;
-
 // Catalog Management panel
 const showCatalogManagement = ref(false);
 const canManageCatalog = ref(false);
+const canManageFeatureFlags = ref(false);
 
 // Purchases panel
 const showPurchasesPanel = ref(false);
@@ -1667,25 +1667,12 @@ onMounted(async () => {
 });
 
 async function checkCatalogPermission() {
-	if (!ENABLE_NEW_MANAGEMENT_FEATURES) {
-		canManageCatalog.value = false;
-		canManagePurchases.value = false;
-		canViewReports.value = false;
-		canCreateSupplierPayment.value = false;
-		canReadSupplierPayments.value = false;
-		canSubmitSupplierPayment.value = false;
-		canCancelSupplierPayment.value = false;
-		return;
-	}
-
 	try {
-		const [catalogResult, result] = await Promise.all([
-			call("pos_next.api.catalog.check_catalog_permission"),
-			call("pos_next.api.permissions.get_pos_permissions"),
-		]);
-		canManageCatalog.value = catalogResult?.can_manage || false;
+		const result = await refreshPOSPermissions(shiftStore.profileName);
+		canManageCatalog.value = result?.can_create_items || result?.can_write_items || false;
 		canManagePurchases.value = result?.can_read_purchases || false;
 		canViewReports.value = result?.can_view_reports || false;
+		canManageFeatureFlags.value = result?.can_manage_feature_flags || false;
 		canCreateSupplierPayment.value = result?.can_create_payment_entries || false;
 		canReadSupplierPayments.value = result?.can_read_payment_entries || false;
 		canSubmitSupplierPayment.value = result?.can_submit_payment_entries || false;
@@ -1698,8 +1685,27 @@ async function checkCatalogPermission() {
 		canReadSupplierPayments.value = false;
 		canSubmitSupplierPayment.value = false;
 		canCancelSupplierPayment.value = false;
+		canManageFeatureFlags.value = false;
 	}
 }
+
+async function handleFeatureFlagsUpdated(payload) {
+	if (!payload?.pos_profile || payload.pos_profile !== shiftStore.profileName) return;
+	bootstrapStore.reset();
+	await posSettingsStore.reloadSettings();
+	await checkCatalogPermission();
+	if (!canManageCatalog.value) showCatalogManagement.value = false;
+	if (!canManagePurchases.value) showPurchasesPanel.value = false;
+	if (!canViewReports.value) showReportsPanel.value = false;
+}
+
+onMounted(() => {
+	window.frappe?.realtime?.on("pos_feature_flags_updated", handleFeatureFlagsUpdated);
+});
+
+onUnmounted(() => {
+	window.frappe?.realtime?.off("pos_feature_flags_updated", handleFeatureFlagsUpdated);
+});
 
 watch(
 	() => shiftStore.hasOpenShift,
@@ -3118,7 +3124,7 @@ function handleManagementMenuClick(menuItem) {
 	if (menuItem === "promotions") {
 		showPromotionManagement.value = true;
 	} else if (menuItem === "settings") {
-		showPOSSettings.value = true;
+		if (canManageFeatureFlags.value) showPOSSettings.value = true;
 	} else if (menuItem === "invoices") {
 		// Load invoice history data before showing
 		loadInvoiceHistoryData();

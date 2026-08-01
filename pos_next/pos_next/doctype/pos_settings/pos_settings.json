@@ -73,6 +73,12 @@
   "section_break_security",
   "enable_session_lock",
   "session_lock_timeout",
+  "section_break_feature_flags",
+  "enable_catalog_management",
+  "enable_purchases",
+  "column_break_feature_flags",
+  "enable_supplier_payments",
+  "enable_pos_reports",
   "barcode_tab",
   "barcode_rules"
  ],
@@ -546,6 +552,45 @@
    "label": "Session Lock Timeout (minutes)"
   },
   {
+   "description": "Manager-controlled capabilities. Changes are recorded in the document version history.",
+   "fieldname": "section_break_feature_flags",
+   "fieldtype": "Section Break",
+   "label": "Management Feature Flags"
+  },
+  {
+   "default": "0",
+   "description": "Allows authorized managers to create item groups, items, and prices inside POS.",
+   "fieldname": "enable_catalog_management",
+   "fieldtype": "Check",
+   "label": "Enable Catalog Management"
+  },
+  {
+   "default": "0",
+   "description": "Allows authorized managers to manage Purchase Invoices inside POS.",
+   "fieldname": "enable_purchases",
+   "fieldtype": "Check",
+   "label": "Enable Purchases"
+  },
+  {
+   "fieldname": "column_break_feature_flags",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "enable_purchases",
+   "description": "Allows authorized managers to create, submit, and cancel supplier payments. Requires Purchases.",
+   "fieldname": "enable_supplier_payments",
+   "fieldtype": "Check",
+   "label": "Enable Supplier Payments"
+  },
+  {
+   "default": "0",
+   "description": "Allows authorized managers to view operational reports inside POS.",
+   "fieldname": "enable_pos_reports",
+   "fieldtype": "Check",
+   "label": "Enable In-POS Reports"
+  },
+  {
    "fieldname": "barcode_tab",
    "fieldtype": "Tab Break",
    "label": "Barcode"
@@ -607,8 +652,7 @@
   {
    "export": 1,
    "read": 1,
-   "role": "POSNext Cashier",
-   "write": 1
+   "role": "POSNext Cashier"
   }
  ],
  "row_format": "Dynamic",

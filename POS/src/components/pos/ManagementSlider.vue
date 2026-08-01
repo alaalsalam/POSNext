@@ -136,6 +136,7 @@
 
 		<!-- Settings -->
 		<button
+			v-if="canManageSettings"
 			@click="handleMenuClick('settings')"
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
@@ -163,6 +164,7 @@ const props = defineProps({
 	canManageCatalog: { type: Boolean, default: false },
 	canManagePurchases: { type: Boolean, default: false },
 	canViewReports: { type: Boolean, default: false },
+	canManageSettings: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["menu-clicked"]);

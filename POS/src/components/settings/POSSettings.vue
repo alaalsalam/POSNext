@@ -204,10 +204,53 @@
 								>
 									{{ __("Identity") }}
 								</button>
+								<button
+									v-if="canManageFeatureFlags"
+									@click="activeTab = 'features'"
+									:class="[
+										'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
+										activeTab === 'features'
+											? 'bg-white text-gray-900 shadow-sm'
+											: 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50',
+									]"
+								>
+									{{ __("Feature Flags") }}
+								</button>
 							</div>
 
 							<!-- Brand Identity Section -->
 							<BrandingSettings v-if="activeTab === 'branding'" />
+
+							<div
+								v-if="activeTab === 'features' && canManageFeatureFlags"
+								class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+							>
+								<div class="px-5 py-4 bg-amber-50 border-b border-amber-100">
+									<h3 class="font-bold text-gray-900">{{ __("Management Feature Flags") }}</h3>
+									<p class="mt-1 text-sm text-gray-700">
+										{{ __("Disabled by default. Enable only after acceptance testing; every change is audited.") }}
+									</p>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+									<label
+										v-for="flag in featureFlagDefinitions"
+										:key="flag.fieldname"
+										class="min-h-32 rounded-xl border border-gray-200 p-4 flex items-start gap-3 cursor-pointer hover:border-blue-300"
+										:class="{ 'opacity-60 cursor-not-allowed': flag.requires && !settings[flag.requires] }"
+									>
+										<input
+											type="checkbox"
+											class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600"
+											v-model="settings[flag.fieldname]"
+											:disabled="flag.requires && !settings[flag.requires]"
+										/>
+										<span>
+											<span class="block font-semibold text-gray-900">{{ flag.label }}</span>
+											<span class="block text-sm text-gray-600 mt-2">{{ flag.description }}</span>
+										</span>
+									</label>
+								</div>
+							</div>
 
 							<!-- Stock Settings Section - Prominent -->
 							<div
@@ -1644,6 +1687,7 @@ const props = defineProps({
 	modelValue: Boolean,
 	posProfile: String,
 	currentWarehouse: String,
+	canManageFeatureFlags: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -1721,7 +1765,36 @@ const settings = ref({
 	// Security
 	enable_session_lock: 0,
 	session_lock_timeout: 5,
+	// Manager-controlled capabilities (secure-off defaults)
+	enable_catalog_management: 0,
+	enable_purchases: 0,
+	enable_supplier_payments: 0,
+	enable_pos_reports: 0,
 });
+
+const featureFlagDefinitions = computed(() => [
+	{
+		fieldname: "enable_catalog_management",
+		label: __("Catalog Management"),
+		description: __("Create and update item groups, items, and prices inside POS."),
+	},
+	{
+		fieldname: "enable_purchases",
+		label: __("Purchases"),
+		description: __("Manage Purchase Invoices from the manager workspace."),
+	},
+	{
+		fieldname: "enable_supplier_payments",
+		requires: "enable_purchases",
+		label: __("Supplier Payments"),
+		description: __("Create, submit, and cancel supplier Payment Entries. Requires Purchases."),
+	},
+	{
+		fieldname: "enable_pos_reports",
+		label: __("In-POS Reports"),
+		description: __("Show operational reports to authorized managers inside POS."),
+	},
+]);
 
 // Stock Sync Settings (localStorage persisted)
 const stockSyncEnabled = ref(false);
@@ -1856,6 +1929,13 @@ watch(
 			const mode = newValue ? "inclusive" : "exclusive";
 			log.info(`Tax mode toggled to: ${mode}`);
 		}
+	}
+);
+
+watch(
+	() => settings.value.enable_purchases,
+	(enabled) => {
+		if (!enabled) settings.value.enable_supplier_payments = 0;
 	}
 );
 

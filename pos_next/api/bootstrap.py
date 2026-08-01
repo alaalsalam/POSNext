@@ -30,6 +30,7 @@ from frappe.query_builder import DocType
 from frappe.query_builder.functions import Coalesce
 
 from pos_next.api.constants import DEFAULT_POS_SETTINGS, POS_SETTINGS_FIELDS
+from pos_next.api.feature_flags import FEATURE_DEFAULTS
 
 
 @frappe.whitelist()
@@ -69,6 +70,7 @@ def get_initial_data():
 		"pos_profile": None,
 		"pos_settings": None,
 		"payment_methods": [],
+		"feature_flags": FEATURE_DEFAULTS.copy(),
 	}
 
 	# Get open shift - if no shift, return early with defaults
@@ -103,6 +105,10 @@ def get_initial_data():
 	}
 
 	result["pos_settings"] = _get_pos_settings(pos_profile)
+	result["feature_flags"] = {
+		fieldname: int(result["pos_settings"].get(fieldname) or 0)
+		for fieldname in FEATURE_DEFAULTS
+	}
 	result["payment_methods"] = _get_payment_methods(pos_profile_name)
 
 	return result

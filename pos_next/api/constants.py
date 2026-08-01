@@ -39,6 +39,10 @@ POS_SETTINGS_FIELDS = [
 	"enable_session_lock",
 	"session_lock_timeout",
 	"show_variants_as_items",
+	"enable_catalog_management",
+	"enable_purchases",
+	"enable_supplier_payments",
+	"enable_pos_reports",
 ]
 
 # Default POS Settings values
@@ -69,4 +73,8 @@ DEFAULT_POS_SETTINGS = {
 	"enable_session_lock": 0,
 	"session_lock_timeout": 5,
 	"show_variants_as_items": 0,
+	"enable_catalog_management": 0,
+	"enable_purchases": 0,
+	"enable_supplier_payments": 0,
+	"enable_pos_reports": 0,
 }
