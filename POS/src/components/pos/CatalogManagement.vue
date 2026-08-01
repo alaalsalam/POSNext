@@ -200,6 +200,7 @@
 
 					<!-- Submit -->
 					<button
+						data-testid="catalog-create-item"
 						@click="createItem"
 						:disabled="itemLoading || !itemForm.item_code || !itemForm.item_name || !itemForm.item_group"
 						class="w-full h-11 rounded-xl font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-sm"
@@ -442,7 +443,7 @@ async function loadItemGroups() {
 }
 
 async function createItem() {
-	if (!itemForm.item_name || !itemForm.item_group) return
+	if (itemLoading.value || !itemForm.item_name || !itemForm.item_group) return
 	itemError.value = ""
 	itemSuccess.value = ""
 	itemLoading.value = true
@@ -485,7 +486,7 @@ async function createItem() {
 }
 
 async function createGroup() {
-	if (!groupForm.group_name) return
+	if (groupLoading.value || !groupForm.group_name) return
 	groupError.value = ""
 	groupSuccess.value = ""
 	groupLoading.value = true

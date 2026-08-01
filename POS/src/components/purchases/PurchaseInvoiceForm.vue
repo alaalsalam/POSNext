@@ -29,11 +29,14 @@
     </div>
 
     <!-- Error banner -->
-    <div v-if="errorMsg" class="mx-3 mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 flex-shrink-0">
+    <div v-if="errorMsg" data-testid="purchase-error" class="mx-3 mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 flex-shrink-0">
       <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
       <p class="text-xs text-red-700 flex-1" v-html="errorMsg"></p>
+      <button v-if="staleDraft && form.name" data-testid="purchase-reload" @click="loadInvoice(form.name)" class="text-xs font-semibold text-red-700 underline">
+        {{ __("Reload Draft") }}
+      </button>
       <button @click="errorMsg=''" class="text-red-400 hover:text-red-600 flex-shrink-0">×</button>
     </div>
 
@@ -270,18 +273,18 @@
         {{ __("الإجمالي:") }} {{ formatAmt(totals.grand) }}
       </div>
       <div class="flex items-center gap-2" v-if="!isSubmitted">
-        <button v-if="isNew ? props.canCreate : props.canWrite" @click="saveDraft" :disabled="saving"
+        <button v-if="isNew ? props.canCreate : props.canWrite" data-testid="purchase-save" @click="saveDraft" :disabled="saving"
           class="px-4 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50">
           {{ saving ? __("جاري الحفظ...") : __("حفظ مسودة") }}
         </button>
-        <button v-if="props.canSubmit" @click="confirmSubmit" :disabled="saving || !formCanSubmit"
+        <button v-if="props.canSubmit" data-testid="purchase-submit" @click="confirmSubmit" :disabled="saving || submitting || !formCanSubmit"
           class="px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50">
           {{ __("اعتماد الفاتورة") }}
         </button>
       </div>
       <div v-else class="flex items-center gap-3 text-xs text-gray-400">
         <span>{{ isSubmitted ? __("الفاتورة معتمدة — للتعديل يجب الإلغاء أولاً") : "" }}</span>
-        <button v-if="form.docstatus === 1 && props.canCancel" @click="cancelInvoice" :disabled="submitting" class="px-4 py-2 rounded-lg bg-red-50 text-red-700 font-semibold disabled:opacity-50">
+        <button v-if="form.docstatus === 1 && props.canCancel" data-testid="purchase-cancel" @click="cancelInvoice" :disabled="submitting" class="px-4 py-2 rounded-lg bg-red-50 text-red-700 font-semibold disabled:opacity-50">
           {{ __("Cancel Invoice") }}
         </button>
       </div>
@@ -300,7 +303,7 @@
         </div>
         <div class="flex gap-3">
           <button @click="showConfirm = false" class="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">{{ __("إلغاء") }}</button>
-          <button @click="doSubmit" :disabled="submitting" class="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors">
+          <button data-testid="purchase-confirm-submit" @click="doSubmit" :disabled="submitting" class="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors">
             {{ submitting ? __("جاري الاعتماد...") : __("تأكيد الاعتماد") }}
           </button>
         </div>
@@ -355,6 +358,7 @@ const saving = ref(false)
 const submitting = ref(false)
 const showConfirm = ref(false)
 const errorMsg = ref("")
+const staleDraft = ref(false)
 
 // Supplier autocomplete
 const supplierSearch = ref("")
@@ -531,6 +535,7 @@ const docstatusClass = computed(() => {
 })
 
 async function saveDraft() {
+	if (saving.value || submitting.value) return
 	if (!form.supplier) {
 		errorMsg.value = __("يرجى اختيار المورد أولاً")
 		return
@@ -541,6 +546,7 @@ async function saveDraft() {
 	}
 	saving.value = true
 	errorMsg.value = ""
+	staleDraft.value = false
 	try {
 		const payload = buildPayload()
 		const res = await frappe.call({
@@ -563,6 +569,9 @@ async function saveDraft() {
 		}
 	} catch (e) {
 		errorMsg.value = e?.message || __("حدث خطأ أثناء الحفظ")
+		staleDraft.value =
+			e?.exc_type === "TimestampMismatchError" ||
+			e?.name === "TimestampMismatchError"
 	} finally {
 		saving.value = false
 	}
@@ -574,8 +583,10 @@ function confirmSubmit() {
 }
 
 async function doSubmit() {
+	if (submitting.value || saving.value) return
 	submitting.value = true
 	errorMsg.value = ""
+	staleDraft.value = false
 	try {
 		const payload = buildPayload()
 		const saveRes = await frappe.call({
@@ -619,6 +630,9 @@ async function doSubmit() {
 		}
 	} catch (e) {
 		errorMsg.value = e?.message || __("حدث خطأ أثناء الاعتماد")
+		staleDraft.value =
+			e?.exc_type === "TimestampMismatchError" ||
+			e?.name === "TimestampMismatchError"
 		showConfirm.value = false
 	} finally {
 		submitting.value = false
@@ -626,6 +640,7 @@ async function doSubmit() {
 }
 
 async function cancelInvoice() {
+	if (submitting.value) return
 	if (
 		!window.confirm(
 			__("Cancel this Purchase Invoice using the standard reversal workflow?"),
@@ -689,6 +704,8 @@ function formatAmt(v) {
 }
 
 async function loadInvoice(name) {
+	staleDraft.value = false
+	errorMsg.value = ""
 	const res = await frappe.call({
 		method: "pos_next.api.purchases.get_purchase_invoice",
 		args: { name, pos_profile: props.posProfile },

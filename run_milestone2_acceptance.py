@@ -162,23 +162,40 @@ def run_acceptance():
 	}
 
 	nonstock_key = f"purchase-{prefix}-nonstock"
-	nonstock = purchases.save_purchase_invoice(
-		{
+	nonstock_payload = {
 			**base_payload,
 			"bill_no": f"{prefix}-NS",
 			"update_stock": 0,
 			"items": [{"item_code": nonstock_item["item_code"], "qty": 2, "uom": uom, "rate": 8}],
 			"taxes": [{"charge_type": "On Net Total", "account_head": tax_account, "description": "QA purchase tax", "rate": 15, "add_deduct_tax": "Add"}],
-		},
+		}
+	nonstock = purchases.save_purchase_invoice(
+		nonstock_payload,
 		idempotency_key=nonstock_key,
 		pos_profile=profile.name,
 	)
 	nonstock_retry = purchases.save_purchase_invoice(
-		{**base_payload, "bill_no": f"{prefix}-NS", "update_stock": 0, "items": [{"item_code": nonstock_item["item_code"], "qty": 2, "uom": uom, "rate": 8}], "taxes": [{"charge_type": "On Net Total", "account_head": tax_account, "description": "QA purchase tax", "rate": 15, "add_deduct_tax": "Add"}]},
+		nonstock_payload,
 		idempotency_key=nonstock_key,
 		pos_profile=profile.name,
 	)
 	check(nonstock_retry["name"] == nonstock["name"] and nonstock_retry["idempotent_replay"], "Purchase retry was not idempotent")
+	conflicting_purchase_requests = (
+		{**nonstock_payload, "remarks": "changed retry"},
+		{**nonstock_payload, "discount_amount": 1},
+		{**nonstock_payload, "posting_date": frappe.utils.add_days(nowdate(), -1)},
+		{**nonstock_payload, "taxes": [{**nonstock_payload["taxes"][0], "rate": 5}]},
+	)
+	for conflict in conflicting_purchase_requests:
+		try:
+			purchases.save_purchase_invoice(
+				conflict,
+				idempotency_key=nonstock_key,
+				pos_profile=profile.name,
+			)
+			raise AssertionError("Purchase retry accepted a changed material request")
+		except frappe.ValidationError:
+			pass
 	nonstock = purchases.submit_purchase_invoice(nonstock["name"], nonstock["modified"], profile.name)
 	ns_gl, ns_balance = gl_balance("Purchase Invoice", nonstock["name"])
 	check(ns_gl and abs(ns_balance) < 0.01, "Non-stock Purchase Invoice GL is not balanced")
@@ -256,6 +273,21 @@ def run_acceptance():
 		pos_profile=profile.name,
 	)
 	check(payment_retry["name"] == payment["name"] and payment_retry["idempotent_replay"], "Payment retry was not idempotent")
+	for conflict in (
+		{"reference_no": f"{prefix}-CHANGED"},
+		{"reference_no": f"{prefix}-P1", "remarks": "changed retry"},
+		{"reference_no": f"{prefix}-P1", "posting_date": frappe.utils.add_days(nowdate(), -1)},
+	):
+		try:
+			purchases.create_supplier_payment(
+				nonstock["name"], partial, paid_from,
+				idempotency_key=f"payment-{prefix}-partial",
+				pos_profile=profile.name,
+				**conflict,
+			)
+			raise AssertionError("Payment retry accepted a changed material request")
+		except frappe.ValidationError:
+			pass
 	payment = purchases.submit_supplier_payment(payment["name"], payment["modified"], profile.name)
 	after_partial = flt(frappe.db.get_value("Purchase Invoice", nonstock["name"], "outstanding_amount"))
 	check(abs(after_partial - (initial_outstanding - partial)) < 0.01, "Partial payment outstanding does not reconcile")

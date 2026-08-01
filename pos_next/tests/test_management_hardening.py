@@ -1,3 +1,4 @@
+from copy import deepcopy
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -130,20 +131,67 @@ class TestCatalogHardening(TestCase):
 
 
 class TestPurchaseHardening(TestCase):
-	def test_purchase_retry_key_cannot_change_items(self):
-		doc = frappe._dict(
-			supplier="SUP",
-			bill_no="BILL-1",
-			currency="SAR",
-			buying_price_list="Buying",
-			update_stock=0,
-			items=[frappe._dict(item_code="ITEM-1", qty=1, rate=10, warehouse=None)],
+	@staticmethod
+	def _purchase_request():
+		return {
+			"supplier": "SUP",
+			"company": "Company A",
+			"custom_posnext_pos_profile": "POS-A",
+			"posting_date": "2026-08-01",
+			"due_date": "2026-08-31",
+			"bill_date": "2026-08-01",
+			"bill_no": "BILL-1",
+			"currency": "SAR",
+			"conversion_rate": 1,
+			"plc_conversion_rate": 1,
+			"buying_price_list": "Buying",
+			"update_stock": 0,
+			"discount_amount": 0,
+			"remarks": "original",
+			"items": [{
+				"item_code": "ITEM-1", "qty": 1, "rate": 10, "uom": "Nos",
+				"expense_account": "Expense - A", "cost_center": "Main - A",
+			}],
+			"taxes": [{
+				"charge_type": "On Net Total", "account_head": "Tax - A",
+				"rate": 15, "description": "VAT",
+			}],
+		}
+
+	def test_purchase_fingerprint_rejects_every_material_change(self):
+		base = self._purchase_request()
+		fingerprint = purchases._purchase_request_fingerprint(base)
+		doc = frappe._dict(custom_posnext_request_fingerprint=fingerprint)
+		mutations = {
+			"tax": lambda value: value["taxes"][0].update(rate=5),
+			"tax_template": lambda value: value.update(taxes_and_charges="VAT Template"),
+			"discount": lambda value: value.update(discount_amount=1),
+			"conversion": lambda value: value.update(conversion_rate=3.75),
+			"date": lambda value: value.update(posting_date="2026-08-02"),
+			"account": lambda value: value["items"][0].update(expense_account="Other - A"),
+			"remarks": lambda value: value.update(remarks="changed"),
+			"cost_center": lambda value: value["items"][0].update(cost_center="Other CC - A"),
+			"item": lambda value: value["items"][0].update(item_code="ITEM-2"),
+		}
+		for label, mutate in mutations.items():
+			with self.subTest(field=label):
+				changed = deepcopy(base)
+				mutate(changed)
+				changed_fingerprint = purchases._purchase_request_fingerprint(changed)
+				self.assertNotEqual(fingerprint, changed_fingerprint)
+				with self.assertRaises(frappe.ValidationError):
+					purchases._assert_request_fingerprint(doc, changed_fingerprint, "Purchase Invoice")
+
+	def test_purchase_fingerprint_normalizes_equivalent_numbers_and_dates(self):
+		base = self._purchase_request()
+		equivalent = deepcopy(base)
+		equivalent["conversion_rate"] = "1.000"
+		equivalent["items"][0]["qty"] = "1.00"
+		equivalent["taxes"][0]["rate"] = "15.000"
+		self.assertEqual(
+			purchases._purchase_request_fingerprint(base),
+			purchases._purchase_request_fingerprint(equivalent),
 		)
-		with self.assertRaises(frappe.PermissionError):
-			purchases._assert_purchase_replay_matches(
-				doc,
-				{"supplier": "SUP", "bill_no": "BILL-1", "items": [{"item_code": "ITEM-2", "qty": 1, "rate": 10}]},
-			)
 
 	def test_foreign_company_resource_is_rejected(self):
 		with patch("pos_next.api.management_scope.assert_doc_permission", return_value=frappe._dict(company="Company B", is_group=0, disabled=0)):

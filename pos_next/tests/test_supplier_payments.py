@@ -35,7 +35,7 @@ class TestSupplierPayments(TestCase):
 		return invoice
 
 	@staticmethod
-	def _payment(docstatus=0, allocated=40):
+	def _payment(docstatus=0, allocated=40, **request_overrides):
 		reference = frappe._dict(
 			reference_doctype="Purchase Invoice",
 			reference_name="PINV-TEST-001",
@@ -54,6 +54,20 @@ class TestSupplierPayments(TestCase):
 			custom_posnext_pos_profile="POS-TEST",
 			references=[reference],
 		)
+		request = {
+			"invoice_name": "PINV-TEST-001",
+			"amount": allocated,
+			"paid_from": "Cash - TC",
+			"posting_date": "2026-08-01",
+			"reference_date": "2026-08-01",
+			"mode_of_payment": None,
+			"reference_no": None,
+			"remarks": None,
+			"company": "Test Company",
+			"pos_profile": "POS-TEST",
+		}
+		request.update(request_overrides)
+		payment.custom_posnext_request_fingerprint = purchases._payment_request_fingerprint(request)
 		payment.set_amounts = MagicMock()
 		payment.insert = MagicMock()
 		payment.submit = MagicMock(side_effect=lambda: payment.update(docstatus=1))
@@ -79,6 +93,7 @@ class TestSupplierPayments(TestCase):
 				40,
 				paid_from="Cash - TC",
 				idempotency_key="payment-test-0001",
+				posting_date="2026-08-01",
 				pos_profile="POS-TEST",
 			)
 
@@ -99,6 +114,7 @@ class TestSupplierPayments(TestCase):
 		with (
 			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
 			patch.object(purchases, "assert_doc_permission", side_effect=get_doc),
+			patch.object(purchases, "assert_company_resource", return_value=frappe._dict(account_type="Cash")),
 			patch.object(purchases.frappe, "has_permission", return_value=True),
 			patch.dict(purchases.frappe.__dict__, {"db": database}),
 		):
@@ -107,6 +123,7 @@ class TestSupplierPayments(TestCase):
 				40,
 				paid_from="Cash - TC",
 				idempotency_key="payment-test-0001",
+				posting_date="2026-08-01",
 				pos_profile="POS-TEST",
 			)
 		self.assertTrue(result["idempotent_replay"])
@@ -124,17 +141,89 @@ class TestSupplierPayments(TestCase):
 		with (
 			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
 			patch.object(purchases, "assert_doc_permission", side_effect=get_doc),
+			patch.object(purchases, "assert_company_resource", return_value=frappe._dict(account_type="Cash")),
 			patch.object(purchases.frappe, "has_permission", return_value=True),
 			patch.dict(purchases.frappe.__dict__, {"db": database}),
-			self.assertRaises(frappe.PermissionError),
+			self.assertRaises(frappe.ValidationError),
 		):
 			purchases.create_supplier_payment(
 				invoice.name,
 				30,
 				paid_from="Cash - TC",
 				idempotency_key="payment-test-0001",
+				posting_date="2026-08-01",
 				pos_profile="POS-TEST",
 			)
+
+	def test_payment_fingerprint_rejects_every_material_change(self):
+		base = {
+			"invoice_name": "PINV-TEST-001",
+			"amount": 40,
+			"paid_from": "Cash - TC",
+			"posting_date": "2026-08-01",
+			"reference_date": "2026-08-01",
+			"mode_of_payment": "Cash",
+			"reference_no": "REF-1",
+			"remarks": "original",
+			"company": "Test Company",
+			"pos_profile": "POS-TEST",
+		}
+		fingerprint = purchases._payment_request_fingerprint(base)
+		doc = frappe._dict(custom_posnext_request_fingerprint=fingerprint)
+		mutations = {
+			"invoice": ("invoice_name", "PINV-TEST-002"),
+			"amount": ("amount", 39),
+			"account": ("paid_from", "Bank - TC"),
+			"posting_date": ("posting_date", "2026-08-02"),
+			"reference_date": ("reference_date", "2026-08-02"),
+			"mode": ("mode_of_payment", "Bank Transfer"),
+			"reference_number": ("reference_no", "REF-2"),
+			"remarks": ("remarks", "changed"),
+		}
+		for label, (field, value) in mutations.items():
+			with self.subTest(field=label):
+				changed = {**base, field: value}
+				changed_fingerprint = purchases._payment_request_fingerprint(changed)
+				self.assertNotEqual(fingerprint, changed_fingerprint)
+				with self.assertRaises(frappe.ValidationError):
+					purchases._assert_request_fingerprint(doc, changed_fingerprint, "supplier payment")
+
+	def test_submit_flag_is_not_part_of_payment_fingerprint(self):
+		request = {
+			"invoice_name": "PINV-TEST-001", "amount": 40, "paid_from": "Cash - TC",
+			"posting_date": "2026-08-01", "reference_date": "2026-08-01",
+			"mode_of_payment": None, "reference_no": None, "remarks": None,
+			"company": "Test Company", "pos_profile": "POS-TEST",
+		}
+		self.assertEqual(
+			purchases._payment_request_fingerprint(request),
+			purchases._payment_request_fingerprint({**request, "submit": 1}),
+		)
+
+	def test_same_payment_retry_may_submit_the_existing_draft(self):
+		invoice = self._invoice(100)
+		payment = self._payment(allocated=40)
+		database = MagicMock()
+		database.get_value.return_value = payment.name
+		with (
+			patch.object(purchases, "_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(purchases, "assert_doc_permission", side_effect=lambda doctype, *_args: payment if doctype == "Payment Entry" else invoice),
+			patch.object(purchases, "assert_company_resource", return_value=frappe._dict(account_type="Cash")),
+			patch.object(purchases, "submit_supplier_payment", return_value={"name": payment.name, "docstatus": 1}) as submit,
+			patch.object(purchases.frappe, "has_permission", return_value=True),
+			patch.dict(purchases.frappe.__dict__, {"db": database}),
+		):
+			result = purchases.create_supplier_payment(
+				invoice.name,
+				40,
+				paid_from="Cash - TC",
+				idempotency_key="payment-test-0001",
+				posting_date="2026-08-01",
+				submit=1,
+				pos_profile="POS-TEST",
+			)
+		submit.assert_called_once_with(payment.name, payment.modified, "POS-TEST")
+		self.assertTrue(result["idempotent_replay"])
 
 	def test_submit_serializes_payment_and_invoice(self):
 		invoice = self._invoice(40)

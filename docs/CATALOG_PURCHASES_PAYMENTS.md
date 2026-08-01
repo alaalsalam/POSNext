@@ -158,3 +158,61 @@ transaction remains.
 - Vite reports existing unresolved Digit/demo asset references and mixed static/dynamic
   imports. The build succeeds, and these warnings are tracked as technical debt rather
   than mixed into the accounting change.
+
+## Post-acceptance correction: complete request binding
+
+Purchase Invoice and supplier Payment Entry now store a hidden, read-only SHA-256
+request fingerprint beside the unique idempotency key. The fingerprint is computed only
+after server-side defaults, scope checks, and allow-list validation. Canonical JSON uses
+sorted object keys, ISO dates, normalized Decimal strings, normalized optional values,
+and explicit item/tax array positions. Child order is intentionally retained because
+ERPNext tax rows can be sequential and order-dependent.
+
+The Purchase Invoice fingerprint covers profile/company, every accepted header field,
+dates, discounts, conversion rates, price list, payable/warehouse settings, remarks,
+all item fields including accounts and cost centers, tax template, and every tax row.
+Draft updates refresh the stored fingerprint. The Payment Entry fingerprint covers
+profile/company, invoice, amount, cash/bank account, posting/reference dates, mode,
+reference number, and remarks. The `submit` intent is deliberately excluded so an exact
+retry can submit its existing draft. A missing legacy fingerprint or any material
+mismatch fails closed with `ValidationError`.
+
+The correction schema was applied only after this development backup:
+
+`sites/digitpos.trilogy-erp.com/private/backups/20260802_010919-digitpos_trilogy-erp_com-database.sql.gz`
+
+`bench --site digitpos.trilogy-erp.com migrate` succeeded without a restart. Production
+was not migrated or touched.
+
+### Concurrency evidence and boundary
+
+`run_milestone2_concurrency.py` opens two independent MariaDB connections and starts two
+real InnoDB transactions against a uniquely named QA table. Both request the entire
+outstanding amount. The first transaction holds the row lock for 0.75 seconds, consumes
+the balance, and inserts one allocation; the second waits for that lock, observes zero,
+and is rejected. The final assertions require outstanding `0`, allocated total `100`,
+one allocation row, two distinct connection IDs, and no enabled management flags. The
+table is dropped in `finally` whether the test passes or fails.
+
+This is genuine database concurrency evidence for the `SELECT ... FOR UPDATE` invariant,
+not a claim that two Payment Entry controllers ran simultaneously. The rollback-only
+ERPNext acceptance documents are intentionally uncommitted and therefore invisible to
+independent connections. Committing temporary financial documents merely to race them
+would weaken the data-safety contract. Real Payment Entry/GL/Payment Ledger behavior is
+instead proven by the separate transactional acceptance runner and its full rollback.
+
+### Correction verification
+
+- `run_milestone2_tests.py` — 40/40 passed, including mismatches in tax/template,
+  discount, conversion rate, dates, accounts, reference number, remarks, cost centers,
+  and the exact-draft submit retry.
+- Standard Frappe suites passed: feature flags 14/14, management hardening 16/16, and
+  supplier payments 10/10.
+- Transactional ERPNext acceptance passed again: six balanced GL rows, stock quantity
+  `3`, outstanding `18 → 9 → 0 → 18`, standard cancellations, and full rollback.
+- The two-connection runner passed: connection IDs were distinct; the loser waited
+  `0.756s`; one allocation of `100` succeeded and the competing allocation was rejected.
+- Frontend Vitest passed 6 files/13 tests. New component tests verify one in-flight
+  catalog request, complete catalog payload, stable Purchase Invoice action key,
+  `expected_modified` propagation, save/submit double-click protection, permission-only
+  cancellation, and stale-draft reload state.

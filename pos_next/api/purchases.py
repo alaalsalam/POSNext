@@ -1,6 +1,8 @@
 """Profile-scoped Purchase Invoice and supplier Payment Entry APIs."""
 
 import json
+from decimal import Decimal, InvalidOperation
+from hashlib import sha256
 
 import frappe
 from frappe import _
@@ -30,6 +32,13 @@ TAX_FIELDS = {
 	"included_in_print_rate", "cost_center", "add_deduct_tax", "category", "row_id",
 	"reference_row",
 }
+PURCHASE_NUMERIC_FIELDS = {
+	"additional_discount_percentage", "conversion_rate", "discount_amount",
+	"plc_conversion_rate", "update_stock",
+}
+ITEM_NUMERIC_FIELDS = {"conversion_factor", "qty", "rate"}
+TAX_NUMERIC_FIELDS = {"included_in_print_rate", "rate", "tax_amount"}
+DATE_FIELDS = {"bill_date", "due_date", "posting_date", "reference_date"}
 
 
 def _context(feature, pos_profile=None, company=None):
@@ -62,31 +71,79 @@ def _purchase_doc_result(doc):
 	}
 
 
-def _assert_purchase_replay_matches(doc, data):
-	"""Reject reuse of a retry key for a materially different invoice request."""
-	for field in ("supplier", "bill_no", "currency", "buying_price_list", "update_stock"):
-		if data.get(field) is not None and str(doc.get(field) or "") != str(data.get(field) or ""):
-			frappe.throw(_("This idempotency key belongs to a different Purchase Invoice"), frappe.PermissionError)
-	requested_items = sorted(
-		(
-			row.get("item_code"),
-			flt(row.get("qty")),
-			flt(row.get("rate")),
-			(row.get("warehouse") or data.get("set_warehouse") or "") if cint(data.get("update_stock")) else "",
+def _canonical_number(value, default=0):
+	try:
+		number = Decimal(str(default if value in (None, "") else value))
+	except InvalidOperation:
+		frappe.throw(_("Invalid numeric value in idempotent request"))
+	if number == 0:
+		return "0"
+	return format(number.normalize(), "f")
+
+
+def _canonical_value(field, value, *, numeric_fields=()):
+	if field in numeric_fields:
+		default = 1 if field in {"conversion_factor", "conversion_rate", "plc_conversion_rate"} else 0
+		return _canonical_number(value, default)
+	if field in DATE_FIELDS:
+		return str(getdate(value)) if value else None
+	if value is None:
+		return None
+	return str(value).strip()
+
+
+def _request_fingerprint(request):
+	serialized = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+	return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _purchase_request_fingerprint(payload):
+	"""Bind an idempotency key to every accepted, financially material input."""
+	header = {
+		field: _canonical_value(field, payload.get(field), numeric_fields=PURCHASE_NUMERIC_FIELDS)
+		for field in sorted(PURCHASE_FIELDS | {"company", "custom_posnext_pos_profile"})
+	}
+	items = []
+	for row in payload.get("items") or []:
+		canonical = {
+			field: _canonical_value(field, row.get(field), numeric_fields=ITEM_NUMERIC_FIELDS)
+			for field in sorted(ITEM_FIELDS)
+		}
+		if cint(payload.get("update_stock")):
+			canonical["warehouse"] = str(row.get("warehouse") or payload.get("set_warehouse") or "").strip()
+		items.append(canonical)
+	taxes = [
+		{
+			field: _canonical_value(field, row.get(field), numeric_fields=TAX_NUMERIC_FIELDS)
+			for field in sorted(TAX_FIELDS)
+		}
+		for row in payload.get("taxes") or []
+	]
+	return _request_fingerprint({"header": header, "items": items, "taxes": taxes})
+
+
+def _payment_request_fingerprint(request):
+	return _request_fingerprint({
+		"invoice_name": str(request["invoice_name"]).strip(),
+		"amount": _canonical_number(request["amount"]),
+		"paid_from": str(request["paid_from"]).strip(),
+		"posting_date": _canonical_value("posting_date", request["posting_date"]),
+		"reference_date": _canonical_value("reference_date", request["reference_date"]),
+		"mode_of_payment": _canonical_value("mode_of_payment", request.get("mode_of_payment")),
+		"reference_no": _canonical_value("reference_no", request.get("reference_no")),
+		"remarks": _canonical_value("remarks", request.get("remarks")),
+		"company": str(request["company"]).strip(),
+		"pos_profile": str(request["pos_profile"]).strip(),
+	})
+
+
+def _assert_request_fingerprint(doc, expected, label):
+	stored = doc.get("custom_posnext_request_fingerprint")
+	if not stored or stored != expected:
+		frappe.throw(
+			_("This idempotency key conflicts with a different {0} request").format(_(label)),
+			frappe.ValidationError,
 		)
-		for row in data.get("items") or []
-	)
-	actual_items = sorted(
-		(
-			row.item_code,
-			flt(row.qty),
-			flt(row.rate),
-			(row.warehouse or "") if doc.update_stock else "",
-		)
-		for row in doc.get("items") or []
-	)
-	if requested_items and requested_items != actual_items:
-		frappe.throw(_("This idempotency key belongs to a different Purchase Invoice"), frappe.PermissionError)
 
 
 def _assert_profile_document(doc, profile, company):
@@ -179,7 +236,7 @@ def _validate_purchase_payload(data, profile, company):
 			data["taxes_and_charges"],
 			company,
 		)
-	return {
+	payload = {
 		**{field: data.get(field) for field in PURCHASE_FIELDS if data.get(field) is not None},
 		"company": company,
 		"buying_price_list": price_list,
@@ -188,6 +245,14 @@ def _validate_purchase_payload(data, profile, company):
 		"taxes": clean_taxes,
 		"custom_posnext_pos_profile": profile,
 	}
+	payload["posting_date"] = getdate(data.get("posting_date") or nowdate())
+	for field in ("due_date", "bill_date"):
+		if payload.get(field):
+			payload[field] = getdate(payload[field])
+	payload["update_stock"] = cint(payload.get("update_stock"))
+	payload["conversion_rate"] = flt(payload.get("conversion_rate") or 1)
+	payload["plc_conversion_rate"] = flt(payload.get("plc_conversion_rate") or 1)
+	return payload
 
 
 def _get_purchase_invoice(name, profile, company, ptype="read"):
@@ -323,6 +388,7 @@ def save_purchase_invoice(data, idempotency_key=None, expected_modified=None, po
 		if not expected or expected != str(locked.modified):
 			frappe.throw(_("This draft changed after you opened it. Reload before saving."), frappe.TimestampMismatchError)
 		payload = _validate_purchase_payload(data, profile, company)
+		payload["custom_posnext_request_fingerprint"] = _purchase_request_fingerprint(payload)
 		for field, value in payload.items():
 			doc.set(field, value)
 		doc.save(ignore_permissions=False)
@@ -330,13 +396,15 @@ def save_purchase_invoice(data, idempotency_key=None, expected_modified=None, po
 
 	frappe.has_permission("Purchase Invoice", "create", throw=True)
 	key = normalize_idempotency_key(idempotency_key or data.get("idempotency_key"))
+	payload = _validate_purchase_payload(data, profile, company)
+	fingerprint = _purchase_request_fingerprint(payload)
 	existing = frappe.db.get_value("Purchase Invoice", {"custom_posnext_idempotency_key": key}, "name")
 	if existing:
 		doc = _get_purchase_invoice(existing, profile, company)
-		_assert_purchase_replay_matches(doc, data)
+		_assert_request_fingerprint(doc, fingerprint, "Purchase Invoice")
 		return {**_purchase_doc_result(doc), "idempotent_replay": True}
-	payload = _validate_purchase_payload(data, profile, company)
 	payload["custom_posnext_idempotency_key"] = key
+	payload["custom_posnext_request_fingerprint"] = fingerprint
 	frappe.db.savepoint("posnext_purchase_create")
 	try:
 		doc = frappe.get_doc({"doctype": "Purchase Invoice", **payload}).insert(ignore_permissions=False)
@@ -346,7 +414,7 @@ def save_purchase_invoice(data, idempotency_key=None, expected_modified=None, po
 		existing = frappe.db.get_value("Purchase Invoice", {"custom_posnext_idempotency_key": key}, "name")
 		if existing:
 			doc = _get_purchase_invoice(existing, profile, company)
-			_assert_purchase_replay_matches(doc, data)
+			_assert_request_fingerprint(doc, fingerprint, "Purchase Invoice")
 			return {**_purchase_doc_result(doc), "idempotent_replay": True}
 		raise
 	except Exception:
@@ -468,22 +536,6 @@ def create_supplier_payment(invoice_name, amount, paid_from, idempotency_key, po
 	if cint(submit):
 		frappe.has_permission("Payment Entry", "submit", throw=True)
 	key = normalize_idempotency_key(idempotency_key)
-	existing = frappe.db.get_value("Payment Entry", {"custom_posnext_idempotency_key": key}, "name")
-	if existing:
-		payment = assert_doc_permission("Payment Entry", existing)
-		_assert_profile_document(payment, profile, company)
-		refs = [row.reference_name for row in payment.references if row.reference_doctype == "Purchase Invoice"]
-		if refs != [invoice_name]:
-			frappe.throw(_("This idempotency key belongs to a different payment"), frappe.PermissionError)
-		if payment.docstatus == 2 or abs(flt(payment.paid_amount) - flt(amount)) > AMOUNT_TOLERANCE or payment.paid_from != paid_from:
-			frappe.throw(_("This idempotency key belongs to a different payment"), frappe.PermissionError)
-		invoice = assert_doc_permission("Purchase Invoice", invoice_name)
-		if cint(submit) and payment.docstatus == 0:
-			result = submit_supplier_payment(payment.name, str(payment.modified), profile)
-			return {**result, "idempotent_replay": True}
-		return {**_payment_result(payment, invoice), "idempotent_replay": True}
-	invoice = _get_payable_invoice(invoice_name, profile, company, lock=True)
-	amount = _validate_payment_amount(amount, invoice.outstanding_amount)
 	account = assert_company_resource("Account", paid_from, company)
 	if account.account_type not in {"Cash", "Bank"}:
 		frappe.throw(_("The payment account must be a Cash or Bank account"))
@@ -491,6 +543,32 @@ def create_supplier_payment(invoice_name, amount, paid_from, idempotency_key, po
 		assert_doc_permission("Mode of Payment", mode_of_payment)
 	posting_date = getdate(posting_date or nowdate())
 	reference_date = getdate(reference_date or posting_date)
+	fingerprint = _payment_request_fingerprint({
+		"invoice_name": invoice_name,
+		"amount": amount,
+		"paid_from": paid_from,
+		"posting_date": posting_date,
+		"reference_date": reference_date,
+		"mode_of_payment": mode_of_payment,
+		"reference_no": reference_no,
+		"remarks": remarks,
+		"company": company,
+		"pos_profile": profile,
+	})
+	existing = frappe.db.get_value("Payment Entry", {"custom_posnext_idempotency_key": key}, "name")
+	if existing:
+		payment = assert_doc_permission("Payment Entry", existing)
+		_assert_profile_document(payment, profile, company)
+		_assert_request_fingerprint(payment, fingerprint, "supplier payment")
+		if payment.docstatus == 2:
+			frappe.throw(_("A cancelled payment cannot be replayed"))
+		invoice = assert_doc_permission("Purchase Invoice", invoice_name)
+		if cint(submit) and payment.docstatus == 0:
+			result = submit_supplier_payment(payment.name, str(payment.modified), profile)
+			return {**result, "idempotent_replay": True}
+		return {**_payment_result(payment, invoice), "idempotent_replay": True}
+	invoice = _get_payable_invoice(invoice_name, profile, company, lock=True)
+	amount = _validate_payment_amount(amount, invoice.outstanding_amount)
 	frappe.db.savepoint("posnext_supplier_payment")
 	try:
 		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
@@ -505,6 +583,7 @@ def create_supplier_payment(invoice_name, amount, paid_from, idempotency_key, po
 			"paid_from": paid_from,
 			"custom_posnext_pos_profile": profile,
 			"custom_posnext_idempotency_key": key,
+			"custom_posnext_request_fingerprint": fingerprint,
 		})
 		remaining = amount
 		for row in payment.references:
@@ -528,6 +607,7 @@ def create_supplier_payment(invoice_name, amount, paid_from, idempotency_key, po
 		if existing:
 			payment = assert_doc_permission("Payment Entry", existing)
 			_assert_profile_document(payment, profile, company)
+			_assert_request_fingerprint(payment, fingerprint, "supplier payment")
 			return {**_payment_result(payment, assert_doc_permission("Purchase Invoice", invoice_name)), "idempotent_replay": True}
 		raise
 	except Exception:

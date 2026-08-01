@@ -28,6 +28,20 @@
    "print_hide": 1,
    "read_only": 1,
    "unique": 1
+  },
+  {
+   "dt": "Payment Entry",
+   "fieldname": "custom_posnext_request_fingerprint",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "insert_after": "custom_posnext_idempotency_key",
+   "label": "POSNext Request Fingerprint",
+   "length": 64,
+   "module": "POS Next",
+   "name": "Payment Entry-custom_posnext_request_fingerprint",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "custom_perms": [],
