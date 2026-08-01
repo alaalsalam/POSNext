@@ -1,6 +1,6 @@
 # Digit POS Development Program — Project Memory
 
-Last verified: 2026-08-01
+Last verified: 2026-08-02
 
 This file is the durable memory and source of operational context for the Digit POS
 development program. Read it before changing code, and update the progress section
@@ -11,7 +11,7 @@ after every completed milestone.
 | Environment | Site | Checkout | Branch | Verified commit | Policy |
 |---|---|---|---|---|---|
 | Production | `pos.digit-erp.com` | `/home/erpnext/frappe-bench-startd-prod/apps/posnext` | `digitpos` | `49c70f5` | Keep unchanged until an explicit, approved release |
-| Development | `digitpos.trilogy-erp.com` | `/home/erpnext/frappe-bench16/apps/posnext` | `develop` | `2a39d82` | All new work happens here |
+| Development | `digitpos.trilogy-erp.com` | `/home/erpnext/frappe-bench16/apps/posnext` | `develop` | `5249fe5` | Milestone 2 accepted baseline plus post-acceptance correction evidence |
 
 Never edit, build, migrate, restart, switch branches, or deploy in the production
 bench while implementing the development backlog. Production is the protected Digit
@@ -141,7 +141,7 @@ A feature is complete only when all applicable conditions are true:
 | Program setup and durable planning | Completed | Planning baseline commit | Production protected; `develop` created |
 | Feature flag foundation | Completed | `35194aa` | Four profile-scoped management flags; secure-off and manager-controlled |
 | Reports compatibility and in-POS access | Completed | `2a39d82` | Manager-only, profile/company isolated, ERPNext-reconciled, five reports integrated |
-| Catalog/purchases/supplier payments hardening | Completed | `8b5145d` | Manager/profile/company scoped; ERPNext GL/SLE/Payment Ledger acceptance passed |
+| Catalog/purchases/supplier payments hardening | Completed | `8b5145d`, `8f4a067`, `5249fe5` | Accepted workflow plus full retry binding, locking evidence, and durable documentation |
 | Offline end-to-end hardening | Not started | — | Must produce real sync records |
 | Keyboard productivity | Not started | — | Quick, isolated milestone |
 | Credit approval workflow | Not started | — | Accounting/permissions sensitive |
@@ -152,6 +152,389 @@ A feature is complete only when all applicable conditions are true:
 | Quick restock | Not started | — | Depends on purchase workflow |
 | External integrations and compliance | Not started | — | Provider/spec decisions required |
 | Restaurant/native/customer display initiatives | Deferred | — | Separate product programs |
+
+## Remaining Development Roadmap after Milestone 2
+
+This section is the executable roadmap for future sessions. The authoritative delivery
+rules, common testing layers, and milestone execution loop remain in
+[`DEVELOPMENT_MASTER_PLAN.md`](DEVELOPMENT_MASTER_PLAN.md); this section adds durable
+implementation context and acceptance detail without replacing that plan. The execution
+order below reconciles exactly with its Priority Order.
+
+The Master Plan lists future flags as target architecture. Only the four accepted
+Milestone 0 flags currently exist. A future flag named below must be added, migrated,
+permission-tested, and left secure-off as part of its own milestone; its presence in the
+Master Plan is not evidence of implemented functionality. Offline is the one special
+case: a queue/PWA architecture already exists in the stable sales path, while the Master
+Plan defines no new offline-hardening flag. Preserve that path and gate only materially
+new sync/recovery behavior behind a new secure-off, profile-scoped rollout flag if the
+fresh audit shows a flag is necessary. Do not disable working offline sales merely to
+fit the flag model.
+
+### Milestone 3 — Offline end-to-end integrity
+
+- **Business outcome:** cashiers can sell through a network outage and managers can
+  recover every queued transaction without duplicate invoices, duplicate payments, lost
+  audit evidence, or unexplained shift totals.
+- **Baseline versus missing:** reuse the existing PWA/service-worker, local offline queue,
+  invoice submission flow, and Offline Invoice Sync DocType/report. The architecture is
+  present but real multi-invoice outage/reconnect acceptance, durable recovery UI, and
+  successful Offline Invoice Sync evidence are not yet proven; production previously had
+  zero Offline Invoice Sync records.
+- **Dependencies and flag:** depends on stable sales, payments, shifts, returns, printing,
+  feature/session bootstrap, and profile/company permissions. Audit existing offline
+  settings first. If new worker/recovery behavior changes the active path, add a
+  manager-controlled `enable_offline_hardening` profile flag through the normal secure-off
+  migration process; otherwise document why no new flag is needed.
+- **Backend/data/offline risks:** IndexedDB schema upgrades, browser eviction, stale price/
+  stock/customer/payment-mode/promotion data, closed or changed shifts, clock/timezone
+  drift, partial payment submission, service-worker version skew, and partial server
+  failure can strand or reorder transactions.
+- **Required controls:** persist each queued request in IndexedDB before success is shown;
+  assign one durable client UUID/idempotency key that survives refresh/restart; preserve
+  FIFO ordering per shift while allowing explicitly safe independent work; use background/
+  service-worker sync with bounded exponential backoff and jitter; atomically claim queue
+  work; deduplicate client and server side; define conflict policy for every stale entity;
+  record partial failure stages; never silently discard; make recovery/retry idempotent;
+  and keep printed-before-sync warnings and immutable audit timestamps.
+- **Arabic/English UX:** one active locale, RTL/LTR logical layout, touch-sized pending/
+  failed/conflict/retrying states, queue count, last successful sync, reason and safe next
+  action, explicit shift mismatch handling, and accessible recovery confirmation.
+- **Automated/manual acceptance:** unit tests for queue state, ordering, backoff, UUID
+  persistence and conflict decisions; frontend IndexedDB/store/service-worker tests;
+  direct API duplicate/permission tests; browser scenarios for offline launch, multiple
+  queued cash/card/partial/credit/return invoices, refresh/restart, version upgrade,
+  reconnection, repeated retry and partial failure. Create real development Offline
+  Invoice Sync records and reconcile the health report, submitted invoices, payments,
+  shift totals and queue state. Verify no duplicate Sales Invoice/Payment Entry.
+- **Definition of Done:** deterministic conflict matrix and recovery runbook documented;
+  real successful and failed/recovered sync records exist in disposable QA acceptance;
+  health report evidence reconciles; flags/settings return to their prior state; all
+  offline/browser/Frappe/regression/build checks pass; focused local commits and memory
+  evidence exist. Stop for review before Milestone 4.
+- **External decision/blocker:** none expected for core retail offline behavior. If product
+  owners want offline credit approval, offline gift value, or provider payments, block
+  only that sub-scenario until its later policy/credential milestone.
+
+### Milestone 4 — Keyboard productivity
+
+- **Business outcome:** trained cashiers complete common sales actions quickly without
+  breaking touch, scanner, modal, or accessibility behavior.
+- **Baseline versus missing:** reuse existing search, checkout, draft and modal actions;
+  global F4/F8/F9/Ctrl-or-Cmd+S handling and a shortcut-help overlay are missing.
+- **Dependencies and flag:** requires accepted core sale UX and Offline milestone
+  regression stability; add `enable_keyboard_shortcuts` as a secure-off profile flag.
+- **Risks and controls:** prevent shortcuts inside editable/contenteditable fields, IME
+  composition, browser/system-reserved combinations, and incompatible modal focus.
+  Centralize registration/cleanup, make dispatch single-fire and idempotent, and enforce
+  the same backend permissions as pointer-triggered actions.
+- **Arabic/English UX:** localized key names/help, logical RTL/LTR overlay, visible focus,
+  screen-reader labels, Escape ownership, desktop hints without degrading touch layouts.
+- **Acceptance:** component/event tests for every key, Mac/Windows modifiers, held keys,
+  input/IME/modal suppression and cleanup; manual desktop/scanner/browser checks in both
+  languages plus regression of touch checkout and offline queueing.
+- **Definition of Done:** shortcuts work only in valid contexts, help is discoverable and
+  accessible, flag/API-negative/regression/build checks pass, docs and focused commit are
+  complete.
+- **External decision/blocker:** confirm only if deployed browser/OS reserves a proposed
+  key; otherwise use the Master Plan mapping without guessing a conflicting replacement.
+
+### Milestone 5 — Credit approval workflow
+
+- **Business outcome:** credit-limit or overdue exceptions require traceable manager
+  approval while ordinary permitted credit sales remain fast.
+- **Baseline versus missing:** credit sales/customer-credit payment exist for selected
+  profiles; there is no exception policy engine, re-auth/PIN approval, decision record,
+  or exception reporting.
+- **Dependencies and flag:** requires Offline integrity, customer/company permissions,
+  existing credit settings and receivable reporting; add `enable_credit_approval`, which
+  must also require credit sales to be configured.
+- **Accounting/reversal invariants:** submitted Sales Invoice receivable and customer
+  exposure must equal ERPNext; approval never posts GL itself; submit re-evaluates current
+  credit limit, overdue and open exposure atomically; returns, payments and cancellations
+  reverse/reduce exposure through standard controllers; rejected/expired approvals post
+  nothing.
+- **Security/idempotency/concurrency:** manager re-authentication cannot be cached as a
+  reusable secret; approval is profile/company/customer/request scoped, time-bound and
+  single-use; direct API and stale approval bypass are denied; simultaneous invoices lock
+  or atomically recheck exposure; approve/reject and invoice submission are idempotent and
+  fully audited.
+- **Arabic/English UX:** localized policy explanation, exposure/limit/overdue values,
+  approve/reject reason, masked re-auth input, RTL/LTR, touch and accessible error states.
+- **Acceptance:** policy unit tests; Frappe tests for limit, overdue, permission, stale and
+  concurrent submissions; real QA invoice/payment/return/cancel reconciliation; offline
+  behavior must fail safely unless an explicit offline-credit policy is approved; manual
+  cashier/manager journeys in both languages.
+- **Definition of Done:** no bypass, exposure reconciles before/after every reversal,
+  approval audit is reportable, flag remains off after acceptance, all test/build layers
+  pass, local commit and evidence recorded.
+- **External decision/blocker:** product owner must choose thresholds, approval lifetime,
+  re-auth method and whether any offline exception is allowed; do not invent them.
+
+### Milestone 6 — Split bills
+
+- **Business outcome:** a cashier can split one sale by items, quantities, equal amounts
+  or custom amounts while preserving exact tax, discount, payment, print and return
+  lineage.
+- **Baseline versus missing:** cart, multiple/partial payments, invoices, returns and
+  printing are reusable; parent split session, allocation engine and child lineage do not
+  exist.
+- **Dependencies and flag:** requires Offline integrity and stable credit approval rules;
+  add `enable_split_bills` as a secure-off profile flag.
+- **Accounting/reversal invariants:** sum of child net, tax, discount, rounding, grand
+  total and tenders must equal the original allocation exactly within currency precision;
+  never hide mismatch in write-off/rounding; free items and inclusive taxes retain source
+  lineage; return/cancel reverses only eligible child quantities/payments without double
+  reversal; shift attribution remains complete.
+- **Security/idempotency/concurrency:** server validates allocation and ownership; one
+  durable split-session UUID plus deterministic child keys; lock the session during
+  finalize/cancel; repeated finalize returns the same children; partial failure resumes
+  safely; direct API cannot modify finalized sessions.
+- **Arabic/English UX:** responsive/touch split editor, RTL/LTR drag/quantity controls,
+  remaining amount visibility, accessible validation, child receipts and clear recovery.
+- **Acceptance:** allocation/property tests across taxes, discounts, free items, currencies
+  and rounding; Frappe ledger/payment/return tests; two-client finalize race; offline
+  queue/reconnect/order scenarios; manual split methods and reprint/return in both locales.
+- **Definition of Done:** exact reconciliation and lineage proven, partial failure and
+  reversal tested, flag off, docs/build/regressions and focused commit complete.
+- **External decision/blocker:** product must decide whether restaurant-style seat/table
+  splitting belongs here; default scope is retail bills only.
+
+### Milestone 7 — Stored-value gift cards
+
+- **Business outcome:** issue and redeem genuine stored value with a trustworthy balance,
+  independently from existing one-use promotional Gift Card coupons.
+- **Baseline versus missing:** reuse customer/payment/printing/audit patterns; the existing
+  coupon is not stored value. Dedicated card master, immutable transaction ledger,
+  liability accounting and lifecycle are missing.
+- **Dependencies and flag:** requires Offline integrity and split/payment allocation
+  stability; add company-scoped `enable_stored_value_gift_cards`; never relabel coupons.
+- **Accounting/reversal invariants:** issue/top-up increases cash/receivable and gift-card
+  liability, not revenue; redemption reduces liability against the sale; refund/cancel
+  posts an exact compensating ledger transaction, never edits history; expiry/breakage is
+  posted only under an approved policy/account; card balance equals immutable ledger sum
+  and GL liability reconciliation.
+- **Security/idempotency/concurrency:** unpredictable token plus optional barcode, never
+  expose secrets in logs; company scope and manager permissions for issue/freeze; atomic
+  balance lock; durable operation keys; concurrent redemption cannot overspend; lifecycle
+  and failed/reversed operations are audited.
+- **Arabic/English UX:** separate “promotional coupon” versus “stored value” labels,
+  masked code, balance/history/status, accessible scanner/manual entry, RTL/LTR and clear
+  online/offline availability.
+- **Acceptance:** ledger calculation/property tests; concurrent redeem/top-up; API flag/
+  permission negatives; real issue/partial/full redeem/refund/freeze/expire/cancel GL
+  reconciliation; split bill and return integration; manual bilingual receipts/history.
+- **Definition of Done:** immutable ledger and GL liability reconcile, no overspend or
+  coupon ambiguity, approved offline policy enforced, flag off, tests/docs/build/commit.
+- **External decision/blocker:** accounting must select liability, breakage/expiry, tax,
+  refund and dormancy policy; product must decide whether offline redemption is forbidden
+  or bounded. Do not guess either.
+
+### Milestone 8 — Large-catalog virtual scrolling and performance
+
+- **Business outcome:** 10k–50k item catalogs remain responsive on desktop and constrained
+  tablets without losing search, scanner or accessibility behavior.
+- **Baseline versus missing:** current item search/grid/list, lazy assets and catalog API
+  are reusable; configuration thresholds are not real virtualization and no accepted
+  performance budgets/benchmarks exist.
+- **Dependencies and flag:** depends on Offline/catalog data paths and stable keyboard
+  focus behavior. The Master Plan defines no flag; add a secure-off
+  `enable_large_catalog_virtualization` profile rollout flag only if the implementation
+  changes rendering behavior materially, otherwise document a transparent safe rollout.
+- **Risks and controls:** memory growth, stale cached pages, item-height drift, RTL scroll,
+  image churn, lost focus and barcode/search races. Use deterministic paging/cache keys,
+  cancellation of stale requests, bounded caches and measurable budgets; no financial
+  or ledger effect.
+- **Arabic/English UX:** preserve RTL/LTR grid/list, keyboard focus, touch targets, empty/
+  loading/error states, Arabic search and accessible virtualized position semantics.
+- **Acceptance:** synthetic 10k and 50k datasets; automated render/search/memory/scroll
+  measurements on desktop and constrained tablet profiles; regression for scanner,
+  filters, images, offline cache and keyboard; manual long-scroll/focus checks both locales.
+- **Definition of Done:** explicit initial-render, search latency, memory and smoothness
+  budgets are met reproducibly, no behavior regression, rollout decision/flag documented,
+  tests/build/profile evidence and focused commit complete.
+- **External decision/blocker:** product/QA must approve numerical performance budgets and
+  representative target devices before completion claims.
+
+### Milestone 9 — Loyalty activation
+
+- **Business outcome:** configured customers earn, redeem, reverse and understand loyalty
+  points consistently across sales and returns.
+- **Baseline versus missing:** ERPNext Loyalty Program support and existing customer/sale
+  flows are reusable, but no active Loyalty Program exists and the Digit UI is disabled;
+  tier/wallet UX and accepted reconciliation are missing.
+- **Dependencies and flag:** requires Offline integrity, returns, split bills and stored-
+  value boundaries; add `enable_loyalty_ui`, dependent on a valid company/profile Loyalty
+  Program and accounting configuration.
+- **Accounting/reversal invariants:** points earned/redeemed/expired equal ERPNext loyalty
+  entries; redemption discount/value and any configured liability/expense reconcile with
+  invoice and GL; returns/cancellations create standard compensating entries; never mix
+  loyalty points with stored-value gift-card liability.
+- **Security/idempotency/concurrency:** customer/profile/company scope; server calculates
+  eligibility and balance at submit; lock/recheck concurrent redemption; durable invoice
+  keys prevent duplicate earn/redeem; manual adjustments require manager permission and
+  audit; offline redemption is denied unless a later explicit safe policy exists.
+- **Arabic/English UX:** active-locale balance, earn/redeem estimate, tiers, expiry and
+  failure reasons; RTL/LTR, touch and receipt clarity without marketing unsupported value.
+- **Acceptance:** program validation tests; earn/redeem/partial/return/cancel/expire and
+  concurrent redemption tests; real ERPNext loyalty-entry/invoice/GL reconciliation;
+  direct API/flag/user-permission negatives and manual bilingual customer journey.
+- **Definition of Done:** an actual QA program is configured and reconciled, no double
+  points or cross-company leakage, flag restored off, tests/docs/build/commit complete.
+- **External decision/blocker:** business/accounting must choose earning rules, tiers,
+  expiry, redemption value/accounts and offline policy; current absence of an active
+  program is a product blocker, not proof of capability.
+
+### Milestone 10 — Quick restock
+
+- **Business outcome:** managers turn defensible low-stock signals into standard Material
+  Requests/Purchase Orders without creating a parallel buying system or excess duplicates.
+- **Baseline versus missing:** the completed Milestone 2 Item/Supplier/Purchase workflow,
+  warehouses, prices and stock ledgers are mandatory reusable foundations; alerts,
+  reorder suggestions, supplier selection, document conversion and forecasting are absent.
+- **Dependencies and flag:** depends explicitly on accepted purchases `8b5145d` plus
+  correction `8f4a067`, catalog performance, supplier permissions and stock history; add
+  `enable_quick_restock`, dependent on `enable_purchases`.
+- **Accounting/stock risks:** suggestions post nothing; only standard ERPNext Material
+  Request/Purchase Order/Purchase Receipt/Purchase Invoice controllers affect commitments,
+  stock or GL. Respect company/warehouse/UOM/lead time, open supply, reserved stock,
+  returns/cancellations and multi-currency buying prices.
+- **Security/idempotency/concurrency:** manager-only company/profile scope; server recomputes
+  shortage before create; deterministic suggestion/run key; lock or atomic check against
+  open requests/orders; prevent duplicate/excess restock; preserve document lineage and
+  standard cancellation permissions.
+- **Arabic/English UX:** localized low/out/slow-moving reasons, projected stockout date,
+  editable recommendation with assumptions, supplier/warehouse selection, RTL/LTR,
+  responsive confirmation and history.
+- **Acceptance:** calculation tests for demand windows, open supply and edge stock;
+  permission/flag/API negatives; duplicate/concurrent generation; standard document
+  submit/cancel and stock reconciliation; manual no-stock/slow-moving/multi-warehouse flow.
+- **Definition of Done:** every generated document is standard ERPNext and traceable,
+  duplicate/excess protection proven, forecasts labelled as estimates, flag off, tests/
+  docs/build/commit complete.
+- **External decision/blocker:** product/operations must approve demand horizon, safety
+  stock, lead-time source and whether Purchase Order conversion is automatic or reviewed.
+
+### Milestone 11 — Payment integrations and ZATCA/compliance
+
+- **Business outcome:** optional external payments settle and refund reliably, while
+  Saudi e-invoicing is represented truthfully and activated only with verified compliance.
+- **Baseline versus missing:** reuse POS payments, Payment Entry/invoice idempotency,
+  printing and current Phase 1 QR assistance. No provider adapter/credentials/webhook/
+  settlement reconciliation exists; QR support is not ZATCA Phase 2 clearance/reporting.
+- **Dependencies and flags:** requires Offline integrity and stable payment/return flows.
+  Add company flags `enable_payment_integrations` and `enable_zatca_phase2`; activation
+  requires configured provider or validated compliance profile respectively.
+- **Accounting/reversal invariants:** provider intent is not revenue or settlement;
+  authorized/captured/settled/refunded/charged-back amounts reconcile by currency with
+  Sales Invoice, payment/clearing/bank GL and provider statements; retries never double
+  capture/refund; cancellation uses compensating provider and ERPNext records. ZATCA
+  submission never changes invoice totals and stores immutable UUID/hash/status/response
+  lineage for original and cancellation/credit notes.
+- **Security/idempotency/concurrency:** secrets outside code/logs, least-privilege access,
+  signed webhook verification with timestamp/replay protection, durable provider event and
+  operation keys, atomic state machine, out-of-order event handling, settlement locks,
+  certificate/key lifecycle, audited overrides, and direct API flag/permission negatives.
+- **Offline risks:** provider payments fail closed offline unless the chosen provider has
+  an explicitly certified terminal protocol; queue ZATCA reporting only under the agreed
+  compliance mode with bounded retry, ordering, expiry/escalation and recovery evidence.
+- **Arabic/English UX:** localized provider/status/retry/refund/reconciliation states and
+  compliance receipt/status messages, RTL/LTR, no raw gateway or certificate errors.
+- **Acceptance:** provider contract/sandbox tests, signed/invalid/duplicate/out-of-order
+  webhooks, timeout/retry/refund/chargeback and settlement reconciliation; ZATCA official
+  sandbox XML/signature/clearance-or-reporting tests, certificate rotation and credit-note
+  linkage; manual bilingual cashier/finance recovery; security review and build gates.
+- **Definition of Done:** one explicitly selected provider and/or compliance profile passes
+  sandbox-to-ledger reconciliation, secrets are managed, reversal/recovery is proven,
+  flags remain off until release approval, documentation and focused commits complete.
+- **External decision/blocker:** provider selection and credentials, settlement accounts,
+  ZATCA compliance profile, certificate lifecycle owner and test credentials are required
+  external decisions. Never guess or claim Phase 2 from QR output.
+
+### Milestone 12 — Separate restaurant/KDS/native/customer-display/advanced-analytics initiatives
+
+- **Business outcome:** separately specified products can extend the accepted retail POS
+  without destabilizing its sale, accounting, offline or security contracts.
+- **Baseline versus missing:** retail POS components, realtime infrastructure, reports and
+  responsive web UI may be reused after audit. Table service, order routing/merge/KDS,
+  native apps, secure customer display, connector lifecycle and advanced forecasting/
+  targets are not existing accepted products.
+- **Dependencies and flags:** begin only after Milestones 3–11 review. Restaurant uses
+  `enable_restaurant_mode`; customer display uses `enable_customer_display`; analytics
+  uses company `enable_advanced_analytics`. Native and KDS flags/scope must come from their
+  approved specifications, not be invented in implementation.
+- **Accounting/offline/data risks:** restaurant transfers/splits/voids must preserve order-
+  to-invoice lineage and reversal; KDS acknowledgements must not post accounting; native
+  offline storage must match server idempotency/conflict policy; customer display must
+  expose only the active sanitized basket; analytics must be read-only, source-defined,
+  timezone-correct and never present forecasts as booked results.
+- **Security/idempotency/concurrency:** authenticated per-device channels, tenant/profile/
+  company isolation, revocable pairing, no PII/payment token leakage, ordered event IDs,
+  reconnect deduplication, concurrent table/order ownership rules, native secure storage,
+  and auditable manager overrides.
+- **Arabic/English UX:** each initiative requires its own responsive/touch/accessibility
+  design, active-locale Arabic/English and verified RTL/LTR; KDS and customer display need
+  role/device-appropriate minimal views rather than copying manager screens.
+- **Acceptance:** separate PRD/threat/accounting/offline design first; then unit/Frappe/
+  frontend/device/E2E/performance/security tests and manual multi-device bilingual flows.
+  Restaurant acceptance includes transfer/merge/void/print/KDS recovery; customer display
+  includes pairing/revocation/data-leak tests; analytics reconciles every metric to sources.
+- **Definition of Done:** each initiative is approved and delivered as its own milestone/
+  program with secure-off activation, complete acceptance evidence and local review; none
+  is bundled into a broad retail rewrite.
+- **External decision/blocker:** restaurant operating behavior, KDS/printer topology,
+  native platform/offline/release scope, customer-display pairing/security policy,
+  connector ownership and advanced-analytics KPI definitions are all external decisions.
+
+## Cross-Cutting Technical Debt and Product Blockers
+
+### Non-blocking technical debt
+
+- **ERPNext Standard Buying test-bootstrap history:** earlier selected `bench run-tests`
+  attempts failed before module loading because ERPNext tried to create a duplicate
+  `Standard Buying` Price List. Milestone 2 selected Frappe suites later passed normally
+  (14/16/10) without deleting data. Treat this as historical/intermittent harness debt:
+  preserve the non-destructive runners, record exact recurrence evidence, and never delete
+  user data to make bootstrap pass. It is not currently a product blocker.
+- **Historical report settlement anomaly:** the read-only `الجوالات` dataset reconciled
+  signed tender to ERPNext paid amount, but the invoice-balance equation retained a
+  visible `1,050.00` difference traced to three historical invoices whose negative
+  outstanding changed after original POS tender. Do not rewrite history or claim it is
+  resolved; keep the discrepancy visible and exclude it from unrelated milestone claims.
+- **Development build warnings:** Vite succeeds but retains deployment-time Digit/demo
+  asset/font references, third-party pure-annotation warnings, and mixed static/dynamic
+  import warnings. Node 18 currently needs
+  `NODE_OPTIONS=--experimental-global-webcrypto`. These are non-blocking until a scoped
+  asset/chunk/runtime modernization task is approved.
+- **Legacy formatting/tooling:** broad Biome checks may surface unrelated legacy Vue
+  formatting/parser findings. Continue targeted checks plus actual Vite compilation;
+  do not mix mass reformatting into financial/offline milestones.
+
+### Product/external blockers
+
+- Credit thresholds/re-auth/offline policy; stored-value liability/expiry/refund policy;
+  loyalty earning/redemption/accounting rules; performance budgets/devices; and restock
+  forecasting/review policy require owner decisions at their named milestones.
+- Payment provider/credentials/settlement accounts and ZATCA compliance profile/test
+  credentials are hard blockers for Milestone 11 activation.
+- Restaurant behavior, KDS topology, native scope, customer-display security/pairing,
+  connector ownership and advanced-analytics KPI definitions are hard blockers for their
+  separate Milestone 12 initiatives.
+- A blocked external sub-scope does not block safe independent milestones; document it,
+  keep its flag unavailable/off, and continue only work that does not assume the decision.
+
+## Next Session Command
+
+Start with the first incomplete ledger item: **Milestone 3 — Offline end-to-end
+integrity**. Work only in `/home/erpnext/frappe-bench16/apps/posnext` on existing branch
+`develop`; do not create a branch. Re-read this file and
+[`DEVELOPMENT_MASTER_PLAN.md`](DEVELOPMENT_MASTER_PLAN.md), verify the checkout/commit and
+preserve user changes, then perform a fresh code-and-test audit before editing. Keep every
+new or changed rollout flag secure-off by default. Do not edit, build, migrate, restart,
+switch or deploy `/home/erpnext/frappe-bench-startd-prod` or `pos.digit-erp.com`. Make
+focused local commits only; no push, merge or deployment. Complete and document Milestone
+3 acceptance, leave flags off and the worktree clean, then stop for review before
+Milestone 4.
 
 ## Resume Protocol
 
