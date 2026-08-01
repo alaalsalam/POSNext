@@ -412,3 +412,64 @@ built, migrated, restarted, written, pushed, merged, or deployed.
   asset and mixed-import warnings remain non-fatal technical debt.
 - ERPNext emitted its upstream v16 stock-controller deprecation warning during real
   acceptance; GL/SLE/Payment Ledger reconciliation still passed.
+
+## Correction Evidence — Milestone 2 Post-Acceptance Review
+
+Completed on 2026-08-02 in development commit `8f4a067`. Production was re-verified
+unchanged on clean branch `digitpos` at `49c70f5`; no production build, migration,
+restart, write, push, merge, or deployment occurred. Milestone 3 was not started.
+
+### Idempotency correction
+
+- Added hidden, read-only SHA-256 request fingerprints to Purchase Invoice and Payment
+  Entry. They are stored beside the unique idempotency key and refreshed when a purchase
+  draft is legitimately updated.
+- Canonical purchase binding covers all accepted header, date, discount, currency/rate,
+  account, warehouse, remarks, item, cost-center, tax-template, and tax-row inputs after
+  server defaults and validation. Dates and Decimal numbers are normalized; object keys
+  are sorted; child positions remain explicit because sequential taxes are order-sensitive.
+- Payment binding covers profile/company, invoice, amount, account, posting/reference
+  dates, mode, reference number, and remarks. Submit intent is excluded intentionally,
+  preserving an exact retry that promotes the same existing draft to submitted.
+- Missing legacy fingerprints and changed material requests fail closed with
+  `ValidationError`; neither API silently returns an old document for a different request.
+
+### Schema and data safety
+
+- Development backup:
+  `sites/digitpos.trilogy-erp.com/private/backups/20260802_010919-digitpos_trilogy-erp_com-database.sql.gz`.
+- `bench --site digitpos.trilogy-erp.com migrate` completed successfully on the named
+  development site only. No restart was used.
+- Transactional ERPNext acceptance again rolled back every `POSNEXT-QA-*` user, master,
+  and financial document. Flags after rollback were catalog `0`, purchases `0`, and
+  supplier payments `0`.
+
+### Concurrency evidence and limitation
+
+- `run_milestone2_concurrency.py` used two distinct MariaDB connection IDs and two real
+  InnoDB transactions. Both attempted to consume the full outstanding `100`. One
+  committed one allocation; the other waited `0.756s` on the row lock, then observed
+  outstanding `0` and was rejected. Final state was outstanding `0`, allocated `100`,
+  one allocation row, and no negative balance. Its uniquely named QA table was dropped
+  in `finally`.
+- This proves the database locking/atomic-recheck invariant, not simultaneous execution
+  of two ERPNext Payment Entry controllers. Rollback-only QA documents are invisible to
+  independent connections; committing temporary financial documents just to race them
+  was rejected as an unnecessary data-safety regression. The separate real ERPNext
+  acceptance proves GL, Payment Ledger, cancellation, and outstanding behavior.
+
+### Verification evidence
+
+- `/home/erpnext/frappe-bench16/env/bin/python run_milestone2_tests.py` — 40/40 passed.
+- Standard Frappe suites: feature flags 14/14, management hardening 16/16, supplier
+  payments 10/10.
+- `run_milestone2_acceptance.py` — passed with six balanced GL rows, SLE quantity `3`,
+  outstanding `18 → 9 → 0 → 18`, conflict-negative retries, cancellations, and rollback.
+- `run_milestone2_concurrency.py` — passed with the two-transaction evidence above and
+  all three management flag sums at zero.
+- Frontend `yarn test:run` — 6 files/13 tests passed. Added behavior tests for catalog
+  payload/in-flight blocking and Purchase Invoice stable key, `expected_modified`,
+  save/submit blocking, permission-controlled cancellation, and stale reload state.
+- Ruff, Python compile, JSON validation, targeted Biome, `git diff --check`, and the
+  development Vite build passed. Vite transformed 2,192 modules; only the previously
+  documented runtime asset and mixed-import warnings remain.
