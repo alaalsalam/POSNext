@@ -217,9 +217,9 @@ unchanged on `digitpos` at `49c70f5` after implementation.
 - Full Biome checking of legacy Vue files hits a known parser assertion and reports
   pre-existing style findings. Targeted JavaScript lint and the Vite Vue compilation
   passed; the milestone does not reformat unrelated legacy components.
-- Vite retains existing warnings for duplicate PWA configuration keys and unresolved
-  deployment-time Digit assets. The build completes and these warnings predate this
-  milestone.
+- Duplicate PWA configuration keys were removed in the reports correction pass. Vite
+  retains existing warnings for unresolved deployment-time Digit assets and mixed
+  static/dynamic imports.
 - Flags for later Master Plan milestones will be added with their accepted vertical
   slices; they remain unavailable rather than exposing inactive placeholder controls.
 
@@ -283,5 +283,58 @@ was performed. All report flags on development remained off.
 - The five reports can legitimately return zero rows when the selected profile/date has
   no closing-shift or offline-sync references. The dashboard does not aggregate across
   profiles by design.
-- The successful Vite build retains pre-existing duplicate PWA-key, deployment-time
-  Digit asset, and static/dynamic chunk warnings.
+- The successful Vite build retains pre-existing deployment-time Digit asset and
+  static/dynamic chunk warnings. Duplicate PWA-key warnings were removed in the reports
+  correction pass.
+
+## Correction Evidence — Reports Post-Implementation Review
+
+Completed on 2026-08-01 in development only. Production remained clean on `digitpos` at
+`49c70f5`; no production or development migration/restart was performed, and every
+development feature flag remained off.
+
+### Root causes and corrections
+
+- Bank-deposit rows selected `deposit_amount`/`deposit_date` but attempted to return the
+  nonexistent `cnt`, and the helper was never called. The report now fetches deposits
+  once per result set, merges them per shift, and supplies explicit `0`/`null` defaults.
+- Datetime filters compared an end-date string at midnight. Closing-shift, cashier-shift,
+  sales-vs-shifts, and offline-sync queries now use half-open datetime bounds; date-only
+  invoice queries remain inclusive. Inventory depletion now uses `date_diff + 1`.
+- Payment distribution excluded returns and overloaded one amount. It now reports
+  received/refunded/net by method, period-level change, signed tender reconciliation,
+  and the documented rounded invoice-balance equation across sales, returns, credit,
+  partial/split tenders, write-off, and rounding.
+- Dynamic payment fields now use deterministic, unique ASCII/hash identifiers instead
+  of `lower().replace(" ", "_")`.
+- The stale `run_reports_tests.py` was replaced with a non-destructive unittest runner
+  that loads the current APIs and propagates failure through its process exit code.
+- Three duplicate Workbox keys were genuinely pre-existing (introduced in different
+  historical commits). The redundant later definitions were safely removed in a
+  separate config-only commit `90da153`; behavior is unchanged because both values were
+  identical.
+
+### Verification evidence
+
+- Repeatable backend command: `../../env/bin/python run_reports_tests.py` — 19/19 passed,
+  exit code 0. It covers deposits absent/present/multiple, batch/no-N+1 behavior,
+  last-second and one-day dates, safe dynamic fields, payment scenarios, permissions,
+  flags, and profile/company isolation.
+- Real read-only `الجوالات` acceptance: received 237,864.00; refunded 3,826.00; signed
+  tender and ERPNext paid amount both 234,038.00 (`tender_difference = 0`). Current
+  invoice-balance difference is visibly 1,050.00, traced to three historical invoices
+  whose negative outstanding changed after their original POS tender; it is not claimed
+  as reconciled.
+- Payments and Cash Control executed on the development dataset and returned one shift
+  with the explicit no-deposit defaults. No submitted Bank Deposit currently exists, so
+  valid/multiple deposit merging is covered by the batch-query regression tests.
+- Real permission acceptance was repeated: the demo manager was denied its assigned
+  profile by Company permission and denied foreign `الجوالات` by profile assignment;
+  the cashier was denied by the manager-role gate; Administrator was denied direct API
+  access by the off report flag. Sums for all four flags across all settings were zero.
+- Targeted Biome passed and Vitest passed 4/4. The development Vite build passed without
+  the former duplicate Workbox-key warnings; remaining warnings are the documented
+  deployment-time assets, third-party pure annotations, and mixed imports.
+- Python compile, Ruff, JSON/diff validation, and `git diff --check` passed. The standard
+  selected `bench run-tests` command was reattempted and failed before test loading at
+  the same duplicate `Standard Buying` ERPNext bootstrap record.

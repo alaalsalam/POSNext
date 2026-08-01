@@ -81,6 +81,7 @@ from frappe import _
 from frappe.utils import cint, flt, getdate, time_diff_in_hours
 
 from pos_next.api.reporting_access import authorize_report
+from pos_next.api.reporting_utils import add_datetime_bounds
 
 
 def execute(filters=None):
@@ -699,12 +700,13 @@ def fetch_shifts_with_invoices(filters):
 
 def build_conditions(filters):
 	"""Build SQL WHERE conditions"""
+	filters = add_datetime_bounds(filters)
 	conditions = []
 
 	if filters.get("from_date"):
-		conditions.append("DATE(pcs.period_start_date) >= %(from_date)s")
+		conditions.append("pcs.period_start_date >= %(from_datetime)s")
 	if filters.get("to_date"):
-		conditions.append("DATE(pcs.period_end_date) <= %(to_date)s")
+		conditions.append("pcs.period_end_date < %(to_datetime_exclusive)s")
 	if filters.get("pos_profile"):
 		conditions.append("pcs.pos_profile = %(pos_profile)s")
 	if filters.get("cashier"):

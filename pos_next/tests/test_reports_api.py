@@ -65,23 +65,44 @@ class TestReportsAPI(FrappeTestCase):
 
 	@patch.object(reports.frappe, "get_all")
 	@patch.object(reports, "_get_invoice_names")
-	def test_payment_breakdown_uses_paid_total_and_unique_invoice_count(self, invoice_query, get_all):
+	def test_payment_breakdown_reconciles_sale_return_credit_split_partial_and_rounding(
+		self, invoice_query, get_all
+	):
 		invoice_query.return_value = [
-			frappe._dict(name="SI-1", grand_total=600, paid_amount=600, outstanding_amount=0),
-			frappe._dict(name="SI-2", grand_total=400, paid_amount=400, outstanding_amount=0),
+			frappe._dict(name="SALE", is_return=0, grand_total=99.6, rounded_total=100, rounding_adjustment=0.4, paid_amount=100, outstanding_amount=0, write_off_amount=0, change_amount=0),
+			frappe._dict(name="RETURN", is_return=1, grand_total=-20, rounded_total=-20, rounding_adjustment=0, paid_amount=-20, outstanding_amount=0, write_off_amount=0, change_amount=0),
+			frappe._dict(name="CREDIT", is_return=0, grand_total=50, rounded_total=50, rounding_adjustment=0, paid_amount=0, outstanding_amount=50, write_off_amount=0, change_amount=0),
+			frappe._dict(name="PARTIAL", is_return=0, grand_total=100, rounded_total=100, rounding_adjustment=0, paid_amount=40, outstanding_amount=60, write_off_amount=0, change_amount=0),
+			frappe._dict(name="CHANGE", is_return=0, grand_total=19.6, rounded_total=20, rounding_adjustment=0.4, paid_amount=25, outstanding_amount=0, write_off_amount=0, change_amount=5),
+			frappe._dict(name="WRITEOFF", is_return=0, grand_total=10, rounded_total=10, rounding_adjustment=0, paid_amount=8, outstanding_amount=0, write_off_amount=2, change_amount=0),
 		]
 		get_all.return_value = [
-			frappe._dict(parent="SI-1", mode_of_payment="Cash", amount=500),
-			frappe._dict(parent="SI-1", mode_of_payment="Cash", amount=100),
-			frappe._dict(parent="SI-2", mode_of_payment="Card", amount=400),
+			frappe._dict(parent="SALE", mode_of_payment="Cash", amount=60),
+			frappe._dict(parent="SALE", mode_of_payment="Card", amount=40),
+			frappe._dict(parent="RETURN", mode_of_payment="Cash", amount=-20),
+			frappe._dict(parent="PARTIAL", mode_of_payment="Card", amount=40),
+			frappe._dict(parent="CHANGE", mode_of_payment="Cash", amount=25),
+			frappe._dict(parent="WRITEOFF", mode_of_payment="Wallet", amount=8),
 		]
 		result = reports.get_payment_breakdown("Profile A")
 		methods = {row["mode"]: row for row in result["methods"]}
-		self.assertEqual(methods["Cash"]["count"], 1)
-		self.assertEqual(methods["Cash"]["percentage"], 60)
-		self.assertEqual(methods["Card"]["percentage"], 40)
-		self.assertEqual(result["invoice_total"], 1000)
-		self.assertEqual(result["paid_total"], 1000)
+		self.assertEqual(methods["Cash"]["received"], 85)
+		self.assertEqual(methods["Cash"]["refunded"], 20)
+		self.assertEqual(methods["Cash"]["net"], 65)
+		self.assertEqual(methods["Card"]["received"], 80)
+		self.assertEqual(methods["Card"]["received_count"], 2)
+		self.assertEqual(result["received_total"], 173)
+		self.assertEqual(result["refunded_total"], 20)
+		self.assertEqual(result["tender_total"], 153)
+		self.assertEqual(result["net_total"], 148)
+		self.assertEqual(result["rounded_total"], 260)
+		self.assertEqual(result["outstanding_total"], 110)
+		self.assertEqual(result["write_off_total"], 2)
+		self.assertEqual(result["change_total"], 5)
+		self.assertEqual(result["settlement_difference"], 0)
+		self.assertEqual(result["tender_difference"], 0)
+		self.assertTrue(result["settlement_reconciled"])
+		self.assertTrue(result["tender_reconciled"])
 
 	@patch.object(reports.frappe.db, "get_value", return_value="Digit LLC")
 	@patch.object(reports.frappe, "get_all")

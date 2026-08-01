@@ -6,6 +6,7 @@ from frappe import _
 from frappe.utils import cint, flt
 
 from pos_next.api.reporting_access import authorize_report
+from pos_next.api.reporting_utils import inclusive_date_days
 
 
 def execute(filters=None):
@@ -68,12 +69,7 @@ def get_data(filters):
 	from_date = filters.get("from_date")
 	to_date = filters.get("to_date")
 
-	if from_date and to_date:
-		from frappe.utils import date_diff
-
-		date_range_days = max(date_diff(to_date, from_date), 1)
-	else:
-		date_range_days = 30  # Default to 30 days
+	date_range_days = inclusive_date_days(from_date, to_date)
 
 	# Query to get item sales data
 	query = f"""

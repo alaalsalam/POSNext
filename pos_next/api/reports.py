@@ -62,6 +62,7 @@ def _get_invoice_names(pos_profile, from_date, to_date, include_returns=True):
 		fields=[
 			"name",
 			"grand_total",
+			"rounded_total",
 			"net_total",
 			"total_taxes_and_charges",
 			"rounding_adjustment",
@@ -71,6 +72,8 @@ def _get_invoice_names(pos_profile, from_date, to_date, include_returns=True):
 			"customer",
 			"outstanding_amount",
 			"paid_amount",
+			"write_off_amount",
+			"change_amount",
 			"currency",
 		],
 		order_by="posting_date desc, posting_time desc, name desc",
@@ -139,11 +142,25 @@ def get_daily_summary(pos_profile, period="today", from_date=None, to_date=None)
 def get_payment_breakdown(pos_profile, period="today", from_date=None, to_date=None):
 	_authorize(pos_profile)
 	fd, td = _date_range(period, from_date, to_date)
-	invoices = _get_invoice_names(pos_profile, fd, td, include_returns=False)
+	invoices = _get_invoice_names(pos_profile, fd, td, include_returns=True)
 	if not invoices:
-		return {"from_date": fd, "to_date": td, "methods": [], "invoice_total": 0.0, "paid_total": 0.0}
+		return {
+			"from_date": fd,
+			"to_date": td,
+			"methods": [],
+			"received_total": 0.0,
+			"refunded_total": 0.0,
+			"tender_total": 0.0,
+			"net_total": 0.0,
+			"change_total": 0.0,
+			"settlement_difference": 0.0,
+			"tender_difference": 0.0,
+			"settlement_reconciled": True,
+			"tender_reconciled": True,
+		}
 
 	invoice_names = [invoice.name for invoice in invoices]
+	invoice_map = {invoice.name: invoice for invoice in invoices}
 	rows = frappe.get_all(
 		"Sales Invoice Payment",
 		filters={"parent": ["in", invoice_names], "parenttype": "Sales Invoice"},
@@ -153,30 +170,85 @@ def get_payment_breakdown(pos_profile, period="today", from_date=None, to_date=N
 	method_map = {}
 	for row in rows:
 		mode = row.mode_of_payment or _("Unspecified")
-		data = method_map.setdefault(mode, {"amount": 0.0, "invoices": set()})
-		data["amount"] += flt(row.amount)
-		data["invoices"].add(row.parent)
+		data = method_map.setdefault(
+			mode,
+			{
+				"received": 0.0,
+				"refunded": 0.0,
+				"received_invoices": set(),
+				"refunded_invoices": set(),
+			},
+		)
+		movement = abs(flt(row.amount))
+		if invoice_map[row.parent].is_return:
+			data["refunded"] += movement
+			data["refunded_invoices"].add(row.parent)
+		else:
+			data["received"] += movement
+			data["received_invoices"].add(row.parent)
 
-	paid_total = sum(flt(invoice.paid_amount) for invoice in invoices)
+	received_total = sum(data["received"] for data in method_map.values())
+	refunded_total = sum(data["refunded"] for data in method_map.values())
+	net_tender_total = received_total - refunded_total
+	gross_movement = received_total + refunded_total
 	methods = []
-	for mode, data in sorted(method_map.items(), key=lambda item: -item[1]["amount"]):
-		percentage = round(data["amount"] / paid_total * 100, 1) if paid_total else 0
+	for mode, data in sorted(
+		method_map.items(), key=lambda item: (-(item[1]["received"] + item[1]["refunded"]), item[0])
+	):
+		net = data["received"] - data["refunded"]
+		percentage = (
+			round((data["received"] + data["refunded"]) / gross_movement * 100, 1)
+			if gross_movement
+			else 0
+		)
 		methods.append(
 			{
 				"mode": mode,
-				"amount": round(data["amount"], 2),
-				"count": len(data["invoices"]),
+				"received": round(data["received"], 2),
+				"refunded": round(data["refunded"], 2),
+				"net": round(net, 2),
+				"amount": round(net, 2),
+				"received_count": len(data["received_invoices"]),
+				"refunded_count": len(data["refunded_invoices"]),
+				"count": len(data["received_invoices"] | data["refunded_invoices"]),
 				"percentage": percentage,
 			}
 		)
+
+	signed_rounded_total = sum(
+		flt(invoice.rounded_total)
+		if invoice.rounded_total is not None
+		else flt(invoice.grand_total) + flt(invoice.rounding_adjustment)
+		for invoice in invoices
+	)
+	signed_paid_total = sum(flt(invoice.paid_amount) for invoice in invoices)
+	signed_outstanding_total = sum(flt(invoice.outstanding_amount) for invoice in invoices)
+	signed_write_off_total = sum(flt(invoice.write_off_amount) for invoice in invoices)
+	change_total = sum(flt(invoice.change_amount) for invoice in invoices)
+	settlement_difference = signed_rounded_total - (
+		signed_paid_total + signed_outstanding_total + signed_write_off_total - change_total
+	)
+	tender_difference = net_tender_total - signed_paid_total
+	net_movement_total = net_tender_total - change_total
 	return {
 		"from_date": fd,
 		"to_date": td,
 		"methods": methods,
 		"invoice_total": round(sum(flt(invoice.grand_total) for invoice in invoices), 2),
-		"paid_total": round(paid_total, 2),
-		"payment_rows_total": round(sum(flt(row.amount) for row in rows), 2),
-		"outstanding_total": round(sum(max(flt(invoice.outstanding_amount), 0) for invoice in invoices), 2),
+		"rounded_total": round(signed_rounded_total, 2),
+		"received_total": round(received_total, 2),
+		"refunded_total": round(refunded_total, 2),
+		"tender_total": round(net_tender_total, 2),
+		"net_total": round(net_movement_total, 2),
+		"paid_total": round(signed_paid_total, 2),
+		"outstanding_total": round(signed_outstanding_total, 2),
+		"write_off_total": round(signed_write_off_total, 2),
+		"change_total": round(change_total, 2),
+		"rounding_adjustment": round(sum(flt(invoice.rounding_adjustment) for invoice in invoices), 2),
+		"settlement_difference": round(settlement_difference, 2),
+		"tender_difference": round(tender_difference, 2),
+		"settlement_reconciled": abs(settlement_difference) < 0.01,
+		"tender_reconciled": abs(tender_difference) < 0.01,
 	}
 
 

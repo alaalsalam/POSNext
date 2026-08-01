@@ -6,6 +6,7 @@ from frappe import _
 from frappe.utils import flt, get_datetime, time_diff_in_hours
 
 from pos_next.api.reporting_access import authorize_report
+from pos_next.api.reporting_utils import add_datetime_bounds, payment_method_fieldnames
 
 
 def execute(filters=None):
@@ -45,8 +46,9 @@ def get_columns(payment_methods):
 	]
 
 	# Dynamic columns per payment method
+	method_fields = payment_method_fieldnames(payment_methods)
 	for method in payment_methods:
-		safe = method.lower().replace(" ", "_")
+		safe = method_fields[method]
 		columns.extend(
 			[
 				{
@@ -152,11 +154,18 @@ def get_data(filters):
 	if not raw:
 		return [], []
 
-	# Discover payment methods (ordered by first appearance)
-	payment_methods = list(dict.fromkeys(r.payment_method for r in raw))
+	# Stable ordering keeps generated columns deterministic across query plans.
+	for row in raw:
+		row.payment_method = row.payment_method or "Unspecified"
+	payment_methods = sorted(
+		{row.payment_method for row in raw},
+		key=lambda method: (str(method).casefold(), str(method)),
+	)
 
 	# Batch-fetch transaction counts per shift (total, not per method)
 	transaction_map = _get_transaction_counts(raw)
+	deposit_map = _get_bank_deposit_data(raw)
+	method_fields = payment_method_fieldnames(payment_methods)
 
 	# Pivot: group rows by shift into one row each
 	shifts = {}
@@ -172,6 +181,7 @@ def get_data(filters):
 			else:
 				shift_hours = 0
 
+			deposit = deposit_map.get(r.shift, {})
 			shifts[r.shift] = {
 				"shift": r.shift,
 				"pos_profile": r.pos_profile,
@@ -181,6 +191,8 @@ def get_data(filters):
 				"shift_end": r.shift_end,
 				"shift_hours": shift_hours,
 				"total_transactions": transaction_map.get(r.shift, 0),
+				"bank_deposit_amount": flt(deposit.get("deposit_amount"), 2),
+				"deposit_date": deposit.get("deposit_date"),
 				"total_opening": 0,
 				"total_expected": 0,
 				"total_closing": 0,
@@ -188,7 +200,7 @@ def get_data(filters):
 			}
 
 		row = shifts[r.shift]
-		safe = r.payment_method.lower().replace(" ", "_")
+		safe = method_fields[r.payment_method]
 		opening = flt(r.opening_amount, 2)
 		expected = flt(r.expected_amount, 2)
 		closing = flt(r.closing_amount, 2)
@@ -253,7 +265,7 @@ def _get_transaction_counts(data):
 		as_dict=1,
 	)
 
-	return {r.shift: r.cnt for r in rows}
+	return {row.shift: row.cnt for row in rows}
 
 
 def _get_bank_deposit_data(data):
@@ -279,18 +291,25 @@ def _get_bank_deposit_data(data):
 		as_dict=1,
 	)
 
-	return {r.shift: r.cnt for r in rows}
+	return {
+		row.shift: {
+			"deposit_amount": flt(row.deposit_amount, 2),
+			"deposit_date": row.deposit_date,
+		}
+		for row in rows
+	}
 
 
 def get_conditions(filters):
 	"""Build WHERE conditions"""
+	filters = add_datetime_bounds(filters)
 	conditions = []
 
 	if filters.get("from_date"):
-		conditions.append("pcs.period_end_date >= %(from_date)s")
+		conditions.append("pcs.period_end_date >= %(from_datetime)s")
 
 	if filters.get("to_date"):
-		conditions.append("pcs.period_end_date <= %(to_date)s")
+		conditions.append("pcs.period_end_date < %(to_datetime_exclusive)s")
 
 	if filters.get("pos_profile"):
 		conditions.append("pcs.pos_profile = %(pos_profile)s")

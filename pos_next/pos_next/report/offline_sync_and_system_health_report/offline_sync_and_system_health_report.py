@@ -6,6 +6,7 @@ from frappe import _
 from frappe.utils import flt, get_datetime, time_diff_in_hours
 
 from pos_next.api.reporting_access import authorize_report
+from pos_next.api.reporting_utils import add_datetime_bounds
 
 
 def execute(filters=None):
@@ -140,13 +141,14 @@ def get_data(filters):
 
 def get_conditions(filters):
 	"""Build WHERE conditions"""
+	filters = add_datetime_bounds(filters)
 	conditions = []
 
 	if filters.get("from_date"):
-		conditions.append("ois.synced_at >= %(from_date)s")
+		conditions.append("ois.synced_at >= %(from_datetime)s")
 
 	if filters.get("to_date"):
-		conditions.append("ois.synced_at <= %(to_date)s")
+		conditions.append("ois.synced_at < %(to_datetime_exclusive)s")
 
 	if filters.get("pos_profile"):
 		conditions.append("ois.pos_profile = %(pos_profile)s")

@@ -144,7 +144,12 @@
 
         <!-- ── Payment Methods ── -->
         <div class="bg-white rounded-2xl border border-gray-100 p-4">
-          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">{{ __("Payment Methods") }}</h3>
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("Payment Methods") }}</h3>
+            <span v-if="!paymentLoading && payment.settlement_reconciled !== undefined" :class="['text-[10px] font-semibold', payment.settlement_reconciled && payment.tender_reconciled ? 'text-emerald-600' : 'text-red-600']">
+              {{ payment.settlement_reconciled && payment.tender_reconciled ? __("Payments reconciled") : __("Payments need review") }}
+            </span>
+          </div>
           <template v-if="paymentLoading">
             <div class="flex flex-col gap-2">
               <div v-for="i in 3" :key="i" class="h-12 bg-gray-50 rounded-xl animate-pulse" />
@@ -163,7 +168,11 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between mb-1">
                     <span class="text-sm font-semibold text-gray-800 truncate">{{ m.mode }}</span>
-                    <span class="text-sm font-bold text-gray-900 ms-2 flex-shrink-0">{{ fmt(m.amount) }}</span>
+                    <span class="text-sm font-bold text-gray-900 ms-2 flex-shrink-0">{{ __("Net {0}", [fmt(m.net)]) }}</span>
+                  </div>
+                  <div class="flex flex-wrap gap-x-3 gap-y-0.5 mb-1 text-[10px]">
+                    <span class="text-emerald-700">{{ __("Received {0}", [fmt(m.received)]) }}</span>
+                    <span class="text-red-600">{{ __("Refunded {0}", [fmt(m.refunded)]) }}</span>
                   </div>
                   <!-- Progress bar -->
                   <div class="flex items-center gap-2">
@@ -175,6 +184,11 @@
                   </div>
                 </div>
               </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-100 text-center">
+              <div><p class="text-[10px] text-gray-400">{{ __("Received") }}</p><p class="text-xs font-bold text-emerald-700">{{ fmt(payment.received_total) }}</p></div>
+              <div><p class="text-[10px] text-gray-400">{{ __("Refunded") }}</p><p class="text-xs font-bold text-red-600">{{ fmt(payment.refunded_total) }}</p></div>
+              <div><p class="text-[10px] text-gray-400">{{ __("Net") }}</p><p class="text-xs font-bold text-gray-900">{{ fmt(payment.net_total) }}</p></div>
             </div>
           </template>
         </div>
