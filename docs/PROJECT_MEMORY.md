@@ -11,7 +11,7 @@ after every completed milestone.
 | Environment | Site | Checkout | Branch | Verified commit | Policy |
 |---|---|---|---|---|---|
 | Production | `pos.digit-erp.com` | `/home/erpnext/frappe-bench-startd-prod/apps/posnext` | `digitpos` | `49c70f5` | Keep unchanged until an explicit, approved release |
-| Development | `digitpos.trilogy-erp.com` | `/home/erpnext/frappe-bench16/apps/posnext` | `develop` | `35194aa` plus current reports milestone | All new work happens here |
+| Development | `digitpos.trilogy-erp.com` | `/home/erpnext/frappe-bench16/apps/posnext` | `develop` | `2a39d82` | All new work happens here |
 
 Never edit, build, migrate, restart, switch branches, or deploy in the production
 bench while implementing the development backlog. Production is the protected Digit
@@ -140,7 +140,7 @@ A feature is complete only when all applicable conditions are true:
 |---|---|---|---|
 | Program setup and durable planning | Completed | Planning baseline commit | Production protected; `develop` created |
 | Feature flag foundation | Completed | `35194aa` | Four profile-scoped management flags; secure-off and manager-controlled |
-| Reports compatibility and in-POS access | Completed | Local milestone commit (this change) | Manager-only, profile/company isolated, ERPNext-reconciled, five reports integrated |
+| Reports compatibility and in-POS access | Completed | `2a39d82` | Manager-only, profile/company isolated, ERPNext-reconciled, five reports integrated |
 | Catalog/purchases/supplier payments hardening | Not started | — | Existing hidden code |
 | Offline end-to-end hardening | Not started | — | Must produce real sync records |
 | Keyboard productivity | Not started | — | Quick, isolated milestone |
