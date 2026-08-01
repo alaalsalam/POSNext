@@ -1,0 +1,11 @@
+{
+  "profile": "Digit Reports Acceptance",
+  "company": "Digit Acceptance Company",
+  "currency": "SAR",
+  "invoices": [
+    {"name": "ACC-SINV-0001", "is_return": 0, "grand_total": 115.0, "net_total": 100.0, "total_taxes_and_charges": 15.0, "rounding_adjustment": 0.0, "paid_amount": 115.0, "outstanding_amount": 0.0, "mode_of_payment": "Cash"},
+    {"name": "ACC-SINV-0002", "is_return": 0, "grand_total": 230.0, "net_total": 200.0, "total_taxes_and_charges": 30.0, "rounding_adjustment": 0.0, "paid_amount": 180.0, "outstanding_amount": 50.0, "mode_of_payment": "Card"},
+    {"name": "ACC-RET-0001", "is_return": 1, "grand_total": -23.0, "net_total": -20.0, "total_taxes_and_charges": -3.0, "rounding_adjustment": 0.0, "paid_amount": -23.0, "outstanding_amount": 0.0, "mode_of_payment": "Cash"}
+  ],
+  "expected": {"sales_total": 345.0, "returns_total": 23.0, "net_sales": 322.0, "net_total": 280.0, "tax_total": 42.0, "outstanding_total": 50.0, "reconciliation_difference": 0.0}
+}

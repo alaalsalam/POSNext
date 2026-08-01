@@ -527,6 +527,7 @@ frappe.query_reports["Sales vs Shifts Report"] = {
 			label: __("POS Profile"),
 			fieldtype: "Link",
 			options: "POS Profile",
+			reqd: 1,
 		},
 		{
 			fieldname: "cashier",

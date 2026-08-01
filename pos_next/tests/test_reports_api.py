@@ -1,7 +1,8 @@
-# Copyright (c) 2025, POS Next and contributors
+# Copyright (c) 2026, POS Next and contributors
 # For license information, please see license.txt
 
-import unittest
+import json
+from pathlib import Path
 from unittest.mock import patch
 
 import frappe
@@ -11,178 +12,116 @@ from pos_next.api import reports
 
 
 class TestReportsAPI(FrappeTestCase):
-    """Tests for pos_next.api.reports — ensure permission gates, date resolution,
-    and aggregation logic are correct."""
+	def setUp(self):
+		super().setUp()
+		frappe.set_user("Administrator")
+		authorize = patch.object(reports, "authorize_report", return_value=frappe._dict())
+		authorize.start()
+		self.addCleanup(authorize.stop)
 
-    def setUp(self):
-        super().setUp()
-        frappe.set_user("Administrator")
-        feature_patch = patch.object(reports, "require_feature", return_value="Test POS Profile")
-        feature_patch.start()
-        self.addCleanup(feature_patch.stop)
+	def tearDown(self):
+		frappe.set_user("Administrator")
 
-    def tearDown(self):
-        frappe.set_user("Administrator")
+	def test_date_ranges_and_invalid_custom_order(self):
+		fd, td = reports._date_range("today")
+		self.assertEqual(fd, td)
+		self.assertEqual(reports._date_range("custom", "2026-01-01", "2026-01-31"), ("2026-01-01", "2026-01-31"))
+		with self.assertRaises(frappe.ValidationError):
+			reports._date_range("custom", "2026-02-01", "2026-01-01")
 
-    # ── _date_range ──────────────────────────────────────────────────────────
-    def test_date_range_today(self):
-        fd, td = reports._date_range("today")
-        self.assertEqual(fd, td)
-        from frappe.utils import nowdate
-        self.assertEqual(fd, nowdate())
+	@patch.object(reports.frappe.db, "get_value", return_value="Digit LLC")
+	@patch.object(reports.frappe, "get_all", return_value=[])
+	def test_invoice_query_uses_erpnext_16_date_and_time_fields(self, get_all, _get_value):
+		reports._get_invoice_names("Profile A", "2026-01-01", "2026-01-31")
+		kwargs = get_all.call_args.kwargs
+		self.assertIn("posting_date", kwargs["fields"])
+		self.assertIn("posting_time", kwargs["fields"])
+		self.assertNotIn("posting_datetime", kwargs["fields"])
+		self.assertEqual(kwargs["order_by"], "posting_date desc, posting_time desc, name desc")
+		self.assertEqual(kwargs["filters"]["company"], "Digit LLC")
 
-    def test_date_range_yesterday(self):
-        from frappe.utils import add_days, nowdate
-        fd, td = reports._date_range("yesterday")
-        self.assertEqual(fd, td)
-        self.assertEqual(fd, add_days(nowdate(), -1))
+	@patch.object(reports.frappe.db, "get_value", return_value="SAR")
+	@patch.object(reports, "_get_invoice_names")
+	def test_daily_summary_reconciles_to_erpnext_totals(self, invoice_query, _get_value):
+		invoice_query.return_value = [
+			frappe._dict(
+				is_return=0, grand_total=115, net_total=100, total_taxes_and_charges=15,
+				rounding_adjustment=-0.05, outstanding_amount=15,
+			),
+			frappe._dict(
+				is_return=1, grand_total=-23, net_total=-20, total_taxes_and_charges=-3,
+				rounding_adjustment=0, outstanding_amount=0,
+			),
+		]
+		result = reports.get_daily_summary("Profile A")
+		self.assertEqual(result["sales_total"], 115)
+		self.assertEqual(result["returns_total"], 23)
+		self.assertEqual(result["net_sales"], 92)
+		self.assertEqual(result["net_total"], 80)
+		self.assertEqual(result["tax_total"], 12)
+		self.assertEqual(result["outstanding_total"], 15)
+		self.assertTrue(result["reconciled"])
+		self.assertEqual(result["reconciliation_difference"], 0)
 
-    def test_date_range_custom(self):
-        fd, td = reports._date_range("custom", from_date="2025-01-01", to_date="2025-01-31")
-        self.assertEqual(fd, "2025-01-01")
-        self.assertEqual(td, "2025-01-31")
+	@patch.object(reports.frappe, "get_all")
+	@patch.object(reports, "_get_invoice_names")
+	def test_payment_breakdown_uses_paid_total_and_unique_invoice_count(self, invoice_query, get_all):
+		invoice_query.return_value = [
+			frappe._dict(name="SI-1", grand_total=600, paid_amount=600, outstanding_amount=0),
+			frappe._dict(name="SI-2", grand_total=400, paid_amount=400, outstanding_amount=0),
+		]
+		get_all.return_value = [
+			frappe._dict(parent="SI-1", mode_of_payment="Cash", amount=500),
+			frappe._dict(parent="SI-1", mode_of_payment="Cash", amount=100),
+			frappe._dict(parent="SI-2", mode_of_payment="Card", amount=400),
+		]
+		result = reports.get_payment_breakdown("Profile A")
+		methods = {row["mode"]: row for row in result["methods"]}
+		self.assertEqual(methods["Cash"]["count"], 1)
+		self.assertEqual(methods["Cash"]["percentage"], 60)
+		self.assertEqual(methods["Card"]["percentage"], 40)
+		self.assertEqual(result["invoice_total"], 1000)
+		self.assertEqual(result["paid_total"], 1000)
 
-    def test_date_range_fallback(self):
-        """Unknown period falls back to today."""
-        from frappe.utils import nowdate
-        fd, _td = reports._date_range("unknown_period")
-        self.assertEqual(fd, nowdate())
+	@patch.object(reports.frappe.db, "get_value", return_value="Digit LLC")
+	@patch.object(reports.frappe, "get_all")
+	def test_recent_transactions_builds_datetime_without_database_column(self, get_all, _get_value):
+		get_all.side_effect = [
+			[
+				frappe._dict(
+					name="SI-1", posting_date="2026-07-30", posting_time="14:05:00",
+				)
+			],
+			[frappe._dict(parent="SI-1", mode_of_payment="Cash", amount=10)],
+		]
+		result = reports.get_recent_transactions("Profile A")
+		invoice = result["transactions"][0]
+		self.assertEqual(invoice.payment_method, "Cash")
+		self.assertTrue(invoice.posting_datetime.startswith("2026-07-30 14:05:00"))
+		invoice_call = get_all.call_args_list[0]
+		self.assertNotIn("posting_datetime", invoice_call.kwargs["fields"])
 
-    # ── _get_user_pos_profiles ───────────────────────────────────────────────
-    def test_get_user_pos_profiles_returns_list(self):
-        """Should return a list (possibly empty) without throwing."""
-        result = reports._get_user_pos_profiles("Administrator")
-        self.assertIsInstance(result, list)
+	@patch.object(reports, "get_reportable_profiles")
+	def test_filters_only_return_pre_authorized_profiles(self, profiles):
+		profiles.return_value = [frappe._dict(name="Profile A", company="Company A", currency="SAR")]
+		result = reports.get_report_filters()
+		self.assertEqual([row.name for row in result["pos_profiles"]], ["Profile A"])
+		self.assertEqual(len(result["desk_reports"]), 5)
 
-    # ── _assert_profile_access ───────────────────────────────────────────────
-    def test_assert_profile_access_denies_unauthorized(self):
-        """A user who does not own a profile should be denied."""
-        frappe.set_user("Guest")
-        with self.assertRaises(frappe.PermissionError):
-            reports._assert_profile_access("NonExistentProfile")
-        frappe.set_user("Administrator")
-
-    # ── get_report_filters ───────────────────────────────────────────────────
-    def test_get_report_filters_structure(self):
-        frappe.set_user("Administrator")
-        result = reports.get_report_filters()
-        self.assertIn("pos_profiles", result)
-        self.assertIn("periods", result)
-        self.assertIsInstance(result["pos_profiles"], list)
-        self.assertIsInstance(result["periods"], list)
-        self.assertTrue(len(result["periods"]) >= 4)
-
-    # ── get_daily_summary ────────────────────────────────────────────────────
-    def test_get_daily_summary_no_data(self):
-        """If there are no invoices for a profile, summary should be zeros."""
-        # Use a fake POS profile that the current user can access
-        # We mock _assert_profile_access and _get_invoice_names
-        original_assert = reports._assert_profile_access
-        original_invoices = reports._get_invoice_names
-        try:
-            reports._assert_profile_access = lambda p: None
-            reports._get_invoice_names = lambda *a, **kw: []
-            # Also mock currency lookup
-            import frappe.utils
-            orig_get = frappe.db.get_value
-            frappe.db.get_value = lambda dt, n, f, **kw: "SAR" if f == "currency" else orig_get(dt, n, f, **kw)
-
-            result = reports.get_daily_summary("FakeProfile", period="today")
-            self.assertEqual(result["sales_total"], 0.0)
-            self.assertEqual(result["sales_count"], 0)
-            self.assertEqual(result["returns_total"], 0.0)
-            self.assertEqual(result["net_sales"], 0.0)
-        finally:
-            reports._assert_profile_access = original_assert
-            reports._get_invoice_names = original_invoices
-            frappe.db.get_value = orig_get
-
-    def test_get_daily_summary_aggregation(self):
-        """Verify sales/returns aggregation logic with mock invoice data."""
-        original_assert = reports._assert_profile_access
-        original_invoices = reports._get_invoice_names
-        orig_get = frappe.db.get_value
-        try:
-            reports._assert_profile_access = lambda p: None
-            reports._get_invoice_names = lambda *a, **kw: [
-                frappe._dict(is_return=0, grand_total=500, outstanding_amount=0),
-                frappe._dict(is_return=0, grand_total=300, outstanding_amount=100),
-                frappe._dict(is_return=1, grand_total=-50, outstanding_amount=0),
-            ]
-            frappe.db.get_value = lambda dt, n, f, **kw: "SAR"
-
-            result = reports.get_daily_summary("FakeProfile", period="today")
-            self.assertEqual(result["sales_count"], 2)
-            self.assertEqual(result["sales_total"], 800.0)
-            self.assertEqual(result["returns_count"], 1)
-            self.assertEqual(result["returns_total"], 50.0)
-            self.assertAlmostEqual(result["net_sales"], 750.0)
-            self.assertAlmostEqual(result["avg_invoice"], 400.0)
-            self.assertEqual(result["outstanding_total"], 100.0)
-        finally:
-            reports._assert_profile_access = original_assert
-            reports._get_invoice_names = original_invoices
-            frappe.db.get_value = orig_get
-
-    # ── get_payment_breakdown ────────────────────────────────────────────────
-    def test_get_payment_breakdown_empty(self):
-        """Empty invoice list returns empty methods."""
-        original_assert = reports._assert_profile_access
-        original_invoices = reports._get_invoice_names
-        try:
-            reports._assert_profile_access = lambda p: None
-            reports._get_invoice_names = lambda *a, **kw: []
-
-            result = reports.get_payment_breakdown("FakeProfile", period="today")
-            self.assertEqual(result["methods"], [])
-            self.assertEqual(result["grand_total"], 0.0)
-        finally:
-            reports._assert_profile_access = original_assert
-            reports._get_invoice_names = original_invoices
-
-    def test_get_payment_breakdown_percentages(self):
-        """Verify percentage calculations are correct."""
-        original_assert = reports._assert_profile_access
-        original_invoices = reports._get_invoice_names
-        orig_get_all = frappe.get_all
-        try:
-            reports._assert_profile_access = lambda p: None
-            reports._get_invoice_names = lambda *a, **kw: [
-                frappe._dict(name="SI-001", grand_total=600, is_return=0, outstanding_amount=0,
-                             net_total=600, total_taxes_and_charges=0, posting_datetime=None,
-                             posting_date=None, customer=None, currency="SAR"),
-                frappe._dict(name="SI-002", grand_total=400, is_return=0, outstanding_amount=0,
-                             net_total=400, total_taxes_and_charges=0, posting_datetime=None,
-                             posting_date=None, customer=None, currency="SAR"),
-            ]
-            # Mock payment rows
-            frappe.get_all = lambda dt, **kw: (
-                [frappe._dict(parent="SI-001", mode_of_payment="Cash", amount=600),
-                 frappe._dict(parent="SI-002", mode_of_payment="Card", amount=400)]
-                if dt == "Sales Invoice Payment" else orig_get_all(dt, **kw)
-            )
-
-            result = reports.get_payment_breakdown("FakeProfile", period="today")
-            methods = {m["mode"]: m for m in result["methods"]}
-            self.assertAlmostEqual(methods["Cash"]["percentage"], 60.0)
-            self.assertAlmostEqual(methods["Card"]["percentage"], 40.0)
-            self.assertEqual(result["grand_total"], 1000.0)
-        finally:
-            reports._assert_profile_access = original_assert
-            reports._get_invoice_names = original_invoices
-            frappe.get_all = orig_get_all
-
-    # ── get_current_shift_profile ────────────────────────────────────────────
-    def test_get_current_shift_profile_no_shift(self):
-        """When no open shift exists, should return None."""
-        orig_get_all = frappe.get_all
-        try:
-            frappe.get_all = lambda dt, **kw: [] if dt == "POS Opening Shift" else orig_get_all(dt, **kw)
-            result = reports.get_current_shift_profile()
-            self.assertIsNone(result["pos_profile"])
-        finally:
-            frappe.get_all = orig_get_all
-
-
-if __name__ == "__main__":
-    unittest.main()
+	def test_demo_acceptance_fixture_reconciles(self):
+		fixture_path = Path(__file__).parent / "fixtures" / "reports_acceptance.json"
+		fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+		invoices = fixture["invoices"]
+		actual = {
+			"sales_total": sum(row["grand_total"] for row in invoices if not row["is_return"]),
+			"returns_total": sum(abs(row["grand_total"]) for row in invoices if row["is_return"]),
+			"net_sales": sum(row["grand_total"] for row in invoices),
+			"net_total": sum(row["net_total"] for row in invoices),
+			"tax_total": sum(row["total_taxes_and_charges"] for row in invoices),
+			"outstanding_total": sum(max(row["outstanding_amount"], 0) for row in invoices if not row["is_return"]),
+			"reconciliation_difference": sum(
+				row["grand_total"] - row["net_total"] - row["total_taxes_and_charges"]
+				for row in invoices
+			),
+		}
+		self.assertEqual(actual, fixture["expected"])

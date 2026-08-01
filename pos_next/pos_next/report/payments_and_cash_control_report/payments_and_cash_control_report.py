@@ -5,8 +5,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, get_datetime, time_diff_in_hours
 
+from pos_next.api.reporting_access import authorize_report
+
 
 def execute(filters=None):
+	filters = authorize_report(filters, reference_doctype="POS Closing Shift")
 	data, payment_methods = get_data(filters)
 	columns = get_columns(payment_methods)
 	chart = get_chart_data(data, payment_methods)

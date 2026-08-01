@@ -28,6 +28,7 @@ frappe.query_reports["Payments and Cash Control Report"] = {
 			label: __("POS Profile"),
 			fieldtype: "Link",
 			options: "POS Profile",
+			reqd: 1,
 		},
 		{
 			fieldname: "cashier",

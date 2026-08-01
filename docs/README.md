@@ -33,6 +33,10 @@ Welcome to the POS Next documentation directory. This folder contains comprehens
   - Backend enforcement, audit, bootstrap, and realtime invalidation
   - Development migration, rollback, and acceptance scenarios
 
+- **[REPORTS.md](REPORTS.md)** - Flag-controlled manager reporting
+  - Accounting reconciliation and ERPNext 16 datetime model
+  - Profile/company isolation, five Desk reports, and acceptance data
+
 - **[OFFLINE_SYNC.md](OFFLINE_SYNC.md)** - Offline invoice synchronization system
   - Architecture overview
   - Deduplication mechanism (offline_id)

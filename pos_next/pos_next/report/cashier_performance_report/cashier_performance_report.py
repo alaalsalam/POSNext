@@ -5,8 +5,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from pos_next.api.reporting_access import authorize_report
+
 
 def execute(filters=None):
+	filters = authorize_report(filters)
 	columns = get_columns()
 	data = get_data(filters)
 	chart = get_chart_data(data)

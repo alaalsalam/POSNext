@@ -5,8 +5,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, get_datetime, time_diff_in_hours
 
+from pos_next.api.reporting_access import authorize_report
+
 
 def execute(filters=None):
+	filters = authorize_report(filters, reference_doctype="Offline Invoice Sync")
 	columns = get_columns()
 	data = get_data(filters)
 	summary = get_summary(data)

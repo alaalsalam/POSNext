@@ -80,9 +80,11 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, time_diff_in_hours
 
+from pos_next.api.reporting_access import authorize_report
+
 
 def execute(filters=None):
-	filters = filters or {}
+	filters = authorize_report(filters)
 	data = get_shift_data(filters)
 	columns = get_columns()
 	summary = get_summary(data)
@@ -1140,6 +1142,7 @@ def get_chart(data):
 def get_hourly_breakdown(filters):
 	"""Get hourly sales breakdown"""
 	filters = frappe.parse_json(filters) if isinstance(filters, str) else filters
+	filters = authorize_report(filters)
 
 	conditions = []
 	if filters.get("from_date"):
@@ -1174,6 +1177,7 @@ def get_hourly_breakdown(filters):
 def get_payment_method_breakdown(filters):
 	"""Get payment method breakdown"""
 	filters = frappe.parse_json(filters) if isinstance(filters, str) else filters
+	filters = authorize_report(filters)
 
 	conditions = []
 	if filters.get("from_date"):
@@ -1209,6 +1213,7 @@ def get_payment_method_breakdown(filters):
 def get_daily_trend(filters):
 	"""Get daily sales trend"""
 	filters = frappe.parse_json(filters) if isinstance(filters, str) else filters
+	filters = authorize_report(filters)
 
 	conditions = []
 	if filters.get("from_date"):

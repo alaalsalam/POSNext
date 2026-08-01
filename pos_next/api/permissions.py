@@ -4,6 +4,7 @@
 import frappe
 
 from pos_next.api.feature_flags import FEATURE_DEFAULTS, get_feature_flags, is_feature_manager
+from pos_next.api.reporting_access import is_report_manager
 
 
 @frappe.whitelist()
@@ -64,7 +65,11 @@ def get_pos_permissions(pos_profile=None):
 		"can_submit_payment_entries": bool(feature_flags["enable_supplier_payments"] and can("Payment Entry", "submit")),
 		"can_cancel_payment_entries": bool(feature_flags["enable_supplier_payments"] and can("Payment Entry", "cancel")),
 		# ── Reports ──
-		"can_view_reports": bool(feature_flags["enable_pos_reports"] and can("Sales Invoice", "read")),
+		"can_view_reports": bool(
+			feature_flags["enable_pos_reports"]
+			and is_report_manager()
+			and can("Sales Invoice", "read")
+		),
 		"feature_flags": feature_flags,
 		"user_roles": user_roles,
 	}

@@ -11,7 +11,7 @@ after every completed milestone.
 | Environment | Site | Checkout | Branch | Verified commit | Policy |
 |---|---|---|---|---|---|
 | Production | `pos.digit-erp.com` | `/home/erpnext/frappe-bench-startd-prod/apps/posnext` | `digitpos` | `49c70f5` | Keep unchanged until an explicit, approved release |
-| Development | `digitpos.trilogy-erp.com` | `/home/erpnext/frappe-bench16/apps/posnext` | `develop` | based on `a182d9e` | All new work happens here |
+| Development | `digitpos.trilogy-erp.com` | `/home/erpnext/frappe-bench16/apps/posnext` | `develop` | `35194aa` plus current reports milestone | All new work happens here |
 
 Never edit, build, migrate, restart, switch branches, or deploy in the production
 bench while implementing the development backlog. Production is the protected Digit
@@ -60,24 +60,24 @@ They were executed successfully on production on 2026-08-01. The first three ret
 six shift rows, the inventory report returned 70 rows, and the offline report returned
 zero rows because production currently has no Offline Invoice Sync records.
 
-The in-POS dashboard added in commit `9573cef` is different from those reports. It is
-currently hidden and has an ERPNext 16 compatibility defect: `pos_next/api/reports.py`
-queries the nonexistent Sales Invoice field `posting_datetime`. It must be corrected
-and covered by tests before it is enabled.
+The in-POS dashboard added in commit `9573cef` is different from those reports. Its
+ERPNext 16 datetime defect was corrected in the reports milestone: database queries use
+`posting_date` and `posting_time`, and build a response-only datetime for display. It is
+secure-off and available only to assigned, company-authorized managers after the
+profile's `enable_pos_reports` flag is deliberately activated.
 
 ## Existing Hidden Management Modules
 
-The following implementations exist but are intentionally hidden by
-`ENABLE_NEW_MANAGEMENT_FEATURES = false` in `POS/src/pages/POSSale.vue`:
+The following implementations pre-existed as hidden management modules and are now
+controlled independently by persisted, secure-off POS Settings flags:
 
 - Catalog and item management.
 - Purchase invoices.
 - Supplier payments.
 - In-POS report dashboard.
 
-Replace the hard-coded umbrella constant with independent server-controlled feature
-flags. A hidden UI element is not a security boundary; backend permission and feature
-checks are mandatory.
+The umbrella constant has been removed. A hidden UI element is not a security boundary;
+backend permission and feature checks remain mandatory.
 
 ## Verified Production Configuration Snapshot
 
@@ -139,8 +139,8 @@ A feature is complete only when all applicable conditions are true:
 | Milestone | Status | Evidence/commit | Notes |
 |---|---|---|---|
 | Program setup and durable planning | Completed | Planning baseline commit | Production protected; `develop` created |
-| Feature flag foundation | Completed | Local milestone commit (this change) | Four profile-scoped management flags; secure-off and manager-controlled |
-| Reports compatibility and in-POS access | Not started | — | First product feature milestone |
+| Feature flag foundation | Completed | `35194aa` | Four profile-scoped management flags; secure-off and manager-controlled |
+| Reports compatibility and in-POS access | Completed | Local milestone commit (this change) | Manager-only, profile/company isolated, ERPNext-reconciled, five reports integrated |
 | Catalog/purchases/supplier payments hardening | Not started | — | Existing hidden code |
 | Offline end-to-end hardening | Not started | — | Must produce real sync records |
 | Keyboard productivity | Not started | — | Quick, isolated milestone |
@@ -222,3 +222,66 @@ unchanged on `digitpos` at `49c70f5` after implementation.
   milestone.
 - Flags for later Master Plan milestones will be added with their accepted vertical
   slices; they remain unavailable rather than exposing inactive placeholder controls.
+
+## Milestone Evidence — Reports Compatibility and In-POS Access
+
+Completed on 2026-08-01 in the development checkout only. Production was re-verified
+unchanged on `digitpos` at `49c70f5`; no production build, migration, restart, or write
+was performed. All report flags on development remained off.
+
+### Decisions and implementation
+
+- Replaced invalid Sales Invoice `posting_datetime` queries with ERPNext 16
+  `posting_date`/`posting_time` selection and ordering. Display datetimes are constructed
+  only in the API response.
+- Made the dashboard and every public/Desk report entry Manager-only, feature-guarded,
+  and single-POS-Profile scoped. Profile assignment plus normal POS Profile, Company,
+  reference DocType, and User Permissions are enforced; cashier and POS User roles do
+  not gain report access through Sales Invoice read permission.
+- Integrated links for all five existing Desk reports with the selected profile and
+  resolved dates. Their filters require POS Profile, and the Sales vs Shifts report no
+  longer grants its former standalone `POS User` role.
+- Reconciled signed `grand_total` against `net_total + total_taxes_and_charges`, while
+  reporting ERPNext rounding separately. Sales, returns, taxes, outstanding credit,
+  payment tender, and recent invoices all come from submitted POS Sales Invoices only.
+- Reworked the dashboard to use one active locale, direction-aware RTL/LTR, locale-aware
+  formatting, English translation keys, and Arabic translations. Added responsive,
+  touch-sized detailed-report links and a visible reconciliation state.
+- Added the non-posting acceptance fixture
+  `pos_next/tests/fixtures/reports_acceptance.json` and documented accounting/access
+  semantics and acceptance in `docs/REPORTS.md`.
+
+### Verification evidence
+
+- Standard selected `bench run-tests` was attempted and stopped during ERPNext bootstrap
+  at duplicate Price List `Standard Buying`, before loading the selected modules. No
+  existing data was deleted or modified to bypass it.
+- The exact report suites were run in a Frappe-initialized development console: 12/12
+  passed, covering datetime compatibility, reconciliation, negative cashier access,
+  direct flag enforcement, required profile, and profile/company exclusion.
+- Real manager isolation on development: `manager.demo@digitpos.trilogy-erp.com` received
+  no reportable profiles; assigned `Digit POS Main` was denied by Company permission and
+  foreign `الجوالات` was denied by POS Profile assignment. No data changed.
+- Direct API flag-negative acceptance on `الجوالات` returned `PermissionError: This POS
+  feature is disabled`; all 16 development report flags remained `0`.
+- Read-only reconciliation for `الجوالات` (2026-07-26 through 2026-07-30) matched direct
+  ERPNext totals: grand 224,493.65; net 223,841.45; tax 652.20. ERPNext rounding of
+  -6.65 is reported separately. The five report modules executed read-only with row
+  counts 0, 2, 1, 45, and 0 for that scoped dataset.
+- Frontend Vitest: 4/4 passed across permission-cache and report URL/RTL tests. Targeted
+  Biome checking passed.
+- Python compile, Ruff, JSON validation, `git diff --check`, and the development Vite
+  build passed.
+
+### Known limitations and harness notes
+
+- The ERPNext duplicate-Price-List bootstrap blocker is pre-existing and remains exact;
+  the Frappe-console alternative provides real framework/DB initialization without
+  destructive test-record cleanup.
+- Development acceptance used existing submitted records read-only and a non-posting
+  fixture; no financial demo documents were inserted and no live profile was activated.
+- The five reports can legitimately return zero rows when the selected profile/date has
+  no closing-shift or offline-sync references. The dashboard does not aggregate across
+  profiles by design.
+- The successful Vite build retains pre-existing duplicate PWA-key, deployment-time
+  Digit asset, and static/dynamic chunk warnings.

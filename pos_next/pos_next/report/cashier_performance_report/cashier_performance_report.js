@@ -28,6 +28,7 @@ frappe.query_reports["Cashier Performance Report"] = {
 			label: __("POS Profile"),
 			fieldtype: "Link",
 			options: "POS Profile",
+			reqd: 1,
 		},
 		{
 			fieldname: "cashier",
