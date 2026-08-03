@@ -714,6 +714,7 @@
 				@sync-all="handleSyncAll"
 				@retry-failed="handleRetryFailedOperations"
 				@delete-invoice="handleDeleteOfflineInvoice"
+				@delete-payment="handleDeleteOfflinePayment"
 				@edit-invoice="handleEditOfflineInvoice"
 				@print-invoice="handlePrintInvoice"
 				@refresh="offlineStore.loadPendingInvoices"
@@ -2956,6 +2957,18 @@ async function handleDeleteOfflineInvoice(invoiceId) {
 		await offlineStore.deleteOfflineInvoice(invoiceId);
 	} catch (error) {
 		log.error("Error deleting offline invoice:", error);
+	}
+}
+
+async function handleDeleteOfflinePayment(paymentId) {
+	try {
+		if (offlineStore.isSyncing) {
+			showWarning(__("Cannot delete while syncing — please wait for sync to finish."));
+			return;
+		}
+		await offlineStore.deleteOfflinePayment(paymentId);
+	} catch (error) {
+		log.error("Error deleting offline payment:", error);
 	}
 }
 

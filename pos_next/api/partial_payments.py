@@ -792,6 +792,30 @@ def add_payment_to_partial_invoice(invoice_name: str, payments) -> Dict:
 			payment_account = payment.get("account")
 			reference_no = payment.get("reference_no")
 
+			if reference_no:
+				existing_payment = frappe.db.get_value(
+					"Payment Entry",
+					{"reference_no": str(reference_no)[:140], "docstatus": 1},
+					"name",
+				)
+				if existing_payment:
+					existing_reference = frappe.db.get_value(
+						"Payment Entry Reference",
+						{
+							"parent": existing_payment,
+							"reference_doctype": "Sales Invoice",
+							"reference_name": invoice_name,
+						},
+						["allocated_amount"],
+						as_dict=True,
+					)
+					if existing_reference and abs(flt(existing_reference.allocated_amount) - amount) <= AMOUNT_TOLERANCE:
+						payment_entries_created.append(existing_payment)
+						continue
+					frappe.throw(
+						_("Payment reference {0} is already used by another payment").format(reference_no)
+					)
+
 			pe_name = create_payment_entry(
 				invoice_name=invoice_name,
 				amount=amount,

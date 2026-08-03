@@ -1055,6 +1055,7 @@ import { Badge, Button, Card, FormControl, LoadingIndicator, createResource } fr
 import { FeatherIcon } from "frappe-ui";
 import { computed, onMounted, ref, watch } from "vue";
 import TranslatedHTML from "../common/TranslatedHTML.vue";
+import { getSetting, isOffline, setSetting } from "@/utils/offline";
 
 // Use shared toast
 const { showSuccess, showError, showWarning } = useToast();
@@ -1081,6 +1082,11 @@ const emit = defineEmits(["update:modelValue", "promotion-saved"]);
 const itemSearchStore = useItemSearchStore();
 
 const show = ref(props.modelValue);
+const promotionsCacheKey = computed(
+	() => `pos_promotions_${props.posProfile || "default"}_${props.company || "default"}`
+);
+const itemGroupsCacheKey = computed(() => `pos_promotion_item_groups_${props.company || "default"}`);
+const brandsCacheKey = computed(() => `pos_promotion_brands_${props.company || "default"}`);
 const loading = ref(false);
 const isCreating = ref(false);
 const selectedPromotion = ref(null);
@@ -1248,7 +1254,13 @@ const promotionsResource = createResource({
 	auto: false,
 	onSuccess(data) {
 		promotions.value = data || [];
+		setSetting(promotionsCacheKey.value, promotions.value).catch(() => {});
 		loading.value = false;
+	},
+	async onError(error) {
+		promotions.value = (await getSetting(promotionsCacheKey.value)) || [];
+		loading.value = false;
+		if (!isOffline()) handleError(error, __("Failed to load promotions"));
 	},
 });
 
@@ -1260,10 +1272,12 @@ const itemGroupsResource = createResource({
 	auto: false,
 	onSuccess(data) {
 		itemGroups.value = data || [];
+		setSetting(itemGroupsCacheKey.value, itemGroups.value).catch(() => {});
 	},
-	onError(error) {
+	async onError(error) {
+		itemGroups.value = (await getSetting(itemGroupsCacheKey.value)) || [];
 		console.error("Error loading item groups:", error);
-		handleError(error, __("Failed to load item groups"));
+		if (!isOffline()) handleError(error, __("Failed to load item groups"));
 	},
 });
 
@@ -1272,10 +1286,12 @@ const brandsResource = createResource({
 	auto: false,
 	onSuccess(data) {
 		brands.value = data || [];
+		setSetting(brandsCacheKey.value, brands.value).catch(() => {});
 	},
-	onError(error) {
+	async onError(error) {
+		brands.value = (await getSetting(brandsCacheKey.value)) || [];
 		console.error("Error loading brands:", error);
-		handleError(error, __("Failed to load brands"));
+		if (!isOffline()) handleError(error, __("Failed to load brands"));
 	},
 });
 
@@ -1427,6 +1443,12 @@ onMounted(() => {
 
 // Check user permissions — single batch call to backend
 async function checkPermissions() {
+	if (isOffline()) {
+		permissions.value = { create: false, write: false, delete: false };
+		couponPermissions.value = { create: false, write: false, delete: false };
+		referralPermissions.value = { create: false, write: false, delete: false };
+		return;
+	}
 	try {
 		const perms = await loadPOSPermissions();
 		// Promotion tab
@@ -1487,12 +1509,25 @@ function returnToList() {
 	isCreating.value = false;
 }
 
-function loadPromotions() {
+async function loadPromotions() {
 	loading.value = true;
+	if (isOffline()) {
+		promotions.value = (await getSetting(promotionsCacheKey.value)) || [];
+		loading.value = false;
+		showWarning(__("Showing cached promotions while offline"));
+		return;
+	}
 	promotionsResource.reload();
 }
 
-function loadData() {
+async function loadData() {
+	if (isOffline()) {
+		[itemGroups.value, brands.value] = await Promise.all([
+			getSetting(itemGroupsCacheKey.value).then((value) => value || []),
+			getSetting(brandsCacheKey.value).then((value) => value || []),
+		]);
+		return;
+	}
 	itemGroupsResource.reload();
 	brandsResource.reload();
 }
@@ -1502,6 +1537,10 @@ function handleClose() {
 }
 
 function handleCreateNew() {
+	if (isOffline()) {
+		showWarning(__("Promotions are read-only while offline"));
+		return;
+	}
 	resetForm();
 	isCreating.value = true;
 	selectedPromotion.value = null;
@@ -1510,6 +1549,11 @@ function handleCreateNew() {
 function handleSelectPromotion(promotion) {
 	isCreating.value = false;
 	selectedPromotion.value = promotion;
+	if (isOffline()) {
+		populateFormFromPromotion(promotion);
+		showWarning(__("Promotions are read-only while offline"));
+		return;
+	}
 	loading.value = true;
 	promotionDetailsResource.reload();
 }
@@ -1521,10 +1565,18 @@ function handleCancel() {
 }
 
 function handleToggle(promotion) {
+	if (isOffline()) {
+		showWarning(__("Promotion status cannot be changed while offline"));
+		return;
+	}
 	toggleResource.submit({ scheme_name: promotion.name });
 }
 
 function handleDelete(promotion) {
+	if (isOffline()) {
+		showWarning(__("Promotions cannot be deleted while offline"));
+		return;
+	}
 	promotionToDelete.value = promotion;
 	showDeleteConfirm.value = true;
 }
@@ -1542,6 +1594,10 @@ function cancelDelete() {
 }
 
 function handleSubmit() {
+	if (isOffline()) {
+		showWarning(__("Promotions cannot be changed while offline"));
+		return;
+	}
 	// Validate
 	if (!form.value.name) {
 		showWarning(__("Please enter a promotion name"));

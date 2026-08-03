@@ -855,6 +855,8 @@
 import { ref, computed, watch, nextTick } from "vue";
 import { call, Dialog } from "frappe-ui";
 import { __ } from "@/utils/translation";
+import { isOffline } from "@/utils/offline";
+import { offlineWorker } from "@/utils/offline/workerClient";
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -994,6 +996,21 @@ watch(
 				// Item mode - check if item has variants first
 				// We need to fetch item details to check has_variants
 				try {
+					if (isOffline()) {
+						const cachedItems = await offlineWorker.searchCachedItems(props.itemCode, 20, 0);
+						const item = (cachedItems || []).find((row) => row.item_code === props.itemCode);
+						if (item?.has_variants) {
+							selectedItemCode.value = props.itemCode;
+							selectedItemName.value = props.itemName || props.itemCode;
+							selectedItemHasVariants.value = true;
+							isReady.value = true;
+							await loadVariants();
+						} else {
+							isReady.value = true;
+							await loadAvailability();
+						}
+						return;
+					}
 					const itemResponse = await call("pos_next.api.items.get_items", {
 						pos_profile: props.posProfile,
 						search_term: props.itemCode,
@@ -1090,6 +1107,11 @@ async function performSearch() {
 	}
 
 	try {
+		if (isOffline()) {
+			searchResults.value = await offlineWorker.searchCachedItems(searchQuery.value, 15, 0);
+			if (searchResults.value.length > 0) selectedResultIndex.value = 0;
+			return;
+		}
 		const response = await call("pos_next.api.items.get_items", {
 			pos_profile: props.posProfile,
 			search_term: searchQuery.value,
@@ -1239,6 +1261,17 @@ async function loadVariants() {
 	error.value = null;
 
 	try {
+		if (isOffline()) {
+			const cachedItems = await offlineWorker.searchCachedItems("", 1000, 0);
+			variants.value = (cachedItems || []).filter(
+				(item) => item.variant_of === templateItem
+			);
+			if (variants.value.length === 0) {
+				showVariantSelection.value = false;
+				await loadAvailability();
+			}
+			return;
+		}
 		const response = await call("pos_next.api.items.get_item_variants", {
 			template_item: templateItem,
 			pos_profile: props.posProfile,
@@ -1300,6 +1333,29 @@ async function loadAvailability() {
 	warehouses.value = [];
 
 	try {
+		if (isOffline()) {
+			const itemCodes =
+				selectedVariants.value.length > 0
+					? selectedVariants.value.map((variant) => variant.item_code)
+					: [targetItemCode];
+			const cachedRows = await Promise.all(
+				itemCodes.map(async (itemCode) => {
+					const matches = await offlineWorker.searchCachedItems(itemCode, 20, 0);
+					return (matches || []).find((item) => item.item_code === itemCode);
+				})
+			);
+			warehouses.value = cachedRows.filter(Boolean).map((item) => ({
+				warehouse: item.warehouse || item.warehouse_name || __("POS Warehouse (cached)"),
+				warehouse_name: item.warehouse_name || item.warehouse || __("POS Warehouse (cached)"),
+				item_code: item.item_code,
+				actual_qty: Number(item.actual_qty ?? item.stock_qty ?? 0),
+				available_qty: Number(item.available_qty ?? item.actual_qty ?? item.stock_qty ?? 0),
+			}));
+			if (warehouses.value.length === 0) {
+				error.value = __("No cached stock information is available for this item");
+			}
+			return;
+		}
 		// If variants are selected, use item_codes parameter
 		if (selectedVariants.value.length > 0) {
 			const itemCodes = selectedVariants.value.map((v) => v.item_code);

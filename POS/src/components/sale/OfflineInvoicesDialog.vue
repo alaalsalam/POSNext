@@ -1,5 +1,5 @@
 <template>
-	<Dialog v-model="show" :options="{ title: __('Offline Invoices'), size: 'xl' }">
+	<Dialog v-model="show" :options="{ title: __('Offline Operations'), size: 'xl' }">
 		<template #body-content>
 			<div class="flex flex-col gap-3 sm:flex flex-col gap-4">
 				<!-- Header Info -->
@@ -22,17 +22,27 @@
 						</svg>
 						<div class="min-w-0">
 							<h3 class="font-semibold text-gray-900 text-sm sm:text-base">
-								{{ __("{0} Pending Invoice(s)", [invoices.length]) }}
+								{{ __("{0} Pending Offline Operation(s)", [invoices.length]) }}
 							</h3>
 							<p class="text-xs sm:text-sm text-gray-600 truncate">
 								{{
-									__("These invoices will be submitted when you're back online")
+									__("These operations will be submitted when you're back online")
 								}}
 							</p>
 						</div>
 					</div>
+					<div v-if="!isOffline && invoices.length > 0" class="flex gap-2 w-full sm:w-auto">
 					<Button
-						v-if="!isOffline && invoices.length > 0"
+						v-if="operationCounts.failed > 0"
+						data-testid="offline-retry-failed"
+						@click="retryFailed"
+						:disabled="isSyncing"
+						variant="subtle"
+					>
+						{{ __("Retry Failed") }}
+					</Button>
+					<Button
+						data-testid="offline-sync-all"
 						@click="syncAll"
 						:loading="isSyncing"
 						variant="solid"
@@ -55,6 +65,25 @@
 						</template>
 						{{ __("Sync All") }}
 					</Button>
+					</div>
+				</div>
+
+				<div class="flex flex-wrap gap-2" role="tablist">
+					<button
+						v-for="option in filterOptions"
+						:key="option.value"
+						type="button"
+						:data-testid="`offline-filter-${option.value}`"
+						@click="activeFilter = option.value"
+						:class="[
+							'px-3 py-1.5 rounded-full border text-xs font-medium',
+							activeFilter === option.value
+								? 'bg-emerald-600 border-emerald-600 text-white'
+								: 'bg-white border-gray-200 text-gray-700',
+						]"
+					>
+						{{ option.label }} ({{ operationCounts[option.value] }})
+					</button>
 				</div>
 
 				<!-- Loading State -->
@@ -65,7 +94,7 @@
 				</div>
 
 				<!-- Empty State -->
-				<div v-else-if="invoices.length === 0" class="text-center py-12">
+				<div v-else-if="filteredOperations.length === 0" class="text-center py-12">
 					<svg
 						class="w-16 h-16 mx-auto text-gray-300"
 						fill="none"
@@ -79,7 +108,7 @@
 							d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 						/>
 					</svg>
-					<p class="mt-4 text-gray-500">{{ __("No pending offline invoices") }}</p>
+					<p class="mt-4 text-gray-500">{{ __("No matching offline operations") }}</p>
 				</div>
 
 				<!-- Invoices List -->
@@ -88,22 +117,25 @@
 					class="flex flex-col gap-2 sm:flex flex-col gap-3 max-h-[60vh] sm:max-h-96 overflow-y-auto"
 				>
 					<div
-						v-for="invoice in invoices"
+						v-for="invoice in filteredOperations"
 						:key="invoice.id"
+						:data-testid="isPayment(invoice) ? 'offline-payment-row' : 'offline-invoice-row'"
 						class="border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-50 transition-colors"
 					>
 						<div
+							v-if="!isPayment(invoice)"
 							class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
 						>
 							<div class="flex-1 min-w-0">
 								<div class="flex flex-wrap items-center gap-2">
+									<span :class="['text-[10px] px-2 py-0.5 rounded-full', isReturn(invoice) ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700']">{{ isReturn(invoice) ? __("Return") : __("Sale") }}</span>
 									<h4
 										class="font-semibold text-gray-900 text-sm sm:text-base truncate"
 									>
 										{{ invoice.data.customer || __("Walk-in Customer") }}
 									</h4>
 									<span
-										v-if="invoice.retry_count > 0"
+										v-if="invoice.retry_count > 0 || isFailed(invoice)"
 										class="text-[10px] sm:text-xs px-2 py-0.5 sm:py-1 bg-red-100 text-red-700 rounded-full flex-shrink-0"
 									>
 										{{ __("{0} failed", [invoice.retry_count]) }}
@@ -120,6 +152,7 @@
 										{{ __("Printed") }}
 									</span>
 								</div>
+								<p v-if="invoice.last_error || invoice.error" class="mt-2 text-xs text-red-600 break-words">{{ invoice.last_error || invoice.error }}</p>
 								<div
 									class="mt-2 flex flex-col gap-1 text-xs sm:text-sm text-gray-600"
 								>
@@ -256,6 +289,21 @@
 									</svg>
 								</button>
 							</div>
+						</div>
+						<div v-else class="flex items-start justify-between gap-3">
+							<div class="min-w-0 flex-1">
+								<div class="flex flex-wrap items-center gap-2">
+									<span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">{{ __("Payment") }}</span>
+									<span v-if="isFailed(invoice)" class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs">{{ __("Failed") }}</span>
+									<h4 class="font-semibold text-gray-900">{{ invoice.invoice_name || invoice.data?.invoice_name }}</h4>
+								</div>
+								<p class="mt-2 text-sm text-gray-600">{{ invoice.data?.customer || __("Customer payment") }}</p>
+								<div class="mt-1 flex gap-2 text-xs text-gray-500"><span>{{ formatCurrency(paymentTotal(invoice)) }}</span><span>{{ formatDate(invoice.timestamp) }}</span></div>
+								<p v-if="invoice.last_error || invoice.error" class="mt-2 text-xs text-red-600 break-words">{{ invoice.last_error || invoice.error }}</p>
+							</div>
+							<button @click="deletePayment(invoice)" :disabled="isSyncing" class="p-2 hover:bg-red-50 rounded-lg disabled:opacity-40" :title="__('Delete Payment')">
+								<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+							</button>
 						</div>
 					</div>
 				</div>
@@ -446,7 +494,9 @@ const props = defineProps({
 const emit = defineEmits([
 	"update:modelValue",
 	"sync-all",
+	"retry-failed",
 	"delete-invoice",
+	"delete-payment",
 	"edit-invoice",
 	"print-invoice",
 	"refresh",
@@ -463,6 +513,33 @@ const selectedInvoice = ref(null);
 const showDetails = ref(false);
 const showDeleteConfirm = ref(false);
 const invoiceToDelete = ref(null);
+const activeFilter = ref("all");
+
+const isPayment = (operation) => operation?.operation_type === "payment";
+const isReturn = (operation) => !isPayment(operation) && Boolean(operation?.data?.is_return);
+const isFailed = (operation) =>
+	Boolean(operation?.sync_failed || operation?.last_error || operation?.error);
+const operationCounts = computed(() => ({
+	all: invoices.value.length,
+	sales: invoices.value.filter((operation) => !isPayment(operation) && !isReturn(operation)).length,
+	returns: invoices.value.filter(isReturn).length,
+	payments: invoices.value.filter(isPayment).length,
+	failed: invoices.value.filter(isFailed).length,
+}));
+const filterOptions = computed(() => [
+	{ value: "all", label: __("All") },
+	{ value: "sales", label: __("Sales") },
+	{ value: "returns", label: __("Returns") },
+	{ value: "payments", label: __("Payments") },
+	{ value: "failed", label: __("Failed") },
+]);
+const filteredOperations = computed(() => {
+	if (activeFilter.value === "sales") return invoices.value.filter((operation) => !isPayment(operation) && !isReturn(operation));
+	if (activeFilter.value === "returns") return invoices.value.filter(isReturn);
+	if (activeFilter.value === "payments") return invoices.value.filter(isPayment);
+	if (activeFilter.value === "failed") return invoices.value.filter(isFailed);
+	return invoices.value;
+});
 
 // Load invoices when dialog opens
 watch(show, async (newVal) => {
@@ -527,6 +604,19 @@ function printInvoice(invoice) {
 
 function syncAll() {
 	emit("sync-all");
+}
+
+function retryFailed() {
+	emit("retry-failed");
+}
+
+function paymentTotal(payment) {
+	return (payment?.data?.payments || []).reduce((total, row) => total + (Number(row.amount) || 0), 0);
+}
+
+function deletePayment(payment) {
+	if (props.isSyncing) return;
+	emit("delete-payment", payment.id);
 }
 
 function deleteInvoice(invoice) {

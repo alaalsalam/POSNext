@@ -247,7 +247,11 @@ const markInvoiceSynced = async (id, serverInvoice, offlineId) => {
  */
 const handleSyncFailure = async (invoice, errorMessage) => {
 	const newRetryCount = (invoice.retry_count || 0) + 1;
-	const updates = { retry_count: newRetryCount };
+	const updates = {
+		retry_count: newRetryCount,
+		last_error: errorMessage,
+		last_retry_at: new Date().toISOString(),
+	};
 
 	if (newRetryCount >= SYNC_CONFIG.MAX_RETRY_COUNT) {
 		updates.sync_failed = true;
@@ -495,22 +499,117 @@ export const getLocalStock = async (itemCode, warehouse) => {
 // ============================================================================
 
 /**
- * Save payment to offline queue
+ * Save payment to offline queue with stable per-payment reference numbers.
  * @param {Object} paymentData - Payment data
- * @returns {Promise<boolean>}
+ * @returns {Promise<{success: boolean, id: number, offline_id: string}>}
  */
 export const saveOfflinePayment = async (paymentData) => {
+	if (!paymentData.invoice_name || !paymentData.payments?.length) {
+		throw new Error("Invalid payment data");
+	}
 	const cleanData = JSON.parse(JSON.stringify(paymentData));
+	const offlineId = cleanData.offline_id || generateOfflineId();
+	cleanData.offline_id = offlineId;
+	cleanData.payments = cleanData.payments.map((payment, index) => ({
+		...payment,
+		reference_no: payment.reference_no || `${offlineId}-${index + 1}`,
+	}));
 
-	await db.payment_queue.add({
+	const id = await db.payment_queue.add({
+		offline_id: offlineId,
+		invoice_name: cleanData.invoice_name,
 		data: cleanData,
 		timestamp: Date.now(),
 		synced: false,
 		retry_count: 0,
 	});
 
-	log.info("Payment saved to offline queue");
-	return true;
+	log.info("Payment saved to offline queue", { offline_id: offlineId });
+	return { success: true, id, offline_id: offlineId };
+};
+
+export const getOfflinePayments = async () => {
+	try {
+		return await db.payment_queue.filter((payment) => !payment.synced).toArray();
+	} catch (error) {
+		log.error("Failed to get offline payments", error);
+		return [];
+	}
+};
+
+export const getOfflinePaymentCount = async () => {
+	try {
+		return await db.payment_queue.filter((payment) => !payment.synced).count();
+	} catch (error) {
+		log.error("Failed to get offline payment count", error);
+		return 0;
+	}
+};
+
+export const deleteOfflinePayment = async (id) => {
+	try {
+		await db.payment_queue.delete(id);
+		return true;
+	} catch (error) {
+		log.error("Failed to delete offline payment", { id, error });
+		return false;
+	}
+};
+
+const markPaymentSynced = async (id, response) => {
+	await db.payment_queue.update(id, {
+		synced: true,
+		sync_failed: false,
+		last_error: null,
+		server_response: JSON.parse(JSON.stringify(response || {})),
+		synced_at: Date.now(),
+	});
+};
+
+const handlePaymentSyncFailure = async (payment, errorMessage) => {
+	const newRetryCount = (payment.retry_count || 0) + 1;
+	const updates = {
+		retry_count: newRetryCount,
+		last_error: errorMessage,
+		last_retry_at: new Date().toISOString(),
+	};
+	if (newRetryCount >= SYNC_CONFIG.MAX_RETRY_COUNT) {
+		updates.sync_failed = true;
+		updates.error = errorMessage;
+	}
+	await db.payment_queue.update(payment.id, updates);
+};
+
+export const syncOfflinePayments = async (options = {}) => {
+	if (isOffline()) return { success: 0, failed: 0, skipped: 0, errors: [] };
+	const includeFailed = Boolean(options.includeFailed);
+	const pendingPayments = (await getOfflinePayments()).filter(
+		(payment) => includeFailed || !payment.sync_failed
+	);
+	const result = { success: 0, failed: 0, skipped: 0, errors: [] };
+
+	for (const payment of pendingPayments) {
+		try {
+			const payload = payment.data || {};
+			const response = await call(
+				"pos_next.api.partial_payments.add_payment_to_partial_invoice",
+				{ invoice_name: payload.invoice_name, payments: payload.payments || [] }
+			);
+			await markPaymentSynced(payment.id, response);
+			result.success++;
+		} catch (error) {
+			const errorMessage = error?.message || error?.exc || String(error);
+			await handlePaymentSyncFailure(payment, errorMessage);
+			result.failed++;
+			result.errors.push({
+				id: payment.id,
+				offlineId: payment.offline_id,
+				invoiceName: payment.invoice_name,
+				error,
+			});
+		}
+	}
+	return result;
 };
 
 // ============================================================================

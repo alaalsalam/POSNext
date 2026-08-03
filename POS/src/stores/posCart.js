@@ -174,6 +174,91 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	const isEmpty = computed(() => invoiceItems.value.length === 0);
 	const hasCustomer = computed(() => !!customer.value);
 
+	const CART_RECOVERY_KEY = "pos_next_active_cart_recovery";
+	const CART_RECOVERY_TTL_MS = 24 * 60 * 60 * 1000;
+	let isRestoringCartRecovery = false;
+
+	function getCartRecoveryKey(profile = posProfile.value) {
+		return `${CART_RECOVERY_KEY}:${profile || "unknown"}`;
+	}
+
+	function saveCartRecoverySnapshot() {
+		if (typeof window === "undefined" || isRestoringCartRecovery || !posProfile.value) return;
+		try {
+			if (!invoiceItems.value.length) {
+				localStorage.removeItem(getCartRecoveryKey());
+				return;
+			}
+			localStorage.setItem(
+				getCartRecoveryKey(),
+				JSON.stringify({
+					version: 1,
+					timestamp: Date.now(),
+					posProfile: posProfile.value,
+					posOpeningShift: posOpeningShift.value,
+					targetDoctype: targetDoctype.value,
+					customer: toRaw(customer.value),
+					items: toRaw(invoiceItems.value),
+					payments: toRaw(payments.value),
+					salesTeam: toRaw(salesTeam.value),
+					additionalDiscount: additionalDiscount.value || 0,
+					appliedCoupon: toRaw(appliedCoupon.value),
+					appliedOffers: toRaw(appliedOffers.value),
+				})
+			);
+		} catch (error) {
+			console.warn("Failed to persist active POS cart recovery snapshot", error);
+		}
+	}
+
+	function clearCartRecoverySnapshot(profile = posProfile.value) {
+		if (typeof window === "undefined") return;
+		try {
+			localStorage.removeItem(getCartRecoveryKey(profile));
+		} catch (error) {
+			console.warn("Failed to clear active POS cart recovery snapshot", error);
+		}
+	}
+
+	function restoreCartRecoverySnapshot(profile = posProfile.value) {
+		if (typeof window === "undefined" || !profile || invoiceItems.value.length) return false;
+		try {
+			const rawSnapshot = localStorage.getItem(getCartRecoveryKey(profile));
+			if (!rawSnapshot) return false;
+			const snapshot = JSON.parse(rawSnapshot);
+			const expired =
+				!snapshot?.timestamp || Date.now() - snapshot.timestamp > CART_RECOVERY_TTL_MS;
+			const profileMismatch = snapshot?.posProfile && snapshot.posProfile !== profile;
+			if (expired || profileMismatch || !snapshot?.items?.length) {
+				clearCartRecoverySnapshot(profile);
+				return false;
+			}
+
+			isRestoringCartRecovery = true;
+			invoiceItems.value = snapshot.items;
+			customer.value = snapshot.customer || customer.value;
+			payments.value = snapshot.payments || payments.value;
+			salesTeam.value = snapshot.salesTeam || [];
+			additionalDiscount.value = snapshot.additionalDiscount || 0;
+			appliedCoupon.value = snapshot.appliedCoupon || null;
+			appliedOffers.value = snapshot.appliedOffers || [];
+			targetDoctype.value = snapshot.targetDoctype || "Sales Invoice";
+			posOpeningShift.value = snapshot.posOpeningShift || posOpeningShift.value;
+			rebuildIncrementalCache();
+			nextTick(() => {
+				isRestoringCartRecovery = false;
+				syncOfferSnapshot();
+				showWarning(__("Recovered the previous unsaved cart from this device."));
+			});
+			return true;
+		} catch (error) {
+			console.warn("Failed to restore active POS cart recovery snapshot", error);
+			clearCartRecoverySnapshot(profile);
+			isRestoringCartRecovery = false;
+			return false;
+		}
+	}
+
 	// Actions
 	function addItem(item, qty = 1, _autoAdd = false, currentProfile = null) {
 		if (
@@ -240,6 +325,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		appliedCoupon.value = null;
 		currentDraftId.value = null;
 		targetDoctype.value = "Sales Invoice";
+		clearCartRecoverySnapshot();
 
 		// Reset offer processing state
 		offerProcessingState.value.lastCartHash = "";
@@ -293,6 +379,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		// Reset write-off amount after successful submission
 		if (result) {
 			writeOffAmount.value = 0;
+			clearCartRecoverySnapshot();
 		}
 		return result;
 	}
@@ -1849,6 +1936,36 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		}
 	);
 
+	watch(
+		[
+			() => posProfile.value,
+			() => posOpeningShift.value,
+			() =>
+				invoiceItems.value
+					.map(
+						(item) =>
+							`${item.item_code}:${item.quantity}:${item.uom || ""}:${item.rate || 0}:${
+								item.discount_percentage || 0
+							}`
+					)
+					.join("|"),
+			() => customer.value?.name || customer.value || "",
+			() =>
+				payments.value
+					.map((payment) => `${payment.mode_of_payment || ""}:${payment.amount || 0}`)
+					.join("|"),
+			() => additionalDiscount.value || 0,
+		],
+		saveCartRecoverySnapshot,
+		{ flush: "post" }
+	);
+
+	watch(
+		() => posProfile.value,
+		(profile) => restoreCartRecoverySnapshot(profile),
+		{ immediate: true }
+	);
+
 	return {
 		// State
 		invoiceItems,
@@ -1877,6 +1994,8 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		hasCustomer,
 		isProcessingOffers, // True when any offer operation is in progress
 		isSubmitting, // True when invoice submission is in progress (mutex protected)
+		restoreCartRecoverySnapshot,
+		clearCartRecoverySnapshot,
 
 		// Actions
 		addItem,

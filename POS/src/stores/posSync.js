@@ -20,6 +20,10 @@ import {
 	cachePaymentMethodsFromServer,
 	cacheSalesPersonsFromServer,
 	syncOfflineInvoices,
+	syncOfflinePayments,
+	getOfflinePayments,
+	getOfflinePaymentCount,
+	deleteOfflinePayment as removeOfflinePayment,
 	cacheInvoiceHistory,
 	cacheUnpaidInvoices,
 	cacheUnpaidSummary,
@@ -106,7 +110,11 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	 */
 	async function updatePendingCount() {
 		try {
-			pendingInvoicesCount.value = await offlineWorker.getOfflineInvoiceCount();
+			const [invoiceCount, paymentCount] = await Promise.all([
+				offlineWorker.getOfflineInvoiceCount(),
+				getOfflinePaymentCount(),
+			]);
+			pendingInvoicesCount.value = invoiceCount + paymentCount;
 		} catch (error) {
 			log.error("Failed to get pending invoice count", error);
 		}
@@ -116,16 +124,26 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	 * Sync pending invoices to the server
 	 * @throws {Error} If called while offline
 	 */
-	async function syncPending() {
+	async function syncPending(options = {}) {
 		if (isOffline.value) {
 			throw new Error("Cannot sync while offline");
 		}
 
 		isSyncing.value = true;
 		try {
-			const result = await syncOfflineInvoices();
+			const [invoiceResult, paymentResult] = await Promise.all([
+				syncOfflineInvoices(),
+				syncOfflinePayments(options),
+			]);
 			await updatePendingCount();
-			return result;
+			return {
+				success: (invoiceResult.success || 0) + (paymentResult.success || 0),
+				failed: (invoiceResult.failed || 0) + (paymentResult.failed || 0),
+				skipped: (invoiceResult.skipped || 0) + (paymentResult.skipped || 0),
+				errors: [...(invoiceResult.errors || []), ...(paymentResult.errors || [])],
+				invoices: invoiceResult,
+				payments: paymentResult,
+			};
 		} catch (error) {
 			log.error("Failed to sync invoices", error);
 			throw error;
@@ -195,7 +213,11 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	 */
 	async function loadPendingInvoices() {
 		try {
-			pendingInvoicesList.value = await getPending();
+			const [invoices, payments] = await Promise.all([getPending(), getOfflinePayments()]);
+			pendingInvoicesList.value = [
+				...invoices.map((invoice) => ({ ...invoice, operation_type: "invoice" })),
+				...payments.map((payment) => ({ ...payment, operation_type: "payment" })),
+			].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 		} catch (error) {
 			log.error("Failed to load pending invoices", error);
 			pendingInvoicesList.value = [];
@@ -218,6 +240,19 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 		}
 	}
 
+	async function deleteOfflinePayment(paymentId) {
+		try {
+			await removeOfflinePayment(paymentId);
+			await loadPendingInvoices();
+			await updatePendingCount();
+			showSuccess(__("Offline payment deleted successfully"));
+		} catch (error) {
+			log.error("Failed to delete offline payment", error);
+			showError(error.message || __("Failed to delete offline payment"));
+			throw error;
+		}
+	}
+
 	/**
 	 * Sync all pending invoices with user feedback
 	 * @returns {Object} Sync result with success/failed counts
@@ -232,7 +267,7 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 			const result = await syncPending();
 
 			if (result.success > 0) {
-				showSuccess(__("{0} invoice(s) synced successfully", [result.success]));
+				showSuccess(__("{0} offline operation(s) synced successfully", [result.success]));
 				await loadPendingInvoices();
 			}
 
@@ -241,6 +276,16 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 			log.error("Sync all pending failed", error);
 			throw error;
 		}
+	}
+
+	async function retryFailedPending() {
+		if (isOffline.value) {
+			showWarning(__("Cannot retry while offline"));
+			return { success: 0, failed: 0, skipped: 0, errors: [] };
+		}
+		const result = await syncPending({ includeFailed: true });
+		await loadPendingInvoices();
+		return result;
 	}
 
 	/**
@@ -426,7 +471,9 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 		loadPendingInvoices,
 		updatePendingCount,
 		deleteOfflineInvoice,
+		deleteOfflinePayment,
 		syncAllPending,
+		retryFailedPending,
 		preloadDataForOffline,
 		checkOfflineCacheAvailability,
 		checkCacheReady,

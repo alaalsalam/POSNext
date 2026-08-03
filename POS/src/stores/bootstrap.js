@@ -13,10 +13,13 @@
 
 import { call } from "@/utils/apiWrapper";
 import { logger } from "@/utils/logger";
+import { getSetting, setSetting } from "@/utils/offline";
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
 const log = logger.create("Bootstrap");
+const BOOTSTRAP_CACHE_KEY = "bootstrap_initial_data";
+const BOOTSTRAP_CACHE_TS_KEY = "bootstrap_initial_data_ts";
 
 export const useBootstrapStore = defineStore("bootstrap", () => {
 	// State
@@ -59,6 +62,10 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 			if (result?.success) {
 				data.value = result;
 				loaded.value = true;
+				await Promise.all([
+					setSetting(BOOTSTRAP_CACHE_KEY, result),
+					setSetting(BOOTSTRAP_CACHE_TS_KEY, new Date().toISOString()),
+				]);
 				log.success("Bootstrap data loaded", {
 					hasShift: !!result.shift,
 					locale: result.locale,
@@ -69,6 +76,14 @@ export const useBootstrapStore = defineStore("bootstrap", () => {
 			}
 		} catch (err) {
 			log.error("Failed to load bootstrap data", err);
+			const cached = await getSetting(BOOTSTRAP_CACHE_KEY, null);
+			if (cached) {
+				data.value = cached;
+				loaded.value = true;
+				error.value = null;
+				log.warn("Using cached bootstrap data for offline startup");
+				return cached;
+			}
 			error.value = err.message || "Failed to load initial data";
 			return null;
 		} finally {

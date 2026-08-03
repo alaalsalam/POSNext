@@ -279,7 +279,7 @@
 										<p class="text-xs text-yellow-700">
 											{{
 												__(
-													"Payments cannot be added while offline. Connect to the internet to add payments."
+													"Payments will be saved offline and synced automatically when internet returns."
 												)
 											}}
 										</p>
@@ -381,13 +381,11 @@
 												</div>
 												<button
 													@click="selectInvoiceForPayment(invoice)"
-													:disabled="
-														loadingInvoiceDetails || isOffline()
-													"
+											:disabled="loadingInvoiceDetails"
 													:title="
 														isOffline()
 															? __(
-																	'Payments cannot be added while offline'
+														'Save payment offline'
 															  )
 															: ''
 													"
@@ -1017,7 +1015,7 @@
 		:customer="selectedInvoice?.customer_name || selectedInvoice?.customer"
 		:pos-profile="posProfile"
 		:currency="currency"
-		:is-offline="false"
+		:is-offline="isOffline()"
 		:allow-partial-payment="true"
 		@payment-completed="handlePaymentCompleted"
 	/>
@@ -1040,6 +1038,7 @@ import {
 	getCachedUnpaidInvoices,
 	cacheUnpaidSummary,
 	getCachedUnpaidSummary,
+	saveOfflinePayment,
 } from "@/utils/offline/sync";
 import { logger } from "@/utils/logger";
 
@@ -1382,6 +1381,11 @@ const loadingInvoiceDetails = ref(false);
 async function selectInvoiceForPayment(invoice) {
 	loadingInvoiceDetails.value = true;
 	try {
+		if (isOffline()) {
+			selectedInvoice.value = invoice;
+			showPaymentDialog.value = true;
+			return;
+		}
 		// Fetch full invoice details including items for the payment dialog
 		const details = await call("pos_next.api.partial_payments.get_partial_payment_details", {
 			invoice_name: invoice.name,
@@ -1402,6 +1406,43 @@ async function handlePaymentCompleted(paymentData) {
 	if (!selectedInvoice.value) return;
 
 	try {
+		if (isOffline()) {
+			const queued = await saveOfflinePayment({
+				invoice_name: selectedInvoice.value.name,
+				pos_profile: props.posProfile,
+				customer: selectedInvoice.value.customer || selectedInvoice.value.customer_name,
+				payments: paymentData.payments,
+				created_at: new Date().toISOString(),
+			});
+			const paid = Number(
+				paymentData.paid_amount ||
+					paymentData.payments?.reduce(
+						(sum, payment) => sum + (Number(payment.amount) || 0),
+						0
+					) ||
+					0
+			);
+			unpaidInvoices.value = unpaidInvoices.value.map((invoice) =>
+				invoice.name === selectedInvoice.value.name
+					? {
+							...invoice,
+							paid_amount: Number(invoice.paid_amount || 0) + paid,
+							outstanding_amount: Math.max(
+								0,
+								Number(invoice.outstanding_amount || 0) - paid
+							),
+							status:
+								Number(invoice.outstanding_amount || 0) - paid <= 0.01
+									? "Paid"
+									: invoice.status,
+						}
+					: invoice
+			);
+			await cacheUnpaidInvoices(unpaidInvoices.value, props.posProfile);
+			showSuccess(__("Payment saved offline and will sync when online"));
+			selectedInvoice.value = null;
+			return queued;
+		}
 		await call("pos_next.api.partial_payments.add_payment_to_partial_invoice", {
 			invoice_name: selectedInvoice.value.name,
 			payments: paymentData.payments,

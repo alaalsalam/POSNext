@@ -55,15 +55,18 @@ if ("serviceWorker" in navigator) {
 	window.addEventListener(
 		"load",
 		() => {
-			import("virtual:pwa-register").then(({ registerSW }) => {
-				registerSW({
-					immediate: true,
-					onNeedRefresh: () => log.info("New content available, reloading..."),
-					onOfflineReady: () => log.info("App ready to work offline"),
-					onRegistered: (reg) => log.info("Service Worker registered", reg),
-					onRegisterError: (err) => log.error("Service Worker registration error", err),
-				});
-			});
+			navigator.serviceWorker
+				.register("/assets/pos_next/pos/sw.js", {
+					scope: "/pos",
+					updateViaCache: "none",
+				})
+				.then((registration) => {
+					log.info("Service Worker registered", registration);
+					registration.update().catch((error) => {
+						log.debug("Service Worker update check failed", error);
+					});
+				})
+				.catch((error) => log.error("Service Worker registration error", error));
 		},
 		{ passive: true }
 	);

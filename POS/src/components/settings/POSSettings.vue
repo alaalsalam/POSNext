@@ -1678,10 +1678,11 @@ import { logger } from "@/utils/logger";
 import { usePOSEvents } from "@/composables/usePOSEvents";
 import TranslatedHTML from "../common/TranslatedHTML.vue";
 import { useQzTray } from "@/composables/useQzTray";
+import { getSetting, isOffline, setSetting } from "@/utils/offline";
 
 const log = logger.create("POSSettings");
 const { detectSettingsChanges, updateSettingsSnapshot, emitStockSyncConfigured } = usePOSEvents();
-const { showSuccess, showError } = useToast();
+const { showSuccess, showError, showWarning } = useToast();
 
 const props = defineProps({
 	modelValue: Boolean,
@@ -1693,6 +1694,8 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 
 const show = ref(props.modelValue);
+const settingsCacheKey = computed(() => `pos_settings_${props.posProfile || "default"}`);
+const warehousesCacheKey = computed(() => `pos_warehouses_${props.posProfile || "default"}`);
 
 // State
 const activeTab = ref("stock");
@@ -1855,9 +1858,10 @@ const warehousesResource = createResource({
 	onSuccess(data) {
 		const warehouses = data?.message || data || [];
 		warehousesList.value = warehouses;
+		setSetting(warehousesCacheKey.value, warehouses).catch(() => {});
 	},
-	onError(error) {
-		warehousesList.value = [];
+	async onError(error) {
+		warehousesList.value = (await getSetting(warehousesCacheKey.value)) || [];
 	},
 });
 
@@ -1874,6 +1878,7 @@ const settingsResource = createResource({
 	onSuccess(data) {
 		if (data) {
 			Object.assign(settings.value, data);
+			setSetting(settingsCacheKey.value, data).catch(() => {});
 			settings.value.pos_profile = props.posProfile;
 			// Store original value
 			originalAllowNegativeStock.value = data.allow_negative_stock;
@@ -1882,7 +1887,17 @@ const settingsResource = createResource({
 		}
 		loading.value = false;
 	},
-	onError(error) {
+	async onError(error) {
+		const cached = await getSetting(settingsCacheKey.value);
+		if (cached) {
+			Object.assign(settings.value, cached);
+			settings.value.pos_profile = props.posProfile;
+			originalAllowNegativeStock.value = cached.allow_negative_stock;
+			updateSettingsSnapshot(settings.value);
+			showWarning(__("Showing cached settings while offline"));
+			loading.value = false;
+			return;
+		}
 		loading.value = false;
 		showError(__("Failed to load settings"));
 	},
@@ -1952,6 +1967,23 @@ async function loadSettings() {
 	// Always set the current warehouse from props (from current shift/profile)
 	selectedWarehouse.value = props.currentWarehouse || "";
 
+	if (isOffline()) {
+		const [cachedWarehouses, cachedSettings] = await Promise.all([
+			getSetting(warehousesCacheKey.value),
+			getSetting(settingsCacheKey.value),
+		]);
+		warehousesList.value = cachedWarehouses || [];
+		if (cachedSettings) {
+			Object.assign(settings.value, cachedSettings);
+			settings.value.pos_profile = props.posProfile;
+			originalAllowNegativeStock.value = cachedSettings.allow_negative_stock;
+			updateSettingsSnapshot(settings.value);
+		}
+		loading.value = false;
+		showWarning(__("Settings are read-only while offline"));
+		return;
+	}
+
 	try {
 		// Load warehouses first using call API directly
 		const warehousesData = await call("pos_next.api.pos_profile.get_warehouses", {
@@ -1960,12 +1992,13 @@ async function loadSettings() {
 
 		// Handle frappe-ui call response format { message: [...] }
 		warehousesList.value = warehousesData?.message || warehousesData || [];
+		await setSetting(warehousesCacheKey.value, warehousesList.value);
 
 		// Load settings
 		settingsResource.reload();
 	} catch (error) {
 		log.error("Error loading warehouses:", error);
-		warehousesList.value = [];
+		warehousesList.value = (await getSetting(warehousesCacheKey.value)) || [];
 		// Still load settings even if warehouses fail
 		settingsResource.reload();
 	}
@@ -1974,6 +2007,10 @@ async function loadSettings() {
 async function saveSettings() {
 	if (!props.posProfile) {
 		showError(__("POS Profile not found"));
+		return;
+	}
+	if (isOffline()) {
+		showWarning(__("Settings cannot be changed while offline"));
 		return;
 	}
 

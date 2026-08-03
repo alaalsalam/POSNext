@@ -1,10 +1,26 @@
 # Digit POS Development Program — Project Memory
 
-Last verified: 2026-08-02
+Last verified: 2026-08-03
 
 This file is the durable memory and source of operational context for the Digit POS
 development program. Read it before changing code, and update the progress section
 after every completed milestone.
+
+## YemenFrappe Canonical Deployment (2026-08-03)
+
+- Canonical repository: `https://github.com/YemenFrappe/posnext.git`.
+- Canonical long-lived branch: `develop`.
+- Deployment site: `pos.yemenfrappe.com` in `/home/frappe/frappe-bench`.
+- The YemenFrappe `develop` history is the base; legacy Maward/offline fixes are
+  selectively ported onto it. Do not replace it with the old `maward-version` history.
+- Pre-integration deployed revision: `cbe9397`, preserved locally as
+  `backup/maward-version-before-yemenfrappe-integration-20260803`.
+- Integration base: upstream YemenFrappe `develop` revision `0e957e3`.
+- The detailed integration inventory, validation, and rollback contract is recorded in
+  [`YEMENFRAPPE_CANONICAL_BASELINE.md`](YEMENFRAPPE_CANONICAL_BASELINE.md).
+
+The Digit production/development boundaries below are retained as historical program
+context. They do not supersede the YemenFrappe deployment boundary above.
 
 ## Non-Negotiable Environment Boundary
 

@@ -1182,6 +1182,7 @@
 import { useOfflineStatus } from "@/composables/useOfflineStatus";
 import { useToast } from "@/composables/useToast";
 import { getPaymentIcon } from "@/utils/payment";
+import { saveOfflineInvoice } from "@/utils/offline/sync";
 import {
 	DEFAULT_CURRENCY,
 	DEFAULT_LOCALE,
@@ -1442,16 +1443,9 @@ const fetchInvoiceResource = createResource({
 	},
 });
 
-// Resource for submitting the return invoice to the server
-const createReturnResource = createResource({
-	url: "pos_next.api.invoices.submit_invoice",
-	makeParams() {
-		// Use the prepared return document as the base.
-		// This document was created by ERPNext's make_sales_return() and contains
-		// the sales_team entries from the original invoice.
-		const baseDoc = preparedReturnDoc.value || {};
-
-		const invoiceData = {
+function buildReturnInvoiceData() {
+	const baseDoc = preparedReturnDoc.value || {};
+	return {
 			doctype: "Sales Invoice",
 			pos_profile: props.posProfile,
 			posa_pos_opening_shift: props.posOpeningShift,
@@ -1495,8 +1489,15 @@ const createReturnResource = createResource({
 						amount: -Math.abs(payment.amount),
 				  })),
 			remarks: returnReason.value || __("Return against {0}", [originalInvoice.value.name]),
-		};
+	};
+}
 
+
+// Resource for submitting the return invoice to the server
+const createReturnResource = createResource({
+	url: "pos_next.api.invoices.submit_invoice",
+	makeParams() {
+		const invoiceData = buildReturnInvoiceData();
 		// Return in the correct format: invoice as JSON string
 		return {
 			invoice: JSON.stringify(invoiceData),
@@ -2023,6 +2024,18 @@ async function handleCreateReturn() {
 	isSubmitting.value = true;
 
 	try {
+		if (isOffline.value) {
+			const invoiceData = buildReturnInvoiceData();
+			const queued = await saveOfflineInvoice(invoiceData);
+			emit("return-created", {
+				name: queued.offline_id,
+				is_offline: true,
+				return_against: invoiceData.return_against,
+			});
+			showSuccess(__("Return saved offline and will sync when online"));
+			closeReturnModal();
+			return;
+		}
 		const result = await createReturnResource.submit();
 
 		// Check if result contains an error (HTTP 417 might return error in response body)

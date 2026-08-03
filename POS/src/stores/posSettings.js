@@ -1,9 +1,11 @@
 import { createResource } from "frappe-ui";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { getSetting, setSetting } from "@/utils/offline";
 import { useBootstrapStore } from "./bootstrap";
 
 export const usePOSSettingsStore = defineStore("posSettings", () => {
+	const settingsCacheKey = (posProfile) => `pos_settings:${posProfile || "default"}`;
 	// State
 	const settings = ref({
 		pos_profile: "",
@@ -198,6 +200,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			if (data) {
 				Object.assign(settings.value, data);
 				isLoaded.value = true;
+				setSetting(settingsCacheKey(settings.value.pos_profile), data).catch(() => {});
 			}
 			isLoading.value = false;
 		},
@@ -234,6 +237,13 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			await settingsResource.submit({ pos_profile: posProfile });
 			return true;
 		} catch {
+			const cached = await getSetting(settingsCacheKey(posProfile), null);
+			if (cached) {
+				Object.assign(settings.value, cached);
+				isLoaded.value = true;
+				isLoading.value = false;
+				return true;
+			}
 			return false;
 		}
 	}
@@ -349,6 +359,13 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			await settingsResource.submit({ pos_profile: settings.value.pos_profile });
 			return true;
 		} catch {
+			const cached = await getSetting(settingsCacheKey(settings.value.pos_profile), null);
+			if (cached) {
+				Object.assign(settings.value, cached);
+				isLoaded.value = true;
+				isLoading.value = false;
+				return true;
+			}
 			return false;
 		}
 	}
