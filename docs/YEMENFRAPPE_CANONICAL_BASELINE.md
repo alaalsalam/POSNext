@@ -86,3 +86,13 @@ quotes): `YER→SAR 0.015`, `SAR→YER 66.67`, `YER→USD 0.004`, `USD→YER 250
 
 The pre-setup backup is stored under
 `sites/pos.yemenfrappe.com/private/backups/20260803_224417-pos_yemenfrappe_com`.
+
+On 2026-08-03 the operational reset was run after a second full backup at
+`sites/pos.yemenfrappe.com/private/backups/20260803_230716-pos_yemenfrappe_com`:
+all 9 remaining open shifts were closed through the official POS Closing Shift
+workflow, and 8 draft Sales Invoices plus 1 draft POS Invoice were removed as stale
+dummy artifacts. Verification now reports zero open shifts, zero unlinked closed
+shifts, and zero draft POS transactions.
+
+`reset_demo_operational_state` in the same script is the repeatable maintenance entry
+point for restoring this clean starting state.
