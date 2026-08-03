@@ -68,3 +68,21 @@ Deployment to `pos.yemenfrappe.com` completed on 2026-08-03.
   runtime entry; POSNext now uses its bundled Almarai and Inter fonts without 404 assets.
 - The deployment environment uses umask `0077`; the frontend build script now sets
   umask `022` so future generated public assets remain readable by Nginx.
+
+## Yemen demo currency baseline
+
+The demo site is configured as a Yemen-only dataset. All 17 companies and 15 POS
+profiles use `YER` and country `Yemen`; enabled leaf accounts, price lists, and item
+prices are also `YER`. Historical GL reporting columns were normalized to a 1:1 YER
+rate without changing the original debit/credit columns, so previous operations remain
+reportable instead of showing zero reporting values. Payment-method account mappings
+were checked and no invalid mappings were found.
+
+The idempotent setup entry point is
+`pos_next.scripts.prepare_yemen_demo.prepare_yemen_demo`. It adds the following
+illustrative rates for the execution date (these are demo assumptions, not live market
+quotes): `YER→SAR 0.015`, `SAR→YER 66.67`, `YER→USD 0.004`, `USD→YER 250`,
+`YER→EUR 0.0037`, and `EUR→YER 270.27`.
+
+The pre-setup backup is stored under
+`sites/pos.yemenfrappe.com/private/backups/20260803_224417-pos_yemenfrappe_com`.
