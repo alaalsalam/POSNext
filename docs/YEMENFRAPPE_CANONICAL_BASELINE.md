@@ -64,5 +64,7 @@ Deployment to `pos.yemenfrappe.com` completed on 2026-08-03.
 - Live `sw.js`: HTTP 200, `Service-Worker-Allowed: /pos`, and no-cache headers.
 - The install manifest and application icons are served from POSNext itself rather than
   the optional external Digit app, so PWA installation does not depend on another app.
+- Optional Digit/Nexus stylesheet, font, and demo-banner references were removed from the
+  runtime entry; POSNext now uses its bundled Almarai and Inter fonts without 404 assets.
 - The deployment environment uses umask `0077`; the frontend build script now sets
   umask `022` so future generated public assets remain readable by Nginx.
