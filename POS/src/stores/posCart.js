@@ -248,7 +248,10 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			nextTick(() => {
 				isRestoringCartRecovery = false;
 				syncOfferSnapshot();
-				showWarning(__("Recovered the previous unsaved cart from this device."));
+				// Recovery is deliberately silent: it is a resilience feature, not a
+				// validation failure. Clear the one-shot snapshot so a stale cart is
+				// never restored (or announced) on every subsequent page load.
+				clearCartRecoverySnapshot(profile);
 			});
 			return true;
 		} catch (error) {

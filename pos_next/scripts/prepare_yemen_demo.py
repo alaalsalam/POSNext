@@ -1,8 +1,10 @@
-"""Prepare the Yemen POS demo with YER as its single reporting currency.
+"""Prepare and reset the Yemen POS demo with YER as its single reporting currency.
 
 This is intentionally idempotent and safe to re-run after restoring the demo.
 The exchange rates are illustrative demo rates, not live market data.
 """
+
+import json
 
 import frappe
 from frappe.utils import today
@@ -169,4 +171,58 @@ def prepare_yemen_demo(rate_date=None):
         "payment_accounts_missing": missing_payment_accounts,
         "exchange_rates": len(exchange_rates),
         "historical_reporting_currency": "YER (1:1)",
+    }
+
+
+def reset_demo_operational_state():
+    """Close every open demo shift and remove stale draft transactions.
+
+    Closing is performed through the normal POS closing document workflow so the
+    opening-shift link, invoice links, payment reconciliation, and totals remain
+    internally consistent. This is intended for the dummy Yemen demo only.
+    """
+    from pos_next.pos_next.doctype.pos_closing_shift.pos_closing_shift import (
+        make_closing_shift_from_opening,
+        submit_closing_shift,
+    )
+
+    open_shifts = frappe.get_all(
+        "POS Opening Shift",
+        filters={"docstatus": 1, "status": "Open", "pos_closing_shift": ["is", "not set"]},
+        fields=["name", "pos_profile", "company", "user"],
+        order_by="creation asc",
+        limit_page_length=0,
+    )
+    closed = []
+    failed = []
+    for opening in open_shifts:
+        try:
+            opening_doc = frappe.get_doc("POS Opening Shift", opening.name).as_dict()
+            closing_data = make_closing_shift_from_opening(json.dumps(opening_doc, default=str))
+            closing_name = submit_closing_shift(json.dumps(closing_data, default=str))
+            frappe.db.commit()
+            closed.append({"opening": opening.name, "closing": closing_name})
+        except Exception as exc:
+            frappe.db.rollback()
+            failed.append({"opening": opening.name, "error": str(exc)})
+
+    # Draft transactions are not historical accounting entries. They are stale
+    # demo artifacts and can make a fresh POS test look like a recovered session.
+    deleted_drafts = []
+    for doctype in ("Sales Invoice", "POS Invoice"):
+        drafts = frappe.get_all(doctype, filters={"docstatus": 0}, fields=["name"], limit_page_length=0)
+        for draft in drafts:
+            try:
+                frappe.delete_doc(doctype, draft.name, force=1, ignore_permissions=True)
+                deleted_drafts.append(f"{doctype}:{draft.name}")
+            except Exception as exc:
+                failed.append({"draft": f"{doctype}:{draft.name}", "error": str(exc)})
+
+    frappe.db.commit()
+    frappe.clear_cache()
+    return {
+        "open_shifts_found": len(open_shifts),
+        "closed_shifts": closed,
+        "failed": failed,
+        "deleted_drafts": deleted_drafts,
     }
