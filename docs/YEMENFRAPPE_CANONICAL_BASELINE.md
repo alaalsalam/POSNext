@@ -62,5 +62,7 @@ Deployment to `pos.yemenfrappe.com` completed on 2026-08-03.
 - Live hashed JavaScript asset: HTTP 200 and contains the explicit `/pos` service-worker
   registration.
 - Live `sw.js`: HTTP 200, `Service-Worker-Allowed: /pos`, and no-cache headers.
+- The install manifest and application icons are served from POSNext itself rather than
+  the optional external Digit app, so PWA installation does not depend on another app.
 - The deployment environment uses umask `0077`; the frontend build script now sets
   umask `022` so future generated public assets remain readable by Nginx.
