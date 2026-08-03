@@ -49,3 +49,18 @@ If verification fails, switch the checkout back to
 `backup/maward-version-before-yemenfrappe-integration-20260803`, rebuild assets, migrate
 if required, clear caches, and restart. Restore the database/files backup only if the
 migration or application writes require data rollback.
+
+## Deployment evidence
+
+Deployment to `pos.yemenfrappe.com` completed on 2026-08-03.
+
+- Full backup completed at prefix
+  `sites/pos.yemenfrappe.com/private/backups/20260803_222203-pos_yemenfrappe_com`.
+- `bench build --app pos_next`, site migration, cache clearing, and service restart
+  completed successfully.
+- Live `/pos`: HTTP 200 with no-store/no-cache policy.
+- Live hashed JavaScript asset: HTTP 200 and contains the explicit `/pos` service-worker
+  registration.
+- Live `sw.js`: HTTP 200, `Service-Worker-Allowed: /pos`, and no-cache headers.
+- The deployment environment uses umask `0077`; the frontend build script now sets
+  umask `022` so future generated public assets remain readable by Nginx.

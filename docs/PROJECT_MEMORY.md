@@ -158,7 +158,7 @@ A feature is complete only when all applicable conditions are true:
 | Feature flag foundation | Completed | `35194aa` | Four profile-scoped management flags; secure-off and manager-controlled |
 | Reports compatibility and in-POS access | Completed | `2a39d82` | Manager-only, profile/company isolated, ERPNext-reconciled, five reports integrated |
 | Catalog/purchases/supplier payments hardening | Completed | `8b5145d`, `8f4a067`, `5249fe5` | Accepted workflow plus full retry binding, locking evidence, and durable documentation |
-| Offline end-to-end hardening | Not started | — | Must produce real sync records |
+| Offline end-to-end hardening | Integrated baseline | `6b26a64` | Deployed on YemenFrappe; full transactional browser acceptance remains a separate QA milestone |
 | Keyboard productivity | Not started | — | Quick, isolated milestone |
 | Credit approval workflow | Not started | — | Accounting/permissions sensitive |
 | Split bills | Not started | — | Requires offline/return design |
