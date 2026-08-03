@@ -107,8 +107,27 @@ export function parseError(error) {
 	const normalizedMessage = (context.message || "").toLowerCase();
 	const excType = (error.exc_type || "").toLowerCase();
 
-	// Insufficient Stock
+	// Reporting currency failures are configuration issues, not cashier errors.
+	// Keep the internal exception out of the dialog and give the operator a
+	// concrete next step. The original exception remains available in server
+	// logs for administrators.
 	if (
+		excType.includes("reportingcurrencyexchangenotfound") ||
+		normalizedMessage.includes("exchange rate") ||
+		normalizedMessage.includes("سعر الصرف") ||
+		normalizedMessage.includes("reporting currency") ||
+		normalizedMessage.includes("عملة التقارير")
+	) {
+		context.type = "warning";
+		context.title = __("Currency Configuration Error");
+		context.message = __(
+			"Currency setup is incomplete. The company reporting currency has no exchange rate for this transaction date. Ask an administrator to set the reporting currency to YER or add the missing Currency Exchange, then try again."
+		);
+		context.retryable = false;
+		context.technicalDetails = null;
+	}
+	// Insufficient Stock
+	else if (
 		excType === "negativestockerror" ||
 		normalizedMessage.includes("needed in") ||
 		normalizedMessage.includes("insufficient stock") ||

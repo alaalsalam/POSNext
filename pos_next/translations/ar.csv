@@ -506,6 +506,8 @@
 "Customer Error","خطأ في العميل",""
 "Tax Configuration Error","خطأ في إعداد الضريبة",""
 "Payment Error","خطأ في الدفع",""
+"Currency Configuration Error","خطأ في إعداد العملة",""
+"Currency setup is incomplete. The company reporting currency has no exchange rate for this transaction date. Ask an administrator to set the reporting currency to YER or add the missing Currency Exchange, then try again.","إعداد العملة غير مكتمل. لا يوجد سعر صرف لعملة تقارير الشركة بتاريخ هذه العملية. اطلب من المسؤول ضبط عملة التقارير إلى الريال اليمني أو إضافة سعر الصرف ثم أعد المحاولة.",""
 "Naming Series Error","خطأ في سلسلة التسمية",""
 "Connection Error","خطأ في الاتصال",""
 "Unable to connect to server. Check your internet connection.","تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.",""
