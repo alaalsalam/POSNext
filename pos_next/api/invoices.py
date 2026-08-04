@@ -2306,6 +2306,7 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 	        - Each item includes original_qty, already_returned, and remaining_qty
 	"""
 	from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
+	from frappe.model import mapper as return_mapper
 	from frappe.query_builder.functions import Abs, Coalesce, Sum
 	from frappe.utils import date_diff, getdate
 
@@ -2332,6 +2333,17 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 
 	if not invoice_check:
 		frappe.throw(_("Invoice {0} does not exist").format(invoice_name))
+
+	# POS users are allowed to prepare a return from invoices visible to them.
+	# ERPNext's mapper performs a second create check on the unsaved mapped
+	# document. With strict user permissions enabled, that check can reject a
+	# valid POS return even when the user has Sales Invoice read/create access.
+	# Keep the real permission checks here, then bypass only the mapper's
+	# duplicate check while building the in-memory return document.
+	if not frappe.has_permission("Sales Invoice", "read", invoice_name):
+		frappe.throw(_("You do not have permission to view this invoice"))
+	if not frappe.has_permission("Sales Invoice", "create"):
+		frappe.throw(_("You do not have permission to create a return invoice"))
 
 	invoice_info = invoice_check[0]
 
@@ -2364,7 +2376,17 @@ def prepare_return_invoice(invoice_name, pos_opening_shift=None):
 
 	# Use ERPNext's make_sales_return to create properly mapped return document
 	# This automatically copies sales_team, taxes, and other child tables
-	return_doc = make_sales_return(invoice_name)
+	_original_get_mapped_doc = return_mapper.get_mapped_doc
+
+	def _get_mapped_doc_for_pos_return(*args, **kwargs):
+		kwargs["ignore_permissions"] = True
+		return _original_get_mapped_doc(*args, **kwargs)
+
+	return_mapper.get_mapped_doc = _get_mapped_doc_for_pos_return
+	try:
+		return_doc = make_sales_return(invoice_name)
+	finally:
+		return_mapper.get_mapped_doc = _original_get_mapped_doc
 
 	# Set POS-specific fields
 	if pos_opening_shift:
