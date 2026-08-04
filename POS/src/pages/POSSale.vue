@@ -2657,7 +2657,18 @@ async function confirmLogout() {
 }
 
 function logoutWithCloseShift() {
-	// Open close shift dialog and remember to logout after closing
+	// Do not open an unusable closing dialog if the shift state is still being
+	// hydrated. In that edge case, sign out directly instead of leaving the
+	// user trapped between two dialogs.
+	if (!shiftStore.currentShift?.name) {
+		uiStore.showLogoutDialog = false;
+		confirmLogout();
+		return;
+	}
+
+	// Open close shift dialog and remember to logout after closing. The closing
+	// dialog owns the final print/finish choice; logout happens only after the
+	// user presses Finish.
 	logoutAfterClose.value = true;
 	uiStore.showLogoutDialog = false;
 	uiStore.showCloseShiftDialog = true;

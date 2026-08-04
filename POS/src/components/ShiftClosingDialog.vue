@@ -421,9 +421,12 @@
 						{{ hasUnconfirmedVariance ? __("Confirm variance first") : __("Enter all amounts first") }}
 					</p>
 					<p v-if="showSuccessReport" class="text-xs text-green-600 font-semibold">{{ __("✓ Shift closed") }}</p>
-					<p v-if="eodPrintFailed" class="text-xs text-amber-600">{{ __("EOD print pending") }}</p>
-					<Button v-if="eodPrintFailed" variant="solid" theme="blue" @click="retryEodPrint" :loading="retryPrintLoading">
-						{{ __("Print EOD Report") }}
+					<p v-if="eodPrintFailed" class="text-xs text-amber-600">{{ __("Print is optional — you can finish without printing.") }}</p>
+					<Button v-if="showSuccessReport && closingShiftName" variant="subtle" theme="blue" @click="printEOD" :loading="printLoading">
+						{{ printLoading ? __("Printing...") : __("Print EOD Report") }}
+					</Button>
+					<Button v-if="showSuccessReport" variant="solid" theme="green" @click="closeDialog">
+						{{ __("Finish") }}
 					</Button>
 					<Button v-if="!showSuccessReport" variant="solid" theme="blue" @click="submitClosing" :loading="submitResource.loading" :disabled="!canSubmit">
 						{{ submitResource.loading ? __("Closing...") : __("Close Shift") }}
@@ -458,7 +461,7 @@ const open = computed({
 
 const { getClosingShiftData, submitClosingShift } = useShift();
 const { formatCurrency, formatQuantity, formatDateTime, formatTime } = useFormatters();
-const { showSuccess, showWarning } = useToast();
+const { showSuccess } = useToast();
 const posSettingsStore = usePOSSettingsStore();
 const { hideExpectedAmount } = storeToRefs(posSettingsStore);
 const shiftStore = usePOSShiftStore();
@@ -472,7 +475,8 @@ const showAllMethods     = ref(false);   // ← toggle for unused payment method
 const showSuccessReport  = ref(false);
 const errorMessage       = ref("");
 const eodPrintFailed     = ref(null);
-const retryPrintLoading  = ref(false);
+const closingShiftName   = ref(null);
+const printLoading       = ref(false);
 const showIdleWarning    = ref(false);
 const varianceConfirmed  = ref(false);
 let _idleWarningTimer    = null;
@@ -490,6 +494,7 @@ watch(open, async (isOpen) => {
 		showIdleWarning.value = false;
 		if (_idleWarningTimer) { clearTimeout(_idleWarningTimer); _idleWarningTimer = null; }
 		eodPrintFailed.value = null;
+		closingShiftName.value = null;
 	}
 });
 
@@ -593,45 +598,29 @@ async function submitClosing() {
 		errorMessage.value = "";
 		closingData.value.payment_reconciliation?.forEach((p) => calculateDifference(p));
 		const result = await submitResource.submit({ closing_shift: closingData.value });
-		const closingShiftName = result?.name ?? submitResource.data?.name;
-		if (closingShiftName) {
-			try {
-				await printEODReport(closingShiftName);
-				eodPrintFailed.value = null;
-			} catch (err) {
-				console.warn("[eod] print failed", err);
-				showWarning(__("EOD report did not print. Use the Reprint button to retry."));
-				eodPrintFailed.value = { closingShiftName };
-				showSuccessReport.value = true;
-				return;
-			}
-		}
-		if (hideExpectedAmount.value) {
-			showSuccessReport.value = true;
-		} else {
-			emit("shift-closed");
-			closeDialog();
-		}
+		closingShiftName.value = result?.name ?? submitResource.data?.name ?? null;
+		// Keep the report visible after submission. Printing is an explicit,
+		// optional action and must never block finishing or signing out.
+		showSuccessReport.value = true;
 	} catch (error) {
 		console.error("Error submitting closing shift:", error);
 		errorMessage.value = __("Failed to close shift. Please verify all amounts and try again.");
 	}
 }
 
-async function retryEodPrint() {
-	const closingShiftName = eodPrintFailed.value?.closingShiftName;
-	if (!closingShiftName) return;
-	retryPrintLoading.value = true;
+async function printEOD() {
+	if (!closingShiftName.value || printLoading.value) return;
+	printLoading.value = true;
+	eodPrintFailed.value = null;
 	try {
-		await printEODReport(closingShiftName);
+		await printEODReport(closingShiftName.value);
 		eodPrintFailed.value = null;
 		showSuccess(__("EOD report printed successfully"));
-		closeDialog();
 	} catch (err) {
 		console.warn("[eod] retry print failed", err);
-		showWarning(__("EOD report did not print. Please check QZ Tray and retry."));
+		eodPrintFailed.value = { closingShiftName: closingShiftName.value };
 	} finally {
-		retryPrintLoading.value = false;
+		printLoading.value = false;
 	}
 }
 
@@ -645,6 +634,8 @@ function closeDialog() {
 	showSuccessReport.value  = false;
 	errorMessage.value       = "";
 	eodPrintFailed.value     = null;
+	closingShiftName.value   = null;
+	printLoading.value       = false;
 }
 
 // ── UI State ──────────────────────────────────────────────
