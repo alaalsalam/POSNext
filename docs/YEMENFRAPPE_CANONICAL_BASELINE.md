@@ -96,3 +96,13 @@ shifts, and zero draft POS transactions.
 
 `reset_demo_operational_state` in the same script is the repeatable maintenance entry
 point for restoring this clean starting state.
+
+## Shift closing and sign-out flow
+
+Closing a shift is intentionally two-phase: submit the closing record first, then show
+the final reconciliation with explicit `Print EOD Report` and `Finish` actions. Printing
+is optional and never blocks finishing or signing out; a blocked printer therefore
+cannot leave the POS in a half-closed state. The sign-out path only logs out after the
+user finishes the closing dialog, and falls back to direct sign-out if shift state is
+not available during hydration. The EOD format is an Arabic 80 mm report that omits
+unused payment methods and keeps the expected/actual/variance figures together.
