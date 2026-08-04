@@ -102,10 +102,21 @@ def _load_workspace_data(workspace_file: Path):
 		)
 		return None
 
-	if not isinstance(workspace_data, list) or not workspace_data:
+	# Workspace exports are stored as a JSON object by Frappe.  Older exports
+	# sometimes wrapped that object in a one-item list, so support both forms.
+	if isinstance(workspace_data, list):
+		if not workspace_data or not isinstance(workspace_data[0], dict):
+			frappe.log_error(
+				title="Invalid Workspace Structure",
+				message=f"Workspace JSON list must contain a document: {workspace_file}",
+			)
+			return None
+		workspace_data = workspace_data[0]
+
+	if not isinstance(workspace_data, dict) or not workspace_data:
 		frappe.log_error(
 			title="Invalid Workspace Structure",
-			message=f"Workspace JSON must be a non-empty array: {workspace_file}",
+			message=f"Workspace JSON must contain a document object: {workspace_file}",
 		)
 		return None
 
