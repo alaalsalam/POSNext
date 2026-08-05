@@ -449,8 +449,26 @@ export const usePOSSyncStore = defineStore("posSync", () => {
 	// INITIALIZATION
 	// =========================================================================
 
-	// Initialize pending count on store creation
-	updatePendingCount();
+	// Initialize pending count on store creation, then sync immediately if
+	// we're online and there's a backlog left over from a previous session.
+	// The offlineState subscription above only auto-syncs on a transition
+	// observed DURING this session — a fresh page load while already online
+	// never sees that edge, so invoices queued in an earlier session would
+	// otherwise sit stuck until the cashier happens to notice and sync
+	// manually from the offline invoices dialog.
+	(async () => {
+		await updatePendingCount();
+		if (!offlineState.isOffline && pendingInvoicesCount.value > 0) {
+			log.info(
+				`${pendingInvoicesCount.value} pending offline operation(s) found on startup, syncing now`
+			);
+			try {
+				await syncPending();
+			} catch (error) {
+				log.error("Startup sync of pending invoices failed", error);
+			}
+		}
+	})();
 
 	// =========================================================================
 	// EXPORTS
