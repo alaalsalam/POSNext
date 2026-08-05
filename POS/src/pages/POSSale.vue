@@ -2441,8 +2441,9 @@ async function handlePaymentCompleted(paymentData) {
 					await offlineStore.updatePendingCount();
 				}
 
-				const invoiceName = result.name || result.message?.name || __("Unknown");
-				const invoiceTotal = result.grand_total || result.total || 0;
+				const submittedInvoice = result.message || result;
+				const invoiceName = submittedInvoice?.name || __("Unknown");
+				const invoiceTotal = submittedInvoice?.grand_total || submittedInvoice?.total || 0;
 				const paidAmount = paymentData.paid_amount || invoiceTotal;
 
 				uiStore.showPaymentDialog = false;
@@ -2457,8 +2458,11 @@ async function handlePaymentCompleted(paymentData) {
 					draftsStore.deleteDraft(draftIdToDelete);
 				}
 
-				// Refresh stock - Direct API (50-200ms), no Socket.IO lag!
-				await stockStore.refresh(soldItemCodes, shiftStore.profileWarehouse);
+				// Refresh stock in the background — it doesn't need to block the
+				// print/success feedback the cashier is waiting on.
+				stockStore
+					.refresh(soldItemCodes, shiftStore.profileWarehouse)
+					.catch((err) => log.debug("Background stock refresh failed:", err));
 
 				// Refresh invoice history cache in background (non-blocking)
 				loadInvoiceHistoryData().catch((err) =>
@@ -2467,7 +2471,10 @@ async function handlePaymentCompleted(paymentData) {
 
 				if (shiftStore.autoPrintEnabled || posSettingsStore.silentPrint) {
 					try {
-						await handlePrintInvoice({ name: invoiceName });
+						// Pass the full submitted invoice (already has `items` from the
+						// server response) so print goes straight to the browser/QZ step
+						// instead of re-fetching the invoice + POS Profile print settings.
+						await handlePrintInvoice(submittedInvoice);
 						showSuccess(__("Invoice {0} created and sent to printer", [invoiceName]));
 					} catch (error) {
 						log.error("Auto-print error:", error);
