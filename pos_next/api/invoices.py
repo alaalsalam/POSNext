@@ -974,7 +974,13 @@ def update_invoice(data):
 				invoice_doc.base_paid_amount = flt(sum(p.base_amount or 0 for p in invoice_doc.payments))
 
 		# Validate and track POS Coupon if coupon_code is provided
-		coupon_code = data.get("coupon_code")
+		# NOTE: this is POS Next's own "POS Coupon" doctype, unrelated to the core
+		# Sales Invoice `coupon_code` field (a Link to ERPNext's own "Coupon Code"
+		# doctype). We store it on `posa_coupon_code` instead — writing the POS
+		# Coupon's code into the core `coupon_code` field fails Frappe's Link
+		# validation with "Could not find Coupon Code: <code>" since no matching
+		# "Coupon Code" record exists.
+		coupon_code = data.get("posa_coupon_code")
 		if coupon_code:
 			# Validate POS Coupon exists and is valid
 			if frappe.db.table_exists("POS Coupon"):
@@ -993,7 +999,7 @@ def update_invoice(data):
 					frappe.throw(_(error_msg))
 
 				# Store coupon code on invoice for tracking
-				invoice_doc.coupon_code = coupon_code
+				invoice_doc.posa_coupon_code = coupon_code
 
 		# Validate stock availability before saving draft
 		# is_stock_item may not be set on unsaved doc items (frontend doesn't send it),
@@ -1383,7 +1389,7 @@ def submit_invoice(invoice=None, data=None):
 					)
 
 		# Handle POS Coupon if coupon_code is provided
-		coupon_code = invoice.get("coupon_code") or data.get("coupon_code")
+		coupon_code = invoice.get("posa_coupon_code") or data.get("posa_coupon_code")
 		if coupon_code:
 			# Increment usage counter for POS Coupon
 			if frappe.db.table_exists("POS Coupon"):
@@ -2806,7 +2812,7 @@ def _evaluate_transaction_offers(
 			"transaction_date": posting_date,
 			"posting_date": posting_date,
 			"pos_profile": invoice.get("pos_profile"),
-			"coupon_code": invoice.get("coupon_code") or None,
+			"coupon_code": invoice.get("posa_coupon_code") or None,
 		}
 	)
 	doc.flags.ignore_mandatory = True

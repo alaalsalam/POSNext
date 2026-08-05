@@ -448,7 +448,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			selling_price_list: currentProfile?.selling_price_list,
 			currency: currentProfile?.currency,
 			discount_amount: additionalDiscount.value || 0,
-			coupon_code: appliedCoupon.value?.name || "",
+			// `code` is the actual coupon code (e.g. "SUMMER10"); `name` here is just
+			// the coupon's display label — sending `name` looked up nothing server-side.
+			posa_coupon_code: appliedCoupon.value?.code || "",
 			items: rawItems.map((item) => ({
 				item_code: item.item_code,
 				item_name: item.item_name,

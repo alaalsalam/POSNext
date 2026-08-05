@@ -939,7 +939,12 @@ export function useInvoice() {
 			items: formatItemsForSubmission(rawItems),
 			payments: invoicePayments,
 			discount_amount: additionalDiscount.value || 0,
-			coupon_code: couponCode.value,
+			// NOTE: `posa_coupon_code` is POS Next's own custom field, deliberately
+			// distinct from the core Sales Invoice `coupon_code` field (a Link to
+			// ERPNext's own "Coupon Code" doctype, unrelated to our POS Coupon).
+			// Writing our coupon's code into the core field fails Frappe's Link
+			// validation with "Could not find Coupon Code: <code>".
+			posa_coupon_code: couponCode.value,
 			is_pos: 1,
 			update_stock: 1,
 		};
@@ -1001,7 +1006,12 @@ export function useInvoice() {
 					items: formatItemsForSubmission(rawItems),
 					payments: invoicePayments,
 					discount_amount: additionalDiscount.value || 0,
-					coupon_code: couponCode.value,
+					// NOTE: `posa_coupon_code` is POS Next's own custom field, deliberately
+					// distinct from the core Sales Invoice `coupon_code` field (a Link to
+					// ERPNext's own "Coupon Code" doctype, unrelated to our POS Coupon).
+					// Writing our coupon's code into the core field fails Frappe's Link
+					// validation with "Could not find Coupon Code: <code>".
+					posa_coupon_code: couponCode.value,
 					is_pos: 1,
 					update_stock: 1, // Critical: Ensures stock is updated
 				};

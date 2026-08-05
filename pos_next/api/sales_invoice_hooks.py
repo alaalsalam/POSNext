@@ -161,7 +161,7 @@ def increment_coupon_usage_on_submit(doc, method=None):
 	"""Track coupon usage when a POS invoice is submitted."""
 	if not doc.is_pos:
 		return
-	coupon_code = getattr(doc, "coupon_code", None)
+	coupon_code = getattr(doc, "posa_coupon_code", None)
 	if not coupon_code:
 		return
 	try:
@@ -185,7 +185,7 @@ def decrement_coupon_usage_on_cancel(doc, method=None):
 	"""Release coupon usage when a POS invoice is cancelled."""
 	if not doc.is_pos:
 		return
-	coupon_code = getattr(doc, "coupon_code", None)
+	coupon_code = getattr(doc, "posa_coupon_code", None)
 	if not coupon_code:
 		return
 	try:
