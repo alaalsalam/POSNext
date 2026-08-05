@@ -1666,8 +1666,12 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 			searchDebounceTimer = setTimeout(async () => {
 				searching.value = true;
 
-				// Get search limit once for this search operation
-				const searchLimit = performanceConfig.get("searchBatchSize") || 500;
+				// Get search limit once for this search operation.
+				// An explicit admin-configured limit (POS Settings > Advanced) takes
+				// priority over the device-performance-based default batch size.
+				const searchLimit = posSettingsStore.useLimitSearch
+					? posSettingsStore.searchLimit
+					: performanceConfig.get("searchBatchSize") || 500;
 
 				try {
 					// CACHE-FIRST STRATEGY:
