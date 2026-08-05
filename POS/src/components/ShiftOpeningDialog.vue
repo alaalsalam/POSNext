@@ -2,6 +2,10 @@
 	<Dialog v-model="open" :options="{ title: __('Open POS Shift'), size: 'xl' }">
 		<template #body-content>
 			<div class="flex flex-col gap-6">
+				<p class="text-sm text-gray-500 text-start -mb-2">
+					{{ __("Cashier: {0}", [userName]) }}
+				</p>
+
 				<!-- Step 1: Select POS Profile -->
 				<div v-if="step === 1" class="flex flex-col gap-4">
 					<div>
@@ -252,6 +256,7 @@ import { createResource } from "frappe-ui";
 import { computed, ref, watch } from "vue";
 import { useShift } from "../composables/useShift";
 import { useFormatters } from "../composables/useFormatters";
+import { useUserData } from "@/data/user";
 import ShiftClosingDialog from "./ShiftClosingDialog.vue";
 import TranslatedHTML from "./common/TranslatedHTML.vue";
 
@@ -260,6 +265,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:modelValue", "shift-opened", "dialog-closed"]);
+
+const { userName } = useUserData();
 
 const open = computed({
 	get: () => props.modelValue,

@@ -36,6 +36,9 @@
 						<p class="text-sm font-bold leading-tight">
 							{{ isInEntryMode ? __("Count Your Cash") : showSuccessReport ? __("✓ Shift Closed") : __("Shift Summary") }}
 						</p>
+						<p class="text-xs text-slate-400 truncate leading-none mt-0.5">
+							{{ __("Cashier: {0}", [userName]) }}
+						</p>
 					</div>
 
 					<!-- Entry mode: progress pills -->
@@ -447,6 +450,7 @@ import { useToast } from "../composables/useToast";
 import { usePOSSettingsStore } from "../stores/posSettings";
 import { usePOSShiftStore } from "../stores/posShift";
 import { printEODReport } from "../utils/printEod";
+import { useUserData } from "@/data/user";
 
 const props = defineProps({
 	modelValue: { type: Boolean, required: true },
@@ -462,6 +466,7 @@ const open = computed({
 const { getClosingShiftData, submitClosingShift } = useShift();
 const { formatCurrency, formatQuantity, formatDateTime, formatTime } = useFormatters();
 const { showSuccess } = useToast();
+const { userName } = useUserData();
 const posSettingsStore = usePOSSettingsStore();
 const { hideExpectedAmount } = storeToRefs(posSettingsStore);
 const shiftStore = usePOSShiftStore();
