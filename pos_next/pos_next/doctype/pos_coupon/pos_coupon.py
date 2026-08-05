@@ -114,7 +114,12 @@ def check_coupon_code(coupon_code, customer=None, company=None):
 
 
 def _get_customer_coupon_usage_count(customer, coupon_code):
-	"""Count submitted coupon usage across POSNext's actual sales doctypes."""
+	"""Count submitted coupon usage across POSNext's actual sales doctypes.
+
+	Uses `posa_coupon_code` (POS Next's own custom field) rather than the core
+	`coupon_code` field — the core field is a Link to ERPNext's unrelated
+	"Coupon Code" doctype and is never populated by POS Next invoices.
+	"""
 	used_count = 0
 
 	for doctype in ONE_USE_COUPON_DOCTYPES:
@@ -122,14 +127,14 @@ def _get_customer_coupon_usage_count(customer, coupon_code):
 			continue
 
 		meta = frappe.get_meta(doctype)
-		if not meta.has_field("coupon_code"):
+		if not meta.has_field("posa_coupon_code"):
 			continue
 
 		used_count += frappe.db.count(
 			doctype,
 			filters={
 				"customer": customer,
-				"coupon_code": coupon_code,
+				"posa_coupon_code": coupon_code,
 				"docstatus": 1,
 			},
 		)

@@ -641,4 +641,16 @@ def validate_coupon(coupon_code: str, customer: str, company: str) -> dict:
 	if coupon.customer and coupon.customer != customer:
 		return {"valid": False, "message": _("This coupon is not valid for this customer")}
 
+	# Check one-time-per-customer usage. Without this, a coupon marked "one use
+	# per customer" would only get rejected later, at invoice-save time (see
+	# check_coupon_code in pos_coupon.py) — after the cashier already saw it
+	# accepted and applied to the cart.
+	if coupon.one_use and customer:
+		from pos_next.pos_next.doctype.pos_coupon.pos_coupon import (
+			_get_customer_coupon_usage_count,
+		)
+
+		if _get_customer_coupon_usage_count(customer, coupon.coupon_code) > 0:
+			return {"valid": False, "message": _("Sorry, you have already used this coupon code")}
+
 	return {"valid": True, "coupon": coupon}
