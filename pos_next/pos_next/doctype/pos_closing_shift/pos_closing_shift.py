@@ -699,6 +699,124 @@ def submit_closing_shift(closing_shift):
 	return closing_shift_doc.name
 
 
+@frappe.whitelist()
+def post_cash_variance(closing_shift):
+	"""Post this shift's cash shortage/surplus to accounting, if allowed.
+
+	Shortage (counted < expected) is debited to the cashier's own POS Shortage Account
+	(User.posa_shortage_account) and credited from that payment mode's account — the cashier
+	now owes the company. Surplus (counted > expected) is debited from the payment mode's
+	account and credited to the POS Profile's Surplus Account (POS Settings.posa_surplus_account)
+	— company income.
+
+	The whole shift is posted together or not at all: the configured cap
+	(POS Settings.posa_max_variance_for_posting) is checked against the SUM of the absolute
+	difference across every payment method in the shift, not per payment method.
+	"""
+	doc = frappe.get_doc("POS Closing Shift", closing_shift)
+	frappe.has_permission("POS Closing Shift", "submit", doc=doc, throw=True)
+
+	if doc.docstatus != 1:
+		frappe.throw(_("Shift must be closed before posting its cash variance."))
+
+	if doc.posa_variance_journal_entry:
+		frappe.throw(
+			_("Cash variance for this shift was already posted ({0}).").format(
+				doc.posa_variance_journal_entry
+			)
+		)
+
+	rows = [d for d in doc.payment_reconciliation if flt(d.difference)]
+	if not rows:
+		return {"posted": False, "reason": "no_difference"}
+
+	max_variance = flt(
+		frappe.db.get_value("POS Settings", {"pos_profile": doc.pos_profile}, "posa_max_variance_for_posting")
+	)
+	combined_total = sum(abs(flt(d.difference)) for d in rows)
+
+	if not max_variance or combined_total > max_variance:
+		return {
+			"posted": False,
+			"reason": "over_cap",
+			"combined_total": combined_total,
+			"max_variance": max_variance,
+		}
+
+	shortage_account = frappe.db.get_value("User", doc.user, "posa_shortage_account")
+	surplus_account = frappe.db.get_value(
+		"POS Settings", {"pos_profile": doc.pos_profile}, "posa_surplus_account"
+	)
+
+	from pos_next.api.invoices import get_payment_account
+
+	accounts = []
+	skipped = []
+	for d in rows:
+		difference = flt(d.difference)
+		payment_account_result = get_payment_account(d.mode_of_payment, doc.company)
+		payment_account = payment_account_result.get("account") if payment_account_result else None
+
+		if not payment_account:
+			skipped.append({"mode_of_payment": d.mode_of_payment, "reason": "no_payment_account"})
+			continue
+
+		# NOTE: Journal Entry Account's `reference_type` is a restricted Select field
+		# (Sales Invoice / Purchase Invoice / Payment Entry / etc.) — "POS Closing
+		# Shift" is not a valid option, so it's deliberately left unset here. The
+		# link back to this shift lives on `doc.posa_variance_journal_entry` and in
+		# the entry's own `user_remark` instead.
+		if difference < 0:
+			if not shortage_account:
+				skipped.append({"mode_of_payment": d.mode_of_payment, "reason": "no_shortage_account"})
+				continue
+			accounts.append({"account": shortage_account, "debit_in_account_currency": abs(difference)})
+			accounts.append({"account": payment_account, "credit_in_account_currency": abs(difference)})
+		else:
+			if not surplus_account:
+				skipped.append({"mode_of_payment": d.mode_of_payment, "reason": "no_surplus_account"})
+				continue
+			accounts.append({"account": payment_account, "debit_in_account_currency": difference})
+			accounts.append({"account": surplus_account, "credit_in_account_currency": difference})
+
+	if not accounts:
+		return {"posted": False, "reason": "nothing_postable", "skipped": skipped}
+
+	try:
+		je = frappe.new_doc("Journal Entry")
+		je.voucher_type = "Journal Entry"
+		je.company = doc.company
+		je.posting_date = frappe.utils.nowdate()
+		je.user_remark = _("Cash variance for POS Closing Shift {0} ({1})").format(doc.name, doc.user)
+		je.set("accounts", accounts)
+		je.flags.ignore_permissions = True
+		je.insert()
+		je.submit()
+	except Exception as e:
+		error_doc = frappe.log_error(
+			"error in pos_closing_shift: post_cash_variance",
+			json.dumps(
+				{
+					"user": frappe.session.user,
+					"datetime": frappe.utils.now(),
+					"closing_shift": doc.name,
+					"error": str(e),
+				},
+				default=str,
+			),
+		)
+		frappe.throw(_("Could not post the cash variance journal entry. Error ID: {0}").format(error_doc.name))
+
+	doc.db_set("posa_variance_journal_entry", je.name)
+
+	return {
+		"posted": True,
+		"journal_entry": je.name,
+		"combined_total": combined_total,
+		"skipped": skipped,
+	}
+
+
 def submit_printed_invoices(pos_opening_shift, doctype):
 	invoices_list = frappe.get_all(
 		doctype,

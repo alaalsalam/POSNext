@@ -32,7 +32,8 @@
   "column_break_16",
   "taxes",
   "section_break_14",
-  "amended_from"
+  "amended_from",
+  "posa_variance_journal_entry"
  ],
  "fields": [
   {
@@ -196,6 +197,16 @@
   {
    "fieldname": "section_break_if3m1",
    "fieldtype": "Section Break"
+  },
+  {
+   "description": "Journal Entry posting the cash shortage/surplus for this shift, if the cashier chose to post it (only differences within POS Settings' configured cap are posted).",
+   "fieldname": "posa_variance_journal_entry",
+   "fieldtype": "Link",
+   "label": "Cash Variance Journal Entry",
+   "no_copy": 1,
+   "options": "Journal Entry",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "is_submittable": 1,

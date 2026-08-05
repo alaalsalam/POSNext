@@ -207,6 +207,16 @@ def submit_closing_shift(closing_shift):
 
 
 @frappe.whitelist()
+def post_cash_variance(closing_shift):
+	"""Post a closed shift's cash shortage/surplus to accounting, if within the configured cap."""
+	from pos_next.pos_next.doctype.pos_closing_shift.pos_closing_shift import (
+		post_cash_variance as post_variance,
+	)
+
+	return post_variance(closing_shift)
+
+
+@frappe.whitelist()
 def get_shift_stats(opening_shift):
 	"""Return live stats for an open shift: invoice count, net sales, returns, payment totals."""
 	frappe.has_permission("POS Opening Shift", "read", throw=True)

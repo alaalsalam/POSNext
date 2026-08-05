@@ -330,6 +330,36 @@
 						</label>
 					</div>
 
+					<!-- Post cash variance to accounting (optional, capped) -->
+					<div v-if="!showSuccessReport && combinedAbsoluteVariance >= 0.005" class="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5">
+						<FeatherIcon name="file-text" class="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+						<label class="flex cursor-pointer items-start gap-2">
+							<input v-model="postVariance" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-blue-400" />
+							<span class="text-xs text-blue-900">{{ __("Post cash variances within the allowed cap to accounting.") }}</span>
+						</label>
+					</div>
+
+					<!-- Cash variance posting result -->
+					<div v-if="variancePostResult" class="flex items-start gap-2 rounded-xl border px-4 py-2.5"
+						:class="variancePostResult.posted ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'">
+						<FeatherIcon :name="variancePostResult.posted ? 'check-circle' : 'alert-circle'"
+							class="w-4 h-4 flex-shrink-0 mt-0.5" :class="variancePostResult.posted ? 'text-green-600' : 'text-amber-600'" />
+						<div class="text-xs" :class="variancePostResult.posted ? 'text-green-900' : 'text-amber-900'">
+							<p v-if="variancePostResult.posted">
+								{{ __("Cash variance posted: {0}", [variancePostResult.journal_entry]) }}
+							</p>
+							<p v-else-if="variancePostResult.reason === 'over_cap'">
+								{{ __("Not posted — combined variance {0} exceeds the allowed cap {1}.", [formatCurrency(variancePostResult.combined_total), formatCurrency(variancePostResult.max_variance)]) }}
+							</p>
+							<p v-else-if="variancePostResult.reason === 'nothing_postable'">
+								{{ __("Not posted — no account is configured (cashier shortage account or surplus account).") }}
+							</p>
+							<p v-else>
+								{{ __("Cash variance could not be posted. It can still be handled manually.") }}
+							</p>
+						</div>
+					</div>
+
 					<!-- Returns disbursed note -->
 					<div v-if="getTotalReturnsDisbursed > 0" class="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
 						<FeatherIcon name="info" class="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
@@ -463,7 +493,7 @@ const open = computed({
 	set: (v) => emit("update:modelValue", v),
 });
 
-const { getClosingShiftData, submitClosingShift } = useShift();
+const { getClosingShiftData, submitClosingShift, postCashVariance } = useShift();
 const { formatCurrency, formatQuantity, formatDateTime, formatTime } = useFormatters();
 const { showSuccess } = useToast();
 const { userName } = useUserData();
@@ -484,6 +514,8 @@ const closingShiftName   = ref(null);
 const printLoading       = ref(false);
 const showIdleWarning    = ref(false);
 const varianceConfirmed  = ref(false);
+const postVariance       = ref(false);
+const variancePostResult = ref(null);
 let _idleWarningTimer    = null;
 
 watch(open, async (isOpen) => {
@@ -491,6 +523,8 @@ watch(open, async (isOpen) => {
 		shiftStore.shiftTimerPaused = true;
 		showIdleWarning.value = false;
 		showAllMethods.value = false;
+		postVariance.value = false;
+		variancePostResult.value = null;
 		_idleWarningTimer = setTimeout(() => { showIdleWarning.value = true; }, 60_000);
 		await posSettingsStore.reloadSettings();
 		loadClosingData();
@@ -607,6 +641,20 @@ async function submitClosing() {
 		// Keep the report visible after submission. Printing is an explicit,
 		// optional action and must never block finishing or signing out.
 		showSuccessReport.value = true;
+
+		// Posting the cash variance is best-effort and happens after the shift is
+		// already safely closed — a failure here must never look like the shift
+		// itself failed to close.
+		if (postVariance.value && closingShiftName.value) {
+			try {
+				variancePostResult.value = await postCashVariance.submit({
+					closing_shift: closingShiftName.value,
+				});
+			} catch (varianceError) {
+				console.error("Error posting cash variance:", varianceError);
+				variancePostResult.value = { posted: false, reason: "error" };
+			}
+		}
 	} catch (error) {
 		console.error("Error submitting closing shift:", error);
 		errorMessage.value = __("Failed to close shift. Please verify all amounts and try again.");
@@ -641,6 +689,8 @@ function closeDialog() {
 	eodPrintFailed.value     = null;
 	closingShiftName.value   = null;
 	printLoading.value       = false;
+	postVariance.value       = false;
+	variancePostResult.value = null;
 }
 
 // ── UI State ──────────────────────────────────────────────
@@ -679,6 +729,18 @@ const getTotalActual = computed(() => {
 });
 
 const getTotalDifference = computed(() => getTotalActual.value - getTotalExpected.value);
+
+// Sum of the ABSOLUTE difference per payment method — a Cash shortage and a Card surplus
+// don't cancel out here the way they do in getTotalDifference's net total. This matches the
+// backend's combined-cap check for posting cash variances (post_cash_variance in
+// pos_closing_shift.py), which is checked against this same sum, not the net total.
+const combinedAbsoluteVariance = computed(() => {
+	if (!closingData.value?.payment_reconciliation) return 0;
+	return closingData.value.payment_reconciliation.reduce(
+		(sum, p) => sum + Math.abs(Number.parseFloat(p.difference) || 0),
+		0
+	);
+});
 
 const getTotalReturnsDisbursed = computed(() => {
 	if (!closingData.value?.payment_reconciliation) return 0;

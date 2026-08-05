@@ -70,6 +70,9 @@
   "section_break_misc",
   "input_qty",
   "allow_negative_stock",
+  "section_break_cash_variance",
+  "posa_surplus_account",
+  "posa_max_variance_for_posting",
   "section_break_security",
   "enable_session_lock",
   "session_lock_timeout",
@@ -529,6 +532,26 @@
    "fieldname": "allow_negative_stock",
    "fieldtype": "Check",
    "label": "Allow Negative Stock"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_cash_variance",
+   "fieldtype": "Section Break",
+   "label": "Cash Variance Posting"
+  },
+  {
+   "description": "Account credited when a shift closes with more cash counted than expected (surplus). Shared across all cashiers on this POS Profile.",
+   "fieldname": "posa_surplus_account",
+   "fieldtype": "Link",
+   "label": "Surplus Account",
+   "options": "Account"
+  },
+  {
+   "default": "0",
+   "description": "Cash variances are only postable to accounts (from the shift-closing screen) when the SUM of the absolute shortage/surplus across every payment method in the shift is within this amount. If the combined total exceeds it, posting is unavailable for the whole shift (not just the excess). Leave 0 to disable posting entirely.",
+   "fieldname": "posa_max_variance_for_posting",
+   "fieldtype": "Currency",
+   "label": "Max Combined Variance Allowed for Posting"
   },
   {
    "collapsible": 1,

@@ -160,6 +160,15 @@ export function useShift() {
 		},
 	});
 
+	// Post a closed shift's cash shortage/surplus to accounting (optional, capped)
+	const postCashVariance = createResource({
+		url: "pos_next.api.shifts.post_cash_variance",
+		makeParams({ closing_shift }) {
+			return { closing_shift };
+		},
+		auto: false,
+	});
+
 	// Computed properties
 	const hasOpenShift = computed(() => shiftState.value.isOpen);
 	const currentShift = computed(() => shiftState.value.pos_opening_shift);
@@ -180,5 +189,6 @@ export function useShift() {
 		createOpeningShift,
 		getClosingShiftData,
 		submitClosingShift,
+		postCashVariance,
 	};
 }
