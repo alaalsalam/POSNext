@@ -281,7 +281,7 @@
 				>
 					<!-- Mobile/Tablet Management Actions -->
 					<div
-						v-if="canManageCatalog || canManagePurchases || canViewReports"
+						v-if="canManageCatalog || canManagePurchases || canViewReports || canManageFeatureFlags"
 						class="lg:hidden bg-white border-b border-gray-200 px-2 py-2 flex items-center gap-2 overflow-x-auto shadow-sm"
 						data-testid="mobile-management-actions"
 					>
@@ -314,6 +314,17 @@
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V9m6 10V5m6 14v-7m4 7H2" />
 							</svg>
 							<span>{{ __("Reports") }}</span>
+						</button>
+						<button
+							v-if="canManageFeatureFlags"
+							@click="handleManagementMenuClick('settings')"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold flex items-center gap-2 active:bg-gray-200"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+							</svg>
+							<span>{{ __("Settings") }}</span>
 						</button>
 					</div>
 
