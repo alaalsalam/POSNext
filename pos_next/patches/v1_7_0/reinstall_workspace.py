@@ -120,4 +120,4 @@ def _load_workspace_data(workspace_file: Path):
 		)
 		return None
 
-	return workspace_data[0]
+	return workspace_data
