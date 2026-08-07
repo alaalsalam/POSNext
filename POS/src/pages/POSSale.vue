@@ -166,13 +166,13 @@
 					<button
 						v-if="canManagePurchases"
 						data-testid="header-purchases-button"
-						@click="handleManagementMenuClick('purchases')"
+						@click="handleManagementMenuClick('purchase_invoices')"
 						class="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 flex items-center gap-3 transition-colors"
 					>
 						<svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
 						</svg>
-						<span>{{ __("Purchases") }}</span>
+						<span>{{ __("Purchase Invoices") }}</span>
 					</button>
 					<button
 						v-if="canViewReports"
@@ -324,13 +324,14 @@
 						</button>
 						<button
 							v-if="canManagePurchases"
-							@click="handleManagementMenuClick('purchases')"
+							data-testid="mobile-purchase-invoices-button"
+							@click="handleManagementMenuClick('purchase_invoices')"
 							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-100 text-xs font-semibold flex items-center gap-2 active:bg-orange-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5" />
 							</svg>
-							<span>{{ __("Purchases") }}</span>
+							<span>{{ __("Purchase Invoices") }}</span>
 						</button>
 						<button
 							v-if="canViewReports"
@@ -500,7 +501,6 @@
 								:warehouses="profileWarehouses"
 								:can-submit-purchases="canSubmitPurchases"
 								@purchase-checkout="handlePurchaseCheckout"
-								@show-purchase-history="openPurchaseHistory"
 								@update-quantity="cartStore.updateItemQuantity"
 								@remove-item="
 									(itemCode, uom) => cartStore.removeItem(itemCode, uom)
@@ -805,11 +805,19 @@
 				:currency="shiftStore.profileCurrency"
 				:history-invoices="invoiceHistoryData"
 				:draft-invoices="draftsStore.drafts"
+				:can-manage-purchases="canManagePurchases"
+				:can-create-supplier-payment="canCreateSupplierPayment"
+				:can-read-supplier-payments="canReadSupplierPayments"
+				:initial-view-mode="invoiceManagementInitialMode"
+				:purchase-refresh-token="purchaseInvoicesRefreshToken"
 				@view-invoice="handleViewInvoice"
 				@print-invoice="handlePrintInvoice"
 				@load-draft="handleLoadDraftFromManagement"
 				@delete-draft="handleDeleteDraft"
 				@refresh-history="loadInvoiceHistoryData"
+				@open-purchase-invoice="openPurchaseInvoiceFromManagement"
+				@pay-purchase-invoice="openSupplierPayment"
+				@open-supplier-payments="openSupplierPaymentsFromManagement"
 			/>
 
 			<!-- Invoice Detail Dialog -->
@@ -828,35 +836,25 @@
 				@close="showCatalogManagement = false"
 			/>
 
-			<!-- Purchases Panel -->
+			<!-- Purchases Panel — hosts the purchase invoice FORM and supplier PAYMENTS
+			     views, opened from Invoice Management's Purchases mode. The invoice LIST
+			     itself now lives inside Invoice Management (standalone list retired). -->
 			<div
 				v-if="showPurchasesPanel"
-				class="absolute inset-0 z-[300] flex"
+				class="absolute inset-0 z-[350] flex"
 			>
 				<div class="flex-1 flex flex-col overflow-hidden">
-					<PurchaseInvoiceList
-						v-if="purchaseView === 'list'"
-						:can-create="canCreatePurchases"
-						:can-create-payment="canCreateSupplierPayment"
-						:can-read-payments="canReadSupplierPayments"
-						:pos-profile="shiftStore.profileName"
-						@close="showPurchasesPanel = false"
-						@new-invoice="purchaseView = 'form'; currentPurchaseName = null"
-						@open-invoice="openPurchaseInvoice"
-						@pay-invoice="openSupplierPayment"
-						@open-payments="purchaseView = 'payments'"
-					/>
 					<PurchaseInvoiceForm
-						v-else-if="purchaseView === 'form'"
+						v-if="purchaseView === 'form'"
 						:invoice-name="currentPurchaseName"
-						:defaults="purchaseDefaults"
+						:defaults="purchaseMetaDefaults"
 						:pos-profile="shiftStore.profileName"
 						:can-create="canCreatePurchases"
 						:can-write="canWritePurchases"
 						:can-submit="canSubmitPurchases"
 						:can-cancel="canCancelPurchases"
-						@back="purchaseView = 'list'"
-						@close="showPurchasesPanel = false"
+						@back="closePurchasePanel"
+						@close="closePurchasePanel"
 						@saved="onPurchaseSaved"
 						@submitted="onPurchaseSubmitted"
 					/>
@@ -865,8 +863,8 @@
 						:can-submit="canSubmitSupplierPayment"
 						:can-cancel="canCancelSupplierPayment"
 						:pos-profile="shiftStore.profileName"
-						@back="purchaseView = 'list'"
-						@close="showPurchasesPanel = false"
+						@back="closePurchasePanel"
+						@close="closePurchasePanel"
 					/>
 				</div>
 			</div>
@@ -1245,7 +1243,6 @@ import SessionLockScreen from "@/components/common/SessionLockScreen.vue";
 import LoadingSpinner from "@/components/common/LoadingSpinner.vue";
 import ManagementSlider from "@/components/pos/ManagementSlider.vue";
 import CatalogManagement from "@/components/pos/CatalogManagement.vue";
-import PurchaseInvoiceList from "@/components/purchases/PurchaseInvoiceList.vue";
 import PurchaseInvoiceForm from "@/components/purchases/PurchaseInvoiceForm.vue";
 import SupplierPaymentDialog from "@/components/purchases/SupplierPaymentDialog.vue";
 import SupplierPaymentList from "@/components/purchases/SupplierPaymentList.vue";
@@ -1404,6 +1401,13 @@ const showStockLookup = ref(false);
 
 // Invoice Management dialog
 const showInvoiceManagement = ref(false);
+// Which view Invoice Management opens on ("sales" | "purchases").
+const invoiceManagementInitialMode = ref("sales");
+// Bump to remount the embedded purchase list (after a supplier payment / save).
+const purchaseInvoicesRefreshToken = ref(0);
+function refreshPurchaseInvoicesView() {
+	purchaseInvoicesRefreshToken.value += 1;
+}
 
 // Catalog Management panel
 const showCatalogManagement = ref(false);
@@ -1412,9 +1416,8 @@ const canManageFeatureFlags = ref(false);
 
 // Purchases panel
 const showPurchasesPanel = ref(false);
-const purchaseView = ref("list"); // "list" | "form"
+const purchaseView = ref("form"); // "form" | "payments" (the list lives in Invoice Management)
 const currentPurchaseName = ref(null);
-const purchaseDefaults = ref({});
 const canManagePurchases = ref(false);
 const canCreatePurchases = ref(false);
 const canWritePurchases = ref(false);
@@ -3308,24 +3311,32 @@ function handleManagementMenuClick(menuItem) {
 	} else if (menuItem === "settings") {
 		if (canManageFeatureFlags.value) showPOSSettings.value = true;
 	} else if (menuItem === "invoices") {
-		// Load invoice history data before showing
-		loadInvoiceHistoryData();
-		// Load drafts data
-		draftsStore.loadDrafts();
-		showInvoiceManagement.value = true;
+		openInvoiceManagement("sales");
+	} else if (menuItem === "purchase_invoices") {
+		// Header/mobile "Purchases" entry: view purchase invoices in Invoice Management.
+		if (!canManagePurchases.value) return;
+		openInvoiceManagement("purchases");
 	} else if (menuItem === "products") {
 		// Open Stock Lookup dialog in search mode
 		showStockLookup.value = true;
 	} else if (menuItem === "catalog") {
 		showCatalogManagement.value = true;
 	} else if (menuItem === "purchases") {
-		// The rail (and mobile) "Purchases" control now TOGGLES purchase mode on the
-		// main screen. The purchase invoices list is reachable via the in-cart
-		// "Purchase History" button (openPurchaseHistory).
+		// The RAIL "Purchases" control TOGGLES purchase MODE on the main screen.
+		// Viewing purchase INVOICES is done from Invoice Management ("purchase_invoices").
 		togglePurchaseMode();
 	} else if (menuItem === "reports") {
 		showReportsPanel.value = true;
 	}
+}
+
+// Open the Invoice Management dialog on the requested view ("sales" | "purchases").
+function openInvoiceManagement(mode = "sales") {
+	invoiceManagementInitialMode.value = mode;
+	// Sales tabs need history + drafts preloaded; the purchases list self-fetches.
+	loadInvoiceHistoryData();
+	draftsStore.loadDrafts();
+	showInvoiceManagement.value = true;
 }
 
 // Load invoice history data
@@ -3484,9 +3495,18 @@ function handleTabSwitch(tab) {
 	});
 }
 
-function openPurchaseInvoice(inv) {
-	currentPurchaseName.value = inv.name;
+// Invoice Management (Purchases mode) row click → open the purchase invoice form
+// panel. Invoice Management stays mounted underneath; closing the panel returns to it.
+function openPurchaseInvoiceFromManagement(inv) {
+	currentPurchaseName.value = inv?.name || null;
 	purchaseView.value = "form";
+	showPurchasesPanel.value = true;
+}
+
+// Invoice Management (Purchases mode) "supplier payments" → open the payments list panel.
+function openSupplierPaymentsFromManagement() {
+	purchaseView.value = "payments";
+	showPurchasesPanel.value = true;
 }
 
 function onPurchaseSaved(name) {
@@ -3496,21 +3516,25 @@ function onPurchaseSaved(name) {
 
 function onPurchaseSubmitted(name) {
 	currentPurchaseName.value = name;
-	// Stay on form to show submitted state
+	// Stay on form to show submitted state; refresh the underlying invoice list.
+	refreshPurchaseInvoicesView();
 }
 
 function openSupplierPayment(invoice) {
 	supplierPaymentInvoice.value = invoice;
 }
 
+// Close the purchase form/payments panel and return to Invoice Management underneath.
+function closePurchasePanel() {
+	showPurchasesPanel.value = false;
+	purchaseView.value = "form";
+	currentPurchaseName.value = null;
+}
+
 function onSupplierPaymentCreated() {
 	supplierPaymentInvoice.value = null;
-	purchaseView.value = "list";
-	// Recreate the list component so balances and statuses are refreshed.
-	showPurchasesPanel.value = false;
-	requestAnimationFrame(() => {
-		showPurchasesPanel.value = true;
-	});
+	// Remount Invoice Management's purchase list so balances/statuses refresh.
+	refreshPurchaseInvoicesView();
 }
 
 /**
@@ -3568,6 +3592,17 @@ async function handleSetMode(nextMode) {
 function applyPurchaseDefaults() {
 	const defaults = purchaseMetaDefaults.value || {};
 
+	// Remember the configured default supplier so the cart's supplier card can
+	// revert to it on Clear (mirrors the sales default customer).
+	if (defaults.default_supplier) {
+		cartStore.setPurchaseDefaultSupplier({
+			name: defaults.default_supplier,
+			supplier_name: defaults.default_supplier_name || defaults.default_supplier,
+		});
+	} else {
+		cartStore.setPurchaseDefaultSupplier(null);
+	}
+
 	if (!cartStore.supplier && defaults.default_supplier) {
 		cartStore.setSupplier({
 			name: defaults.default_supplier,
@@ -3611,13 +3646,6 @@ function confirmModeSwitch() {
 
 function cancelModeSwitch() {
 	pendingModeSwitch.value = null;
-}
-
-// Open the purchase invoices history/list panel (the in-cart "Purchase History"
-// button). Kept separate from the rail toggle so the rail only flips the mode.
-function openPurchaseHistory() {
-	showPurchasesPanel.value = true;
-	purchaseView.value = "list";
 }
 
 async function handlePurchaseCheckout() {

@@ -501,6 +501,12 @@ const props = defineProps({
 		type: String,
 		default: "EGP",
 	},
+	// Cart mode: "sales" (default) | "purchase". Purchase lines default to a
+	// freely editable rate (the cashier types the buying price).
+	mode: {
+		type: String,
+		default: "sales",
+	},
 });
 
 const emit = defineEmits(["update:modelValue", "update-item"]);
@@ -542,21 +548,25 @@ const availableUoms = computed(() => {
 
 const currencySymbol = computed(() => getCurrencySymbol(props.currency));
 
+const isPurchaseMode = computed(() => props.mode === "purchase");
+
 // Check if item has pricing rules applied (promotional offers)
 const hasPricingRules = computed(() => {
 	if (!localItem.value) return false;
 	return Boolean(localItem.value.pricing_rules) && localItem.value.pricing_rules.length > 0;
 });
 
-// Rate editing is allowed only if:
-// 1. POS Settings allows rate editing AND
-// 2. Item does NOT have pricing rules (promotional offers) applied
+// Rate editing is allowed if:
+// - Purchase mode: always (cashier types the buying price; offers never run here), OR
+// - Sales mode: POS Settings allows it AND no pricing rules (promotional offers) applied
 const canEditRate = computed(() => {
+	if (isPurchaseMode.value) return true;
 	return settingsStore.allowUserToEditRate && !hasPricingRules.value;
 });
 
 // Tooltip message for why rate editing is disabled
 const rateEditDisabledReason = computed(() => {
+	if (isPurchaseMode.value) return "";
 	if (!settingsStore.allowUserToEditRate) {
 		return __("Rate editing is disabled");
 	}
@@ -888,14 +898,21 @@ function updateItem() {
 	// ========================================================================
 	// RATE EDIT VALIDATION
 	// ========================================================================
-	if (settingsStore.allowUserToEditRate && isRateManuallyEdited) {
-		// Validate rate is positive
+	if (canEditRate.value && isRateManuallyEdited && isPurchaseMode.value) {
+		// Purchase mode: buying rate must be non-negative (backend requires rate >= 0).
+		// A zero rate is permitted (some items have no buying price yet).
+		if (localRate.value < 0) {
+			showError(__("Rate must be zero or greater"));
+			return;
+		}
+	} else if (settingsStore.allowUserToEditRate && isRateManuallyEdited) {
+		// Sales mode: rate must be strictly positive.
 		if (localRate.value <= 0) {
 			showError(__("Rate must be greater than zero"));
 			return;
 		}
 
-		// Validate against max discount if rate was reduced
+		// Validate against max discount if rate was reduced.
 		const maxDiscount = settingsStore.maxDiscountAllowed;
 		if (maxDiscount > 0 && localRate.value < originalPriceListRate.value) {
 			const discountPercent =

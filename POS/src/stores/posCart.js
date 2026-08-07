@@ -141,6 +141,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	const purchaseWarehouse = ref("");
 	const purchaseTaxTemplate = ref(null);
 	const purchaseExpenseAccount = ref("");
+	// Settings default supplier ({ name, supplier_name }) — mirrors the sales default
+	// customer. Clearing the supplier reverts to this when configured.
+	const purchaseDefaultSupplier = ref(null);
 	// One idempotency key per checkout attempt; regenerated after a successful submit.
 	let purchaseIdempotencyKey = newIdempotencyKey("purchase");
 
@@ -390,11 +393,16 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		purchaseWarehouse.value = "";
 		purchaseTaxTemplate.value = null;
 		purchaseExpenseAccount.value = "";
+		purchaseDefaultSupplier.value = null;
 		purchaseIdempotencyKey = newIdempotencyKey("purchase");
 	}
 
 	function setSupplier(selectedSupplier) {
 		supplier.value = selectedSupplier;
+	}
+
+	function setPurchaseDefaultSupplier(defaultSupplier) {
+		purchaseDefaultSupplier.value = defaultSupplier || null;
 	}
 
 	function setPurchaseWarehouse(warehouse) {
@@ -2233,11 +2241,13 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		purchaseWarehouse,
 		purchaseTaxTemplate,
 		purchaseExpenseAccount,
+		purchaseDefaultSupplier,
 		setMode,
 		setSupplier,
 		setPurchaseWarehouse,
 		setPurchaseTaxTemplate,
 		setPurchaseExpenseAccount,
+		setPurchaseDefaultSupplier,
 		submitPurchaseInvoice,
 
 		// Write-off feature

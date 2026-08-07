@@ -1,13 +1,15 @@
 <!--
   Compact supplier picker for purchase mode on the main POS screen.
-  Reuses the supplier search + quick-create logic from PurchaseInvoiceForm.vue,
-  backed by the same pos_next.api.purchases endpoints.
+  Mirrors the sales customer card (avatar + name + Change / Create / Clear).
+  There is no "edit supplier details" action (no update_supplier backend).
+  Reuses the supplier search + quick-create logic backed by the same
+  pos_next.api.purchases endpoints.
 -->
 <template>
 	<div ref="rootRef" class="relative">
-		<!-- Selected supplier card -->
+		<!-- Selected supplier card (mirrors the sales customer card) -->
 		<div
-			v-if="modelValue"
+			v-if="modelValue && !searching"
 			class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm min-w-0"
 		>
 			<div
@@ -28,19 +30,46 @@
 				</p>
 				<p class="text-[10px] text-gray-500 truncate leading-tight">{{ __("Supplier") }}</p>
 			</div>
-			<button
-				type="button"
-				@click.stop="clearSupplier"
-				class="w-7 h-7 flex items-center justify-center text-red-500 hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors touch-manipulation flex-shrink-0"
-				:title="__('Remove supplier')"
-			>
-				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-				</svg>
-			</button>
+
+			<!-- Action Buttons: Change / Create / Clear (no Edit) -->
+			<div class="flex items-center gap-0.5 flex-shrink-0" @click.stop>
+				<button
+					type="button"
+					data-testid="supplier-change"
+					@click.stop="startChange"
+					class="w-7 h-7 flex items-center justify-center text-orange-500 hover:bg-orange-50 active:bg-orange-100 rounded-lg transition-colors touch-manipulation"
+					:title="__('Change supplier')"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+					</svg>
+				</button>
+				<button
+					type="button"
+					data-testid="supplier-create"
+					@click.stop="openCreate"
+					class="w-7 h-7 flex items-center justify-center text-green-600 hover:bg-green-50 active:bg-green-100 rounded-lg transition-colors touch-manipulation"
+					:title="__('Create new supplier')"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+					</svg>
+				</button>
+				<button
+					type="button"
+					data-testid="supplier-clear"
+					@click.stop="clearSupplier"
+					class="w-7 h-7 flex items-center justify-center text-red-500 hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors touch-manipulation"
+					:title="__('Remove supplier')"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
 		</div>
 
-		<!-- Search input -->
+		<!-- Search input (no supplier, or Change requested) -->
 		<div v-else class="relative">
 			<div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
 				<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,6 +84,7 @@
 			<input
 				id="cart-supplier-search"
 				name="cart-supplier-search"
+				ref="searchInput"
 				v-model="search"
 				@input="onSearch"
 				@focus="showDropdown = true"
@@ -119,7 +149,7 @@
 				</button>
 				<button
 					type="button"
-					@click="showCreate = false"
+					@click="cancelCreate"
 					class="h-9 px-3 text-xs font-semibold text-gray-600 bg-white border border-orange-200 rounded-lg"
 				>
 					{{ __("Cancel") }}
@@ -130,7 +160,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { call } from "@/utils/apiWrapper";
 import { useToast } from "@/composables/useToast";
 import { managerTranslate as __ } from "@/utils/managementI18n";
@@ -138,16 +168,21 @@ import { managerTranslate as __ } from "@/utils/managementI18n";
 const props = defineProps({
 	modelValue: { type: Object, default: null },
 	posProfile: { type: String, required: true },
+	// Settings default supplier ({ name, supplier_name }) — clearing reverts to it
+	// when configured, mirroring the sales default-customer behaviour.
+	defaultSupplier: { type: Object, default: null },
 });
 const emit = defineEmits(["update:modelValue"]);
 
 const { showError } = useToast();
 
 const rootRef = ref(null);
+const searchInput = ref(null);
 const search = ref("");
 const options = ref([]);
 const showDropdown = ref(false);
 const showCreate = ref(false);
+const searching = ref(false); // "Change" pressed on a selected supplier → show the picker
 const newName = ref("");
 const newGroup = ref("");
 const supplierGroups = ref([]);
@@ -178,19 +213,46 @@ function onSearch() {
 
 function selectSupplier(s) {
 	emit("update:modelValue", { name: s.name, supplier_name: s.supplier_name });
+	resetPicker();
+}
+
+// Change: reveal the search input over the selected supplier card.
+async function startChange() {
+	searching.value = true;
+	showDropdown.value = false;
+	await nextTick();
+	searchInput.value?.focus();
+}
+
+// Clear: revert to the configured default supplier when one exists, otherwise
+// deselect entirely (which reveals the inline picker).
+function clearSupplier() {
+	if (props.defaultSupplier?.name) {
+		emit("update:modelValue", { ...props.defaultSupplier });
+	} else {
+		emit("update:modelValue", null);
+	}
+	resetPicker();
+}
+
+function resetPicker() {
 	search.value = "";
 	options.value = [];
 	showDropdown.value = false;
-}
-
-function clearSupplier() {
-	emit("update:modelValue", null);
+	searching.value = false;
 }
 
 function openCreate() {
 	newName.value = search.value.trim();
 	showCreate.value = true;
 	showDropdown.value = false;
+}
+
+function cancelCreate() {
+	showCreate.value = false;
+	newName.value = "";
+	// If nothing is selected, keep the picker visible; otherwise return to the card.
+	if (props.modelValue) searching.value = false;
 }
 
 async function createSupplier() {
@@ -218,6 +280,8 @@ async function createSupplier() {
 function handleClickOutside(event) {
 	if (rootRef.value && !rootRef.value.contains(event.target)) {
 		showDropdown.value = false;
+		// Abandoning a "Change" without picking anything returns to the card.
+		if (searching.value && props.modelValue) searching.value = false;
 	}
 }
 

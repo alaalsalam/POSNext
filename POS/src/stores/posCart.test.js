@@ -180,6 +180,7 @@ describe("posCart purchase mode", () => {
 		cart.setPurchaseWarehouse("Stores - A");
 		cart.setPurchaseTaxTemplate("Std Purchase Tax");
 		cart.setPurchaseExpenseAccount("Cost of Goods Sold - A");
+		cart.setPurchaseDefaultSupplier({ name: "SUP-DEF", supplier_name: "Default Co" });
 
 		// Leaving and re-entering purchase mode must reset every purchase-default field
 		// so POSSale.applyPurchaseDefaults()'s "only fill when empty" guards are satisfied.
@@ -190,6 +191,19 @@ describe("posCart purchase mode", () => {
 		expect(cart.purchaseWarehouse).toBe("");
 		expect(cart.purchaseTaxTemplate).toBeNull();
 		expect(cart.purchaseExpenseAccount).toBe("");
+		expect(cart.purchaseDefaultSupplier).toBeNull();
+	});
+
+	it("setPurchaseDefaultSupplier stores the settings default the supplier card reverts to", () => {
+		const cart = usePOSCartStore();
+		cart.setMode("purchase");
+		cart.setPurchaseDefaultSupplier({ name: "SUP-DEF", supplier_name: "Default Co" });
+		expect(cart.purchaseDefaultSupplier).toEqual({
+			name: "SUP-DEF",
+			supplier_name: "Default Co",
+		});
+		cart.setPurchaseDefaultSupplier(null);
+		expect(cart.purchaseDefaultSupplier).toBeNull();
 	});
 
 	it("purchase-default setters accept the values applyPurchaseDefaults writes on entry", () => {

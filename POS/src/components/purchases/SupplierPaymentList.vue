@@ -71,6 +71,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue"
+import { call } from "@/utils/apiWrapper"
 import { managerTranslate as __ } from "@/utils/managementI18n"
 
 const props = defineProps({
@@ -91,16 +92,13 @@ async function load() {
 	loading.value = true
 	errorMessage.value = ""
 	try {
-		const response = await frappe.call({
-			method: "pos_next.api.purchases.get_supplier_payments",
-			args: {
-				supplier: supplier.value || null,
-				from_date: fromDate.value || null,
-				to_date: toDate.value || null,
-				pos_profile: props.posProfile,
-			},
+		const result = await call("pos_next.api.purchases.get_supplier_payments", {
+			supplier: supplier.value || null,
+			from_date: fromDate.value || null,
+			to_date: toDate.value || null,
+			pos_profile: props.posProfile,
 		})
-		payments.value = response?.message?.payments || []
+		payments.value = result?.payments || []
 	} catch (error) {
 		errorMessage.value =
 			error?.message || __("Could not load supplier payments")
@@ -114,21 +112,22 @@ async function changeStatus(payment, action) {
 		return
 	actionName.value = payment.name
 	try {
-		await frappe.call({
-			method:
-				action === "submit"
-					? "pos_next.api.purchases.submit_supplier_payment"
-					: "pos_next.api.purchases.cancel_supplier_payment",
-			args:
-				action === "submit"
-					? {
-							name: payment.name,
-							expected_modified: payment.modified,
-							pos_profile: props.posProfile,
-						}
-					: { name: payment.name, pos_profile: props.posProfile },
-		})
+		const method =
+			action === "submit"
+				? "pos_next.api.purchases.submit_supplier_payment"
+				: "pos_next.api.purchases.cancel_supplier_payment"
+		const params =
+			action === "submit"
+				? {
+						name: payment.name,
+						expected_modified: payment.modified,
+						pos_profile: props.posProfile,
+					}
+				: { name: payment.name, pos_profile: props.posProfile }
+		await call(method, params)
 		await load()
+	} catch (error) {
+		errorMessage.value = error?.message || __("Could not update the payment")
 	} finally {
 		actionName.value = ""
 	}

@@ -94,6 +94,7 @@
 
 <script setup>
 import { reactive, ref, onMounted } from "vue"
+import { call } from "@/utils/apiWrapper"
 import { managerTranslate as __ } from "@/utils/managementI18n"
 
 const props = defineProps({
@@ -129,11 +130,10 @@ function messageFrom(error, fallback) {
 async function loadDefaults() {
 	loading.value = true
 	try {
-		const response = await frappe.call({
-			method: "pos_next.api.purchases.get_supplier_payment_defaults",
-			args: { invoice_name: props.invoice.name, pos_profile: props.posProfile },
-		})
-		const data = response?.message || {}
+		const data = (await call("pos_next.api.purchases.get_supplier_payment_defaults", {
+			invoice_name: props.invoice.name,
+			pos_profile: props.posProfile,
+		})) || {}
 		Object.assign(details, data.invoice || {})
 		accounts.value = data.accounts || []
 		modes.value = data.modes_of_payment || []
@@ -172,23 +172,20 @@ async function save(submit) {
 	if (errorMsg.value) return
 	saving.value = true
 	try {
-		const response = await frappe.call({
-			method: "pos_next.api.purchases.create_supplier_payment",
-			args: {
-				invoice_name: details.name,
-				amount: form.amount,
-				posting_date: form.posting_date,
-				mode_of_payment: form.mode_of_payment || null,
-				paid_from: form.paid_from,
-				reference_no: form.reference_no || null,
-				reference_date: form.reference_date || form.posting_date,
-				remarks: form.remarks || null,
-				submit: submit ? 1 : 0,
-				idempotency_key: paymentIdempotencyKey,
-				pos_profile: props.posProfile,
-			},
+		const result = await call("pos_next.api.purchases.create_supplier_payment", {
+			invoice_name: details.name,
+			amount: form.amount,
+			posting_date: form.posting_date,
+			mode_of_payment: form.mode_of_payment || null,
+			paid_from: form.paid_from,
+			reference_no: form.reference_no || null,
+			reference_date: form.reference_date || form.posting_date,
+			remarks: form.remarks || null,
+			submit: submit ? 1 : 0,
+			idempotency_key: paymentIdempotencyKey,
+			pos_profile: props.posProfile,
 		})
-		emit("created", response?.message || {})
+		emit("created", result || {})
 	} catch (error) {
 		errorMsg.value = messageFrom(error, __("تعذر إنشاء دفعة المورد"))
 	} finally {

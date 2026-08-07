@@ -314,7 +314,11 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue"
+import { call } from "@/utils/apiWrapper"
+import { useToast } from "@/composables/useToast"
 import { managerTranslate as __ } from "@/utils/managementI18n"
+
+const { showSuccess } = useToast()
 
 const props = defineProps({
 	invoiceName: { type: String, default: null },
@@ -385,19 +389,16 @@ function searchSuppliers() {
 			supplierOptions.value = []
 			return
 		}
-		const res = await frappe.call({
-			method: "pos_next.api.purchases.get_suppliers",
-			args: {
+		try {
+			supplierOptions.value = await call("pos_next.api.purchases.get_suppliers", {
 				search: supplierSearch.value,
 				limit: 10,
 				pos_profile: props.posProfile,
-			},
-			error: (r) => {
-				errorMsg.value = r?.message || __("فشل البحث عن الموردين")
-			},
-		})
-		supplierOptions.value = res?.message || []
-		showSupplierDropdown.value = true
+			}) || []
+			showSupplierDropdown.value = true
+		} catch (error) {
+			errorMsg.value = error?.message || __("فشل البحث عن الموردين")
+		}
 	}, 300)
 }
 
@@ -413,23 +414,19 @@ async function createSupplier() {
 	if (!newSupplierName.value) return
 	creatingSupplier.value = true
 	try {
-		const res = await frappe.call({
-			method: "pos_next.api.purchases.create_supplier",
-			args: {
-				supplier_name: newSupplierName.value,
-				supplier_group: newSupplierGroup.value,
-				supplier_type: "Company",
-				pos_profile: props.posProfile,
-			},
-			error: (r) => {
-				errorMsg.value = r?.message || __("فشل إنشاء المورد")
-			},
+		const result = await call("pos_next.api.purchases.create_supplier", {
+			supplier_name: newSupplierName.value,
+			supplier_group: newSupplierGroup.value,
+			supplier_type: "Company",
+			pos_profile: props.posProfile,
 		})
-		if (res?.message) {
-			selectSupplier(res.message)
+		if (result) {
+			selectSupplier(result)
 			showCreateSupplier.value = false
 			newSupplierName.value = ""
 		}
+	} catch (error) {
+		errorMsg.value = error?.message || __("فشل إنشاء المورد")
 	} finally {
 		creatingSupplier.value = false
 	}
@@ -471,15 +468,16 @@ function searchItems(idx) {
 			form.items[idx]._options = []
 			return
 		}
-		const res = await frappe.call({
-			method: "pos_next.api.purchases.get_purchase_items",
-			args: { search: q, limit: 10, pos_profile: props.posProfile },
-			error: (r) => {
-				errorMsg.value = r?.message || __("فشل البحث عن الأصناف")
-			},
-		})
-		form.items[idx]._options = res?.message || []
-		form.items[idx]._showDrop = true
+		try {
+			form.items[idx]._options = await call("pos_next.api.purchases.get_purchase_items", {
+				search: q,
+				limit: 10,
+				pos_profile: props.posProfile,
+			}) || []
+			form.items[idx]._showDrop = true
+		} catch (error) {
+			errorMsg.value = error?.message || __("فشل البحث عن الأصناف")
+		}
 	}, 300)
 }
 
@@ -491,18 +489,18 @@ async function selectItem(idx, it) {
 	line._itemSearch = it.item_name
 	line._showDrop = false
 	line._options = []
-	// Fetch buying price
-	const res = await frappe.call({
-		method: "pos_next.api.purchases.get_item_buying_price",
-		args: {
+	// Fetch buying price (best-effort; the cashier can still type the rate).
+	try {
+		const priceInfo = await call("pos_next.api.purchases.get_item_buying_price", {
 			item_code: it.item_code,
 			buying_price_list: form.buying_price_list,
 			pos_profile: props.posProfile,
-		},
-		error: () => {},
-	})
-	if (res?.message?.buying_price) {
-		line.rate = res.message.buying_price
+		})
+		if (priceInfo?.buying_price) {
+			line.rate = priceInfo.buying_price
+		}
+	} catch (error) {
+		console.error("Error loading item buying price", error)
 	}
 	calcLine(idx)
 }
@@ -549,23 +547,17 @@ async function saveDraft() {
 	staleDraft.value = false
 	try {
 		const payload = buildPayload()
-		const res = await frappe.call({
-			method: "pos_next.api.purchases.save_purchase_invoice",
-			args: {
-				data: payload,
-				idempotency_key: invoiceIdempotencyKey,
-				expected_modified: form.modified || null,
-				pos_profile: props.posProfile,
-			},
-			error: (r) => {
-				errorMsg.value = r?.message || __("فشل الحفظ")
-			},
+		const result = await call("pos_next.api.purchases.save_purchase_invoice", {
+			data: payload,
+			idempotency_key: invoiceIdempotencyKey,
+			expected_modified: form.modified || null,
+			pos_profile: props.posProfile,
 		})
-		if (res?.message?.name) {
-			form.name = res.message.name
-			form.modified = res.message.modified
-			emit("saved", res.message.name)
-			frappe.show_alert({ message: __("تم الحفظ بنجاح"), indicator: "green" })
+		if (result?.name) {
+			form.name = result.name
+			form.modified = result.modified
+			emit("saved", result.name)
+			showSuccess(__("تم الحفظ بنجاح"))
 		}
 	} catch (e) {
 		errorMsg.value = e?.message || __("حدث خطأ أثناء الحفظ")
@@ -589,43 +581,28 @@ async function doSubmit() {
 	staleDraft.value = false
 	try {
 		const payload = buildPayload()
-		const saveRes = await frappe.call({
-			method: "pos_next.api.purchases.save_purchase_invoice",
-			args: {
-				data: payload,
-				idempotency_key: invoiceIdempotencyKey,
-				expected_modified: form.modified || null,
-				pos_profile: props.posProfile,
-			},
-			error: (r) => {
-				errorMsg.value = r?.message || __("فشل الحفظ")
-			},
+		const saveResult = await call("pos_next.api.purchases.save_purchase_invoice", {
+			data: payload,
+			idempotency_key: invoiceIdempotencyKey,
+			expected_modified: form.modified || null,
+			pos_profile: props.posProfile,
 		})
-		if (!saveRes?.message?.name) {
+		if (!saveResult?.name) {
 			submitting.value = false
 			showConfirm.value = false
 			return
 		}
-		form.name = saveRes.message.name
-		form.modified = saveRes.message.modified
-		const res = await frappe.call({
-			method: "pos_next.api.purchases.submit_purchase_invoice",
-			args: {
-				name: form.name,
-				expected_modified: form.modified,
-				pos_profile: props.posProfile,
-			},
-			error: (r) => {
-				errorMsg.value = r?.message || __("فشل الاعتماد")
-			},
+		form.name = saveResult.name
+		form.modified = saveResult.modified
+		const result = await call("pos_next.api.purchases.submit_purchase_invoice", {
+			name: form.name,
+			expected_modified: form.modified,
+			pos_profile: props.posProfile,
 		})
-		if (res?.message) {
+		if (result) {
 			form.docstatus = 1
 			showConfirm.value = false
-			frappe.show_alert({
-				message: __("تم اعتماد الفاتورة بنجاح"),
-				indicator: "green",
-			})
+			showSuccess(__("تم اعتماد الفاتورة بنجاح"))
 			emit("submitted", form.name)
 		}
 	} catch (e) {
@@ -650,11 +627,11 @@ async function cancelInvoice() {
 	submitting.value = true
 	errorMsg.value = ""
 	try {
-		const response = await frappe.call({
-			method: "pos_next.api.purchases.cancel_purchase_invoice",
-			args: { name: form.name, pos_profile: props.posProfile },
+		const result = await call("pos_next.api.purchases.cancel_purchase_invoice", {
+			name: form.name,
+			pos_profile: props.posProfile,
 		})
-		form.docstatus = response?.message?.docstatus ?? 2
+		form.docstatus = result?.docstatus ?? 2
 		emit("saved", form.name)
 	} catch (error) {
 		errorMsg.value =
@@ -706,15 +683,17 @@ function formatAmt(v) {
 async function loadInvoice(name) {
 	staleDraft.value = false
 	errorMsg.value = ""
-	const res = await frappe.call({
-		method: "pos_next.api.purchases.get_purchase_invoice",
-		args: { name, pos_profile: props.posProfile },
-		error: (r) => {
-			errorMsg.value = r?.message || __("فشل تحميل الفاتورة")
-		},
-	})
-	if (!res?.message) return
-	const d = res.message
+	let d
+	try {
+		d = await call("pos_next.api.purchases.get_purchase_invoice", {
+			name,
+			pos_profile: props.posProfile,
+		})
+	} catch (error) {
+		errorMsg.value = error?.message || __("فشل تحميل الفاتورة")
+		return
+	}
+	if (!d) return
 	Object.assign(form, {
 		name: d.name,
 		docstatus: d.docstatus,
@@ -748,57 +727,36 @@ async function loadInvoice(name) {
 }
 
 onMounted(async () => {
-	// Load defaults
-	const defRes = await frappe.call({
-		method: "pos_next.api.purchases.get_new_purchase_invoice_defaults",
-		args: { pos_profile: props.posProfile },
-		error: () => {},
-	})
-	const def = defRes?.message || {}
-	form.posting_date = def.posting_date || new Date().toISOString().slice(0, 10)
-	form.due_date = def.due_date || ""
-	form.company = def.company || props.defaults?.company || ""
-	form.currency = def.currency || ""
-	form.company_currency = def.company_currency || def.currency || ""
-	form.buying_price_list = def.buying_price_list || ""
-	form.price_list_currency = def.price_list_currency || def.currency || ""
-	form.bill_date = def.posting_date || ""
-	form.taxes_and_charges = props.defaults?.taxes_and_charges || null
+	try {
+		const def = (await call("pos_next.api.purchases.get_new_purchase_invoice_defaults", {
+			pos_profile: props.posProfile,
+		})) || {}
+		form.posting_date = def.posting_date || new Date().toISOString().slice(0, 10)
+		form.due_date = def.due_date || ""
+		form.company = def.company || props.defaults?.company || ""
+		form.currency = def.currency || ""
+		form.company_currency = def.company_currency || def.currency || ""
+		form.buying_price_list = def.buying_price_list || ""
+		form.price_list_currency = def.price_list_currency || def.currency || ""
+		form.bill_date = def.posting_date || ""
+		form.taxes_and_charges = props.defaults?.taxes_and_charges || null
 
-	const [
-		groupResponse,
-		warehouseResponse,
-		currencyResponse,
-		expenseResponse,
-		taxTemplateResponse,
-	] = await Promise.all([
-		frappe.call({
-			method: "pos_next.api.purchases.get_supplier_groups",
-			args: { pos_profile: props.posProfile },
-		}),
-		frappe.call({
-			method: "pos_next.api.purchases.get_warehouses",
-			args: { pos_profile: props.posProfile },
-		}),
-		frappe.call({
-			method: "pos_next.api.purchases.get_purchase_currencies",
-			args: { pos_profile: props.posProfile },
-		}),
-		frappe.call({
-			method: "pos_next.api.purchases.get_expense_accounts",
-			args: { pos_profile: props.posProfile },
-		}),
-		frappe.call({
-			method: "pos_next.api.purchases.get_purchase_tax_templates",
-			args: { pos_profile: props.posProfile },
-		}),
-	])
-	supplierGroups.value = groupResponse?.message || []
-	newSupplierGroup.value = supplierGroups.value[0]?.name || ""
-	warehouses.value = warehouseResponse?.message || []
-	currencies.value = currencyResponse?.message || []
-	expenseAccounts.value = expenseResponse?.message || []
-	taxTemplates.value = taxTemplateResponse?.message || []
+		const [groups, whs, curr, expenses, taxes] = await Promise.all([
+			call("pos_next.api.purchases.get_supplier_groups", { pos_profile: props.posProfile }),
+			call("pos_next.api.purchases.get_warehouses", { pos_profile: props.posProfile }),
+			call("pos_next.api.purchases.get_purchase_currencies", { pos_profile: props.posProfile }),
+			call("pos_next.api.purchases.get_expense_accounts", { pos_profile: props.posProfile }),
+			call("pos_next.api.purchases.get_purchase_tax_templates", { pos_profile: props.posProfile }),
+		])
+		supplierGroups.value = groups || []
+		newSupplierGroup.value = supplierGroups.value[0]?.name || ""
+		warehouses.value = whs || []
+		currencies.value = curr || []
+		expenseAccounts.value = expenses || []
+		taxTemplates.value = taxes || []
+	} catch (error) {
+		errorMsg.value = error?.message || __("فشل تحميل بيانات الفاتورة")
+	}
 
 	if (props.invoiceName) {
 		await loadInvoice(props.invoiceName)

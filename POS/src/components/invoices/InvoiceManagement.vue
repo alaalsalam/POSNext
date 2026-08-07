@@ -41,7 +41,41 @@
 							</div>
 						</div>
 						<div class="flex items-center gap-2">
+							<!-- Sales / Purchases view toggle (gated by purchase permission) -->
+							<div
+								v-if="canManagePurchases"
+								class="flex items-center bg-white/70 border border-gray-200 rounded-lg p-0.5"
+								data-testid="invoice-mode-toggle"
+							>
+								<button
+									type="button"
+									data-testid="invoice-mode-sales"
+									@click="setViewMode('sales')"
+									:class="[
+										'px-3 py-1.5 text-xs font-semibold rounded-md transition-all',
+										viewMode === 'sales'
+											? 'bg-indigo-600 text-white shadow-sm'
+											: 'text-gray-600 hover:text-gray-800',
+									]"
+								>
+									{{ __("Sales") }}
+								</button>
+								<button
+									type="button"
+									data-testid="invoice-mode-purchases"
+									@click="setViewMode('purchases')"
+									:class="[
+										'px-3 py-1.5 text-xs font-semibold rounded-md transition-all',
+										viewMode === 'purchases'
+											? 'bg-orange-600 text-white shadow-sm'
+											: 'text-gray-600 hover:text-gray-800',
+									]"
+								>
+									{{ __("Purchases") }}
+								</button>
+							</div>
 							<Button
+								v-if="viewMode === 'sales'"
 								@click="refreshCurrentTab"
 								:loading="loading"
 								variant="ghost"
@@ -85,8 +119,8 @@
 						</div>
 					</div>
 
-					<!-- Tabs Navigation -->
-					<div class="border-b border-gray-200 bg-gray-50">
+					<!-- Tabs Navigation (Sales) -->
+					<div v-if="viewMode === 'sales'" class="border-b border-gray-200 bg-gray-50">
 						<nav class="flex gap-2 px-6" :aria-label="__('Tabs')">
 							<button
 								v-for="tab in tabs"
@@ -130,8 +164,8 @@
 						</nav>
 					</div>
 
-					<!-- Tab Content -->
-					<div class="flex-1 overflow-y-auto bg-gray-50">
+					<!-- Tab Content (Sales) -->
+					<div v-if="viewMode === 'sales'" class="flex-1 overflow-y-auto bg-gray-50">
 						<!-- Loading State -->
 						<div
 							v-if="loading && activeTab === 'partial'"
@@ -1001,6 +1035,50 @@
 							</div>
 						</div>
 					</div>
+					
+					<!-- Purchases view (mirrors sales: unpaid / history / drafts, no returns) -->
+					<template v-if="viewMode === 'purchases' && canManagePurchases">
+						<!-- Purchase Tabs Navigation + supplier-payments history entry -->
+						<div class="border-b border-gray-200 bg-gray-50 flex items-center justify-between pe-6">
+							<nav class="flex gap-2 px-6" :aria-label="__('Tabs')">
+								<button
+									v-for="ptab in purchaseTabs"
+									:key="ptab.id"
+									:data-testid="`purchase-tab-${ptab.id}`"
+									@click="purchaseTab = ptab.id"
+									:class="[
+										'px-4 py-3 text-sm font-semibold transition-all border-b-2 relative',
+										purchaseTab === ptab.id
+											? ptab.activeClass
+											: 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300',
+									]"
+								>
+									{{ ptab.label }}
+								</button>
+							</nav>
+							<button
+								v-if="canReadSupplierPayments"
+								type="button"
+								data-testid="open-supplier-payments"
+								@click="$emit('open-supplier-payments')"
+								class="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+							>
+								{{ __("Supplier Payments") }}
+							</button>
+						</div>
+
+						<!-- Purchase Tab Content (embedded purchase invoice list) -->
+						<div class="flex-1 overflow-hidden bg-gray-50">
+							<PurchaseInvoiceList
+								:key="purchaseListKey"
+								:fixed-status="activePurchaseStatus"
+								:can-create-payment="canCreateSupplierPayment"
+								:pos-profile="posProfile"
+								@open-invoice="$emit('open-purchase-invoice', $event)"
+								@pay-invoice="$emit('pay-purchase-invoice', $event)"
+							/>
+						</div>
+					</template>
 				</div>
 			</div>
 		</div>
@@ -1041,6 +1119,7 @@ import {
 	saveOfflinePayment,
 } from "@/utils/offline/sync";
 import { logger } from "@/utils/logger";
+import PurchaseInvoiceList from "@/components/purchases/PurchaseInvoiceList.vue";
 
 const log = logger.create("InvoiceManagement");
 const { showSuccess, showError } = useToast();
@@ -1062,6 +1141,15 @@ const props = defineProps({
 		type: Array,
 		default: () => [],
 	},
+	// Purchase mode: when true, the header shows a Sales / Purchases toggle. Same
+	// permission that gates the rail purchase toggle (can_read_purchases).
+	canManagePurchases: { type: Boolean, default: false },
+	canCreateSupplierPayment: { type: Boolean, default: false },
+	canReadSupplierPayments: { type: Boolean, default: false },
+	// Open directly on the Purchases view (e.g. from the header/mobile Purchases entry).
+	initialViewMode: { type: String, default: "sales" },
+	// Bump to force the embedded purchase list to remount (e.g. after a payment).
+	purchaseRefreshToken: { type: Number, default: 0 },
 });
 
 const emit = defineEmits([
@@ -1071,11 +1159,49 @@ const emit = defineEmits([
 	"load-draft",
 	"delete-draft",
 	"refresh-history",
+	// Purchases mode — bubble up to POSSale which owns the purchase form/payment views.
+	"open-purchase-invoice",
+	"pay-purchase-invoice",
+	"open-supplier-payments",
 ]);
 
 const show = ref(props.modelValue);
 const loading = ref(false);
 const activeTab = ref("partial");
+
+// Sales vs Purchases view (only reachable when canManagePurchases).
+const viewMode = ref("sales");
+// Purchase sub-tabs mirror the sales unpaid/history/drafts (no returns).
+const purchaseTab = ref("unpaid");
+const purchaseTabs = computed(() => [
+	{ id: "unpaid", label: __("Unpaid"), fixedStatus: "unpaid", activeClass: "text-orange-600 border-orange-500" },
+	{ id: "history", label: __("Invoice History"), fixedStatus: "history", activeClass: "text-indigo-600 border-emerald-500" },
+	{ id: "drafts", label: __("Drafts"), fixedStatus: "drafts", activeClass: "text-emerald-600 border-purple-500" },
+]);
+const activePurchaseStatus = computed(
+	() => purchaseTabs.value.find((t) => t.id === purchaseTab.value)?.fixedStatus || "history",
+);
+// Force a fresh PurchaseInvoiceList mount per tab (and on refresh) so its fetch re-runs.
+const purchaseListKey = computed(() => `purchase-${purchaseTab.value}-${props.purchaseRefreshToken}`);
+
+function setViewMode(mode) {
+	if (mode === "purchases" && !props.canManagePurchases) return;
+	viewMode.value = mode;
+}
+
+// Reset to the requested view whenever the dialog (re)opens.
+function applyInitialViewMode() {
+	viewMode.value =
+		props.initialViewMode === "purchases" && props.canManagePurchases ? "purchases" : "sales";
+}
+
+// If purchase access is revoked while viewing purchases, fall back to Sales.
+watch(
+	() => props.canManagePurchases,
+	(allowed) => {
+		if (!allowed && viewMode.value === "purchases") viewMode.value = "sales";
+	},
+);
 
 // Initialize filter store and composable
 const filterStore = useInvoiceFiltersStore();
@@ -1235,6 +1361,7 @@ watch(
 	(val) => {
 		show.value = val;
 		if (val) {
+			applyInitialViewMode();
 			loadUnpaidInvoices();
 			loadUnpaidSummary();
 			// Also request history refresh if we don't have data
@@ -1513,6 +1640,7 @@ onMounted(() => {
 	filterStore.loadSavedFiltersFromStorage();
 
 	if (show.value) {
+		applyInitialViewMode();
 		loadUnpaidInvoices();
 		loadUnpaidSummary();
 	}

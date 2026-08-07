@@ -65,31 +65,22 @@
 	<div class="flex flex-col h-full bg-white">
 		<!-- Header with Customer -->
 		<div class="px-2.5 py-2 border-b border-gray-200 bg-gray-50">
-			<!-- Purchase mode: header row (label + Purchase History) -->
-			<div v-if="isPurchaseMode" class="flex items-center justify-between gap-2 mb-2">
-				<div class="flex items-center gap-1.5 text-[11px] font-bold text-orange-600">
-					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
-					</svg>
-					<span>{{ __("Purchase Mode") }}</span>
-				</div>
-				<button
-					type="button"
-					@click="$emit('show-purchase-history')"
-					class="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-					:title="__('Purchase History')"
-				>
-					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<span class="hidden sm:inline">{{ __("History") }}</span>
-				</button>
+			<!-- Purchase mode: header label -->
+			<div v-if="isPurchaseMode" class="flex items-center gap-1.5 text-[11px] font-bold text-orange-600 mb-2">
+				<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+				</svg>
+				<span>{{ __("Purchase Mode") }}</span>
 			</div>
 
 			<!-- Purchase mode: supplier only. Warehouse / tax template / expense
 			     account are silent defaults from Settings → Purchase Defaults. -->
 			<div v-if="isPurchaseMode" class="space-y-2">
-				<SupplierSelector v-model="selectedSupplier" :pos-profile="posProfile" />
+				<SupplierSelector
+					v-model="selectedSupplier"
+					:pos-profile="posProfile"
+					:default-supplier="cartStore.purchaseDefaultSupplier"
+				/>
 			</div>
 
 			<!-- Inline Customer Search/Selection (sales mode only) -->
@@ -1470,6 +1461,7 @@
 			:item="selectedItem"
 			:warehouses="warehouses"
 			:currency="currency"
+			:mode="cartStore.mode"
 			@update-item="handleUpdateItem"
 		/>
 
@@ -1604,7 +1596,6 @@ const emit = defineEmits([
 	"close-shift", // () - Close current shift
 	// "create-sales-order", // () - Create Sales Order // Removed as per instruction
 	"purchase-checkout", // () - Create + submit purchase invoice from cart
-	"show-purchase-history", // () - Open the purchase invoices history panel
 ]);
 
 // Cart sort composable (must be after defineProps)
