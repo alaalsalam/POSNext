@@ -82,6 +82,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { call } from "@/utils/apiWrapper";
 import { formatCurrency } from "@/utils/currency";
 
 const props = defineProps({
@@ -151,13 +152,12 @@ function formatCompact(value) {
 async function fetchStats() {
 	if (!props.currentShiftName) return;
 	try {
-		const res = await frappe.call({
-			method: "pos_next.api.shifts.get_shift_stats",
-			args: { opening_shift: props.currentShiftName },
+		const res = await call("pos_next.api.shifts.get_shift_stats", {
+			opening_shift: props.currentShiftName,
 		});
-		if (res?.message) {
-			stats.value = res.message;
-			emit("stats-loaded", res.message);
+		if (res) {
+			stats.value = res;
+			emit("stats-loaded", res);
 		}
 	} catch (e) {
 		// Silent: stats bar is informational; don't surface errors to user

@@ -229,11 +229,11 @@ def get_shift_stats(opening_shift):
 	invoices = frappe.get_all(
 		"Sales Invoice",
 		filters={
-			"pos_opening_shift": opening_shift,
+			"posa_pos_opening_shift": opening_shift,
 			"docstatus": 1,
 		},
-		fields=["name", "grand_total", "net_total", "total_taxes_and_charges", "is_return", "posting_datetime"],
-		order_by="posting_datetime desc",
+		fields=["name", "grand_total", "net_total", "total_taxes_and_charges", "is_return", "posting_date", "posting_time"],
+		order_by="posting_date desc, posting_time desc",
 	)
 
 	sales_total = 0.0
@@ -243,8 +243,8 @@ def get_shift_stats(opening_shift):
 	last_invoice_time = None
 
 	for inv in invoices:
-		if not last_invoice_time:
-			last_invoice_time = str(inv.posting_datetime) if inv.posting_datetime else None
+		if not last_invoice_time and inv.posting_date:
+			last_invoice_time = str(get_datetime(f"{inv.posting_date} {inv.posting_time or '00:00:00'}"))
 		if inv.is_return:
 			returns_total += abs(inv.grand_total or 0)
 			returns_count += 1

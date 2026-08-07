@@ -71,8 +71,26 @@
     <!-- Scrollable content -->
     <div class="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
 
-      <!-- No profile state -->
-      <div v-if="!selectedProfile && !filtersLoading" class="flex flex-col items-center justify-center py-16 text-center">
+      <!-- Filters/load ERROR state (distinct from "no profiles") — retryable -->
+      <div v-if="filtersError && !filtersLoading" class="flex flex-col items-center justify-center py-16 text-center">
+        <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-3">
+          <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="text-sm font-semibold text-gray-700">{{ __("Couldn't load reports") }}</p>
+        <p class="text-xs text-gray-500 mt-1 max-w-xs">{{ filtersError }}</p>
+        <button
+          data-testid="reports-retry"
+          @click="retryFilters"
+          class="mt-4 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+        >
+          {{ __("Retry") }}
+        </button>
+      </div>
+
+      <!-- No profile state — only when filters SUCCEEDED and returned an empty list -->
+      <div v-else-if="!selectedProfile && !filtersLoading" class="flex flex-col items-center justify-center py-16 text-center">
         <div class="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3">
           <svg class="w-7 h-7 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -268,6 +286,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from "vue"
+import { call } from "@/utils/apiWrapper"
 import { buildDeskReportUrl, isRtlLocale } from "./reportUtils"
 
 const emit = defineEmits(["close"])
@@ -281,6 +300,9 @@ const selectedPeriod = ref("today")
 const customFrom = ref("")
 const customTo = ref("")
 const filtersLoading = ref(false)
+// Distinct from the "no profiles" empty state: set only when loading the filters
+// (or the initial data) FAILS, so a broken call never masquerades as "no profiles".
+const filtersError = ref("")
 const loading = ref(false)
 
 const summary = ref({})
@@ -388,25 +410,26 @@ function onFilterChange() {
 
 async function loadFilters() {
 	filtersLoading.value = true
+	filtersError.value = ""
 	try {
-		const res = await frappe.call({
-			method: "pos_next.api.reports.get_report_filters",
-			error: (r) => {
-				errorMsg.value = r?.message || __("Failed to load report filters")
-			},
-		})
-		if (res?.message) {
-			profiles.value = res.message.pos_profiles || []
-			periods.value = res.message.periods || []
-			deskReports.value = res.message.desk_reports || []
-			// Auto-select first profile
-			if (profiles.value.length) selectedProfile.value = profiles.value[0].name
-		}
+		const res = await call("pos_next.api.reports.get_report_filters")
+		profiles.value = res?.pos_profiles || []
+		periods.value = res?.periods || []
+		deskReports.value = res?.desk_reports || []
+		// Auto-select first profile
+		if (profiles.value.length) selectedProfile.value = profiles.value[0].name
 	} catch (e) {
-		console.error(e)
+		// A failed load must NOT look like "no profiles enabled" — surface a
+		// distinct, retryable error state instead.
+		filtersError.value = e?.message || __("Failed to load report filters")
 	} finally {
 		filtersLoading.value = false
 	}
+}
+
+async function retryFilters() {
+	await loadFilters()
+	if (selectedProfile.value) loadAll()
 }
 
 async function loadAll() {
@@ -424,28 +447,23 @@ async function loadAll() {
 	paymentLoading.value = true
 	txLoading.value = true
 
+	// Each call catches its own failure so one broken endpoint can't blank the rest;
+	// only the summary failure surfaces the top-level error banner.
 	const [sumRes, payRes, txRes] = await Promise.all([
-		frappe.call({
-			method: "pos_next.api.reports.get_daily_summary",
-			args,
-			error: (r) => {
-				errorMsg.value = r?.message || __("Failed to load report summary")
-			},
+		call("pos_next.api.reports.get_daily_summary", args).catch((e) => {
+			errorMsg.value = e?.message || __("Failed to load report summary")
+			return null
 		}),
-		frappe.call({
-			method: "pos_next.api.reports.get_payment_breakdown",
-			args,
-			error: (r) => {
-				console.error(r)
-			},
+		call("pos_next.api.reports.get_payment_breakdown", args).catch((e) => {
+			console.error(e)
+			return null
 		}),
-		frappe.call({
-			method: "pos_next.api.reports.get_recent_transactions",
-			args: { ...args, limit: 20 },
-			error: (r) => {
-				console.error(r)
+		call("pos_next.api.reports.get_recent_transactions", { ...args, limit: 20 }).catch(
+			(e) => {
+				console.error(e)
+				return null
 			},
-		}),
+		),
 	])
 
 	summaryLoading.value = false
@@ -453,31 +471,23 @@ async function loadAll() {
 	txLoading.value = false
 	loading.value = false
 
-	if (sumRes?.message) summary.value = sumRes.message
-	if (payRes?.message) payment.value = payRes.message
-	if (txRes?.message) transactions.value = txRes.message
+	if (sumRes) summary.value = sumRes
+	if (payRes) payment.value = payRes
+	if (txRes) transactions.value = txRes
 }
 
 function openInvoice(tx) {
-	try {
-		const url = frappe.utils.get_url_to_form("Sales Invoice", tx.name)
-		window.open(url, "_blank")
-	} catch (e) {
-		// Fallback
-		window.open(`/app/sales-invoice/${tx.name}`, "_blank")
-	}
+	window.open(`/app/sales-invoice/${encodeURIComponent(tx.name)}`, "_blank")
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(async () => {
 	await loadFilters()
-	// Try to pre-select the profile of the current open shift
+	// Best-effort: pre-select the profile of the current open shift.
 	try {
-		const shiftRes = await frappe.call({
-			method: "pos_next.api.reports.get_current_shift_profile",
-		})
-		if (shiftRes?.message?.pos_profile) {
-			const p = shiftRes.message.pos_profile
+		const shiftRes = await call("pos_next.api.reports.get_current_shift_profile")
+		if (shiftRes?.pos_profile) {
+			const p = shiftRes.pos_profile
 			if (profiles.value.find((x) => x.name === p)) selectedProfile.value = p
 		}
 	} catch (e) {
