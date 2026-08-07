@@ -2041,3 +2041,14 @@ variance,فرق,
 {0} offline operation(s) synced successfully,تمت مزامنة {0} عملية غير متصلة بنجاح,
 {0}d {1}h {2}m,{0}ي {1}س {2}د,
 ✓ Shift closed,✓ تم إغلاق الوردية,
+"All reconciled","الكل مطابق",""
+"All reconciliation checks passed","اجتازت جميع فحوصات المطابقة",""
+"Couldn't load reports","تعذّر تحميل التقارير",""
+"Needs review","تحتاج إلى مراجعة",""
+"No item sales for this period","لا توجد مبيعات أصناف في هذه الفترة",""
+"No sales in this period","لا توجد مبيعات في هذه الفترة",""
+"Sales Trend","منحنى المبيعات",""
+"Sales trend","منحنى المبيعات",""
+"Top Items","الأصناف الأكثر مبيعاً",""
+"Totals, settlement or tender do not match — review before closing","الإجماليات أو التسوية أو المدفوعات غير متطابقة — راجع قبل الإغلاق",""
+"{0} · vs previous","{0} · مقارنةً بالسابق",""

@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-3 flex-shrink-0">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+        <div class="w-9 h-9 rounded-xl bg-green-600 flex items-center justify-center flex-shrink-0">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
@@ -31,7 +31,7 @@
     <div class="bg-white border-b border-gray-100 px-3 py-2 flex flex-wrap items-center gap-2 flex-shrink-0">
       <!-- POS Profile selector (only if >1) -->
       <select v-if="profiles.length > 1" v-model="selectedProfile" @change="onFilterChange"
-        class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-semibold text-gray-800">
+        class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 bg-white font-semibold text-gray-800">
         <option v-for="p in profiles" :key="p.name" :value="p.name">{{ p.name }}</option>
       </select>
 
@@ -42,7 +42,7 @@
           :class="[
             'h-8 px-3 text-xs font-semibold rounded-lg transition-colors',
             selectedPeriod === p.key
-              ? 'bg-emerald-600 text-white'
+              ? 'bg-green-600 text-white'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           ]">
           {{ p.label }}
@@ -52,10 +52,10 @@
       <!-- Custom date range -->
       <template v-if="selectedPeriod === 'custom'">
         <input type="date" v-model="customFrom" @change="onFilterChange"
-          class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+          class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400" />
         <span class="text-xs text-gray-400">–</span>
         <input type="date" v-model="customTo" @change="onFilterChange"
-          class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+          class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400" />
       </template>
     </div>
 
@@ -83,7 +83,7 @@
         <button
           data-testid="reports-retry"
           @click="retryFilters"
-          class="mt-4 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+          class="mt-4 px-4 py-2 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors"
         >
           {{ __("Retry") }}
         </button>
@@ -91,8 +91,8 @@
 
       <!-- No profile state — only when filters SUCCEEDED and returned an empty list -->
       <div v-else-if="!selectedProfile && !filtersLoading" class="flex flex-col items-center justify-center py-16 text-center">
-        <div class="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3">
-          <svg class="w-7 h-7 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-14 h-14 rounded-2xl bg-green-50 flex items-center justify-center mb-3">
+          <svg class="w-7 h-7 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
         </div>
@@ -101,70 +101,131 @@
       </div>
 
       <template v-else-if="selectedProfile">
-        <!-- ── KPI Cards ── -->
-        <div class="grid grid-cols-2 gap-2">
-          <!-- Sales Total -->
-          <div class="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-1 col-span-2 min-h-24">
+        <!-- ── KPI Cards (with vs-previous trend chips) ── -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+          <!-- Gross Sales (headline, spans full width on small screens) -->
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-1 col-span-2 lg:col-span-2 min-h-24">
             <template v-if="summaryLoading">
               <div class="h-4 w-24 bg-gray-100 rounded animate-pulse mb-2"></div>
-              <div class="h-8 w-36 bg-gray-100 rounded animate-pulse"></div>
+              <div class="h-9 w-40 bg-gray-100 rounded animate-pulse"></div>
             </template>
             <template v-else>
-              <div class="flex items-center justify-between">
+              <div class="flex items-center justify-between gap-2">
                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ __("Gross Sales") }}</span>
                 <span class="text-[10px] text-gray-400">{{ dateRangeLabel }}</span>
               </div>
-              <p class="text-3xl font-black text-gray-900 mt-1">{{ fmt(summary.sales_total) }}</p>
-              <p class="text-xs text-gray-500">{{ __("{0} invoices", [summary.sales_count]) }}</p>
+              <div class="flex items-end justify-between gap-2 mt-1">
+                <p class="text-3xl font-black text-gray-900 leading-none">{{ fmt(summary.sales_total) }}</p>
+                <span :class="['text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0', salesDelta.cls]">{{ salesDelta.text }}</span>
+              </div>
+              <p class="text-[11px] text-gray-400 mt-1">{{ __("{0} · vs previous", [currency]) }}</p>
+            </template>
+          </div>
+
+          <!-- Invoices count -->
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-1 min-h-24">
+            <template v-if="summaryLoading">
+              <div class="h-3 w-16 bg-gray-100 rounded animate-pulse mb-2"></div>
+              <div class="h-7 w-20 bg-gray-100 rounded animate-pulse"></div>
+            </template>
+            <template v-else>
+              <span class="text-xs font-semibold text-gray-500">{{ __("Invoices") }}</span>
+              <div class="flex items-end justify-between gap-1 mt-1">
+                <p class="text-2xl font-bold text-gray-900 leading-none">{{ countFmt(summary.sales_count) }}</p>
+                <span :class="['text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0', countDelta.cls]">{{ countDelta.text }}</span>
+              </div>
             </template>
           </div>
 
           <!-- Avg Invoice -->
-          <div class="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-1 min-h-24">
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-1 min-h-24">
             <template v-if="summaryLoading">
-              <div class="h-3 w-20 bg-gray-100 rounded animate-pulse mb-2"></div>
-              <div class="h-7 w-28 bg-gray-100 rounded animate-pulse"></div>
+              <div class="h-3 w-16 bg-gray-100 rounded animate-pulse mb-2"></div>
+              <div class="h-7 w-24 bg-gray-100 rounded animate-pulse"></div>
             </template>
             <template v-else>
               <span class="text-xs font-semibold text-gray-500">{{ __("Average Invoice") }}</span>
-              <p class="text-2xl font-bold text-emerald-700 mt-1">{{ fmt(summary.avg_invoice) }}</p>
+              <div class="flex items-end justify-between gap-1 mt-1">
+                <p class="text-2xl font-bold text-green-700 leading-none">{{ fmt(summary.avg_invoice) }}</p>
+                <span :class="['text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0', avgDelta.cls]">{{ avgDelta.text }}</span>
+              </div>
             </template>
-          </div>
-
-          <!-- Net Sales -->
-          <div class="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-1 min-h-24">
-            <template v-if="summaryLoading">
-              <div class="h-3 w-20 bg-gray-100 rounded animate-pulse mb-2"></div>
-              <div class="h-7 w-28 bg-gray-100 rounded animate-pulse"></div>
-            </template>
-            <template v-else>
-              <span class="text-xs font-semibold text-gray-500">{{ __("Net Sales") }}</span>
-              <p class="text-2xl font-bold text-gray-900 mt-1">{{ fmt(summary.net_sales) }}</p>
-            </template>
-          </div>
-
-          <!-- Returns (only if any) -->
-          <div v-if="!summaryLoading && summary.returns_count > 0"
-            class="bg-red-50 border border-red-100 rounded-2xl p-4 flex flex-col gap-1 min-h-20">
-            <span class="text-xs font-semibold text-red-600">{{ __("Returns") }}</span>
-            <p class="text-xl font-bold text-red-700">{{ fmt(summary.returns_total) }}</p>
-            <p class="text-[10px] text-red-400">{{ __("{0} returns", [summary.returns_count]) }}</p>
-          </div>
-
-          <!-- Outstanding -->
-          <div v-if="!summaryLoading && summary.outstanding_total > 0"
-            class="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex flex-col gap-1 min-h-20"
-            :class="summary.returns_count > 0 ? '' : 'col-span-2'">
-            <span class="text-xs font-semibold text-amber-700">{{ __("Credit / Outstanding") }}</span>
-            <p class="text-xl font-bold text-amber-800">{{ fmt(summary.outstanding_total) }}</p>
           </div>
         </div>
 
+        <!-- Secondary metrics: Returns + Outstanding (visually de-emphasised) -->
+        <div v-if="!summaryLoading && (summary.returns_count > 0 || summary.outstanding_total > 0)"
+          class="grid grid-cols-2 gap-2 sm:gap-3">
+          <div v-if="summary.returns_count > 0"
+            class="bg-red-50/60 border border-red-100 rounded-2xl p-3 flex items-center justify-between gap-2">
+            <div>
+              <p class="text-[11px] font-semibold text-red-600">{{ __("Returns") }}</p>
+              <p class="text-lg font-bold text-red-700 leading-tight">{{ fmt(summary.returns_total) }}</p>
+              <p class="text-[10px] text-red-400">{{ __("{0} returns", [summary.returns_count]) }}</p>
+            </div>
+            <span :class="['text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0', returnsDelta.cls]">{{ returnsDelta.text }}</span>
+          </div>
+          <div v-if="summary.outstanding_total > 0"
+            class="bg-amber-50/70 border border-amber-100 rounded-2xl p-3 flex flex-col justify-center"
+            :class="summary.returns_count > 0 ? '' : 'col-span-2'">
+            <p class="text-[11px] font-semibold text-amber-700">{{ __("Credit / Outstanding") }}</p>
+            <p class="text-lg font-bold text-amber-800 leading-tight">{{ fmt(summary.outstanding_total) }}</p>
+          </div>
+        </div>
+
+        <!-- ── Sales Trend (headline visual) ── -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("Sales Trend") }}</h3>
+            <span class="text-[10px] text-gray-400">{{ dateRangeLabel }}</span>
+          </div>
+          <SalesTrendChart
+            :buckets="trend.buckets"
+            :granularity="trend.granularity"
+            :currency="currency"
+            :rtl="isRTL"
+            :loading="trendLoading"
+          />
+        </div>
+
+        <!-- ── Reconciliation status ── -->
+        <div v-if="!summaryLoading && !paymentLoading && reconStatus.ok !== null"
+          :class="[
+            'rounded-2xl border p-3 flex items-center gap-3',
+            reconStatus.needsReview ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200',
+          ]">
+          <div :class="[
+            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+            reconStatus.needsReview ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700',
+          ]">
+            <svg v-if="reconStatus.needsReview" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.75-2.98l-6.93-12a2 2 0 00-3.5 0l-6.93 12A2 2 0 005.07 19z" />
+            </svg>
+            <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p :class="['text-sm font-bold', reconStatus.needsReview ? 'text-red-700' : 'text-green-800']">
+              {{ reconStatus.needsReview ? __("Needs review") : __("All reconciled") }}
+            </p>
+            <p class="text-[11px]" :class="reconStatus.needsReview ? 'text-red-500' : 'text-green-600'">
+              {{ reconStatus.needsReview
+                ? __("Totals, settlement or tender do not match — review before closing")
+                : __("All reconciliation checks passed") }}
+            </p>
+          </div>
+          <span v-if="reconStatus.needsReview && Math.abs(summary.reconciliation_difference || 0) > 0"
+            class="text-xs font-bold text-red-700 flex-shrink-0">
+            {{ fmt(summary.reconciliation_difference) }}
+          </span>
+        </div>
+
         <!-- ── Payment Methods ── -->
-        <div class="bg-white rounded-2xl border border-gray-100 p-4">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div class="flex items-center justify-between gap-3 mb-3">
             <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("Payment Methods") }}</h3>
-            <span v-if="!paymentLoading && payment.settlement_reconciled !== undefined" :class="['text-[10px] font-semibold', payment.settlement_reconciled && payment.tender_reconciled ? 'text-emerald-600' : 'text-red-600']">
+            <span v-if="!paymentLoading && payment.settlement_reconciled !== undefined" :class="['text-[10px] font-semibold', payment.settlement_reconciled && payment.tender_reconciled ? 'text-green-600' : 'text-red-600']">
               {{ payment.settlement_reconciled && payment.tender_reconciled ? __("Payments reconciled") : __("Payments need review") }}
             </span>
           </div>
@@ -189,13 +250,13 @@
                     <span class="text-sm font-bold text-gray-900 ms-2 flex-shrink-0">{{ __("Net {0}", [fmt(m.net)]) }}</span>
                   </div>
                   <div class="flex flex-wrap gap-x-3 gap-y-0.5 mb-1 text-[10px]">
-                    <span class="text-emerald-700">{{ __("Received {0}", [fmt(m.received)]) }}</span>
+                    <span class="text-green-700">{{ __("Received {0}", [fmt(m.received)]) }}</span>
                     <span class="text-red-600">{{ __("Refunded {0}", [fmt(m.refunded)]) }}</span>
                   </div>
                   <!-- Progress bar -->
                   <div class="flex items-center gap-2">
                     <div class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div class="h-full bg-emerald-500 rounded-full" :style="{ width: m.percentage + '%' }" />
+                      <div class="h-full bg-green-500 rounded-full" :style="{ width: m.percentage + '%' }" />
                     </div>
                     <span class="text-[10px] text-gray-400 font-semibold flex-shrink-0">{{ m.percentage }}%</span>
                     <span class="text-[10px] text-gray-400 flex-shrink-0">{{ __("{0} transactions", [m.count]) }}</span>
@@ -204,30 +265,60 @@
               </div>
             </div>
             <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-100 text-center">
-              <div><p class="text-[10px] text-gray-400">{{ __("Received") }}</p><p class="text-xs font-bold text-emerald-700">{{ fmt(payment.received_total) }}</p></div>
+              <div><p class="text-[10px] text-gray-400">{{ __("Received") }}</p><p class="text-xs font-bold text-green-700">{{ fmt(payment.received_total) }}</p></div>
               <div><p class="text-[10px] text-gray-400">{{ __("Refunded") }}</p><p class="text-xs font-bold text-red-600">{{ fmt(payment.refunded_total) }}</p></div>
               <div><p class="text-[10px] text-gray-400">{{ __("Net") }}</p><p class="text-xs font-bold text-gray-900">{{ fmt(payment.net_total) }}</p></div>
             </div>
           </template>
         </div>
 
-        <div class="bg-white rounded-2xl border border-gray-100 p-4">
-          <div class="flex items-center justify-between gap-3 mb-3">
-            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("Detailed Reports") }}</h3>
-            <span :class="['text-[10px] font-semibold', summary.reconciled ? 'text-emerald-600' : 'text-red-600']">
-              {{ summary.reconciled ? __("ERPNext totals reconciled") : __("Totals need review") }}
-            </span>
-          </div>
+        <!-- ── Top Items / Fast Movers ── -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">{{ __("Top Items") }}</h3>
+          <template v-if="topLoading">
+            <div class="flex flex-col gap-2">
+              <div v-for="i in 5" :key="i" class="h-10 bg-gray-50 rounded-xl animate-pulse" />
+            </div>
+          </template>
+          <template v-else-if="!topItems.items?.length">
+            <p class="text-xs text-gray-400 text-center py-6">{{ __("No item sales for this period") }}</p>
+          </template>
+          <template v-else>
+            <div class="flex flex-col gap-2.5">
+              <div v-for="(it, i) in topItems.items" :key="it.item_code" class="flex items-center gap-3">
+                <span :class="[
+                  'w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0',
+                  i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-gray-100 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-50 text-gray-400',
+                ]">{{ i + 1 }}</span>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-2 mb-1">
+                    <span class="text-xs font-semibold text-gray-800 truncate">{{ it.item_name }}</span>
+                    <span class="text-xs font-bold text-gray-900 flex-shrink-0">{{ fmt(it.amount) }}</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div class="h-full bg-green-500 rounded-full transition-all" :style="{ width: topItemShare(it.amount) + '%' }" />
+                    </div>
+                    <span class="text-[10px] text-gray-400 flex-shrink-0">{{ __("{0} {1}", [countFmt(it.qty), it.uom || __("Nos", null, "UOM")]) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">{{ __("Detailed Reports") }}</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <a v-for="report in deskReports" :key="report.name" :href="deskReportUrl(report.name)" target="_blank" rel="noopener"
-              class="min-h-11 px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:border-emerald-300 hover:bg-emerald-50 flex items-center justify-between gap-2">
+              class="min-h-11 px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:border-green-300 hover:bg-green-50 flex items-center justify-between gap-2">
               <span>{{ report.label }}</span><span aria-hidden="true">↗</span>
             </a>
           </div>
         </div>
 
         <!-- ── Recent Transactions ── -->
-        <div class="bg-white rounded-2xl border border-gray-100 p-4">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("Recent Transactions") }}</h3>
             <span v-if="transactions.count > 0" class="text-[10px] text-gray-400">{{ __("Latest {0}", [transactions.count]) }}</span>
@@ -250,7 +341,7 @@
                 <!-- Return indicator OR normal -->
                 <div :class="[
                   'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm',
-                  tx.is_return ? 'bg-red-100 text-red-600' : 'bg-emerald-50 text-emerald-700'
+                  tx.is_return ? 'bg-red-100 text-red-600' : 'bg-green-50 text-green-700'
                 ]">
                   {{ tx.is_return ? '↩' : '✓' }}
                 </div>
@@ -288,6 +379,7 @@
 import { ref, computed, onMounted, watch } from "vue"
 import { call } from "@/utils/apiWrapper"
 import { buildDeskReportUrl, isRtlLocale } from "./reportUtils"
+import SalesTrendChart from "./SalesTrendChart.vue"
 
 const emit = defineEmits(["close"])
 
@@ -308,9 +400,13 @@ const loading = ref(false)
 const summary = ref({})
 const payment = ref({ methods: [] })
 const transactions = ref({ transactions: [], count: 0 })
+const trend = ref({ granularity: "day", buckets: [] })
+const topItems = ref({ items: [] })
 const summaryLoading = ref(false)
 const paymentLoading = ref(false)
 const txLoading = ref(false)
+const trendLoading = ref(false)
+const topLoading = ref(false)
 const errorMsg = ref("")
 const isRTL = computed(() =>
 	isRtlLocale(frappe.boot?.lang, document.documentElement.dir),
@@ -334,8 +430,57 @@ const dateRangeLabel = computed(() => {
 
 const currency = computed(() => {
 	const p = profiles.value.find((x) => x.name === selectedProfile.value)
-	return p?.currency || "SAR"
+	return p?.currency || summary.value.currency || "SAR"
 })
+
+// A trend delta is a percent number, or null when there is no prior-period
+// baseline. `positiveIsGood=false` inverts the color mapping for metrics where a
+// rise is bad (returns): up → red, down → green.
+function deltaChip(value, positiveIsGood = true) {
+	if (value === null || value === undefined) {
+		return { text: "—", dir: "flat", cls: "text-gray-400 bg-gray-100" }
+	}
+	const rounded = Math.round(Number(value) * 10) / 10
+	const arrow = rounded > 0 ? "▲" : rounded < 0 ? "▼" : ""
+	const text = `${arrow} ${Math.abs(rounded)}%`.trim()
+	if (rounded === 0) return { text: "0%", dir: "flat", cls: "text-gray-500 bg-gray-100" }
+	const good = rounded > 0 === positiveIsGood
+	return {
+		text,
+		dir: rounded > 0 ? "up" : "down",
+		cls: good ? "text-green-700 bg-green-50" : "text-red-600 bg-red-50",
+	}
+}
+
+const salesDelta = computed(() => deltaChip(summary.value.delta?.sales_total))
+const countDelta = computed(() => deltaChip(summary.value.delta?.sales_count))
+const avgDelta = computed(() => deltaChip(summary.value.delta?.avg_invoice))
+const returnsDelta = computed(() => deltaChip(summary.value.delta?.returns_total, false))
+
+// Reconciliation: red when ANY of the three flags the backend returns is false.
+// Renders partial state — a failed summary/payment call leaves its flags undefined,
+// which we treat as "unknown" (not a failure) rather than crashing.
+const reconStatus = computed(() => {
+	const flags = [
+		summary.value.reconciled,
+		payment.value.settlement_reconciled,
+		payment.value.tender_reconciled,
+	]
+	const known = flags.filter((f) => f !== undefined)
+	if (!known.length) return { ok: null, needsReview: false }
+	const needsReview = known.some((f) => f === false)
+	return { ok: !needsReview, needsReview }
+})
+
+// Top items: proportional bar as a share of the leading item's amount.
+const topItemsMax = computed(() =>
+	(topItems.value.items || []).reduce((m, it) => Math.max(m, Number(it.amount) || 0), 0),
+)
+function topItemShare(amount) {
+	const max = topItemsMax.value
+	if (max <= 0) return 0
+	return Math.max(Math.round(((Number(amount) || 0) / max) * 100), 4)
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const PAYMENT_ICONS = {
@@ -362,6 +507,13 @@ function fmt(val) {
 	if (val === null || val === undefined) return "0.00"
 	return Number.parseFloat(val).toLocaleString(locale.value, {
 		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})
+}
+
+function countFmt(val) {
+	// parseFloat (not parseInt) so decimal quantities for weighed items aren't truncated.
+	return Number.parseFloat(val || 0).toLocaleString(locale.value, {
 		maximumFractionDigits: 2,
 	})
 }
@@ -446,10 +598,12 @@ async function loadAll() {
 	summaryLoading.value = true
 	paymentLoading.value = true
 	txLoading.value = true
+	trendLoading.value = true
+	topLoading.value = true
 
 	// Each call catches its own failure so one broken endpoint can't blank the rest;
 	// only the summary failure surfaces the top-level error banner.
-	const [sumRes, payRes, txRes] = await Promise.all([
+	const [sumRes, payRes, txRes, trendRes, topRes] = await Promise.all([
 		call("pos_next.api.reports.get_daily_summary", args).catch((e) => {
 			errorMsg.value = e?.message || __("Failed to load report summary")
 			return null
@@ -464,16 +618,28 @@ async function loadAll() {
 				return null
 			},
 		),
+		call("pos_next.api.reports.get_sales_trend", args).catch((e) => {
+			console.error(e)
+			return null
+		}),
+		call("pos_next.api.reports.get_top_items", { ...args, limit: 8 }).catch((e) => {
+			console.error(e)
+			return null
+		}),
 	])
 
 	summaryLoading.value = false
 	paymentLoading.value = false
 	txLoading.value = false
+	trendLoading.value = false
+	topLoading.value = false
 	loading.value = false
 
 	if (sumRes) summary.value = sumRes
 	if (payRes) payment.value = payRes
 	if (txRes) transactions.value = txRes
+	if (trendRes) trend.value = trendRes
+	if (topRes) topItems.value = topRes
 }
 
 function openInvoice(tx) {
