@@ -151,21 +151,21 @@ const { cachePasswordHashFromLogin } = useSessionLock();
 
 const demoPassword = "demo@2026";
 const demoAccounts = [
-	{ company: "الكافيه", email: "support@trilogy-erp.com", profile: "الكافيه", icon: "coffee" },
-	{ company: "الشوكولاتة", email: "chocolates@trilogy.com.sa", profile: "الشوكولاتة", icon: "gift" },
-	{ company: "الأجهزة الكهربائية", email: "trilogy@gmail.com", profile: "الأجهزة الكهربائية", icon: "zap" },
-	{ company: "الزهور", email: "flower@trilgy.com.sa", profile: "الزهور", icon: "heart" },
-	{ company: "النظارات", email: "glasses@trilogy.com.sa", profile: "النظارات", icon: "eye" },
+	{ company: "الكافيه", email: "cafe@gmail.com", profile: "الكافيه", icon: "coffee" },
+	{ company: "الشوكولاتة", email: "chocolates@gmail.com", profile: "الشوكولاتة", icon: "gift" },
+	{ company: "الأجهزة الكهربائية", email: "Electrical@gmail.com", profile: "الأجهزة الكهربائية", icon: "zap" },
+	{ company: "الزهور", email: "flower@gmail.com", profile: "الزهور", icon: "heart" },
+	{ company: "النظارات", email: "glasses@gmail.com", profile: "النظارات", icon: "eye" },
 	{ company: "الذهب والمجوهرات", email: "gold@gmail.com", profile: "الذهب والمجوهرات", icon: "award" },
-	{ company: "صالون الحلاقة", email: "hairdressing@trilogy.com.sa", profile: "صالون الحلاقة", icon: "scissors" },
+	{ company: "صالون الحلاقة", email: "hairdressing@gmail.com", profile: "صالون الحلاقة", icon: "scissors" },
 	{ company: "الآيس كريم", email: "icecream@gmail.com", profile: "الآيس كريم", icon: "smile" },
 	{ company: "العطور", email: "perfumes@gmail.com.sa", profile: "العطور", icon: "star" },
-	{ company: "الصيدلية", email: "pharmacy@trilogy.com.sa", profile: "الصيدلية", icon: "plus-circle" },
+	{ company: "الصيدلية", email: "pharmacy@gmail.com", profile: "الصيدلية", icon: "plus-circle" },
 	{ company: "الجوالات", email: "phones@gmail.com", profile: "الجوالات", icon: "smartphone" },
-	{ company: "البيتزا", email: "support@trilogy-erp.com", profile: "البيتزا", icon: "target" },
-	{ company: "المطعم", email: "restaurant@trilogy.com.sa", profile: "المطعم", icon: "shopping-cart" },
+	{ company: "البيتزا", email: "pizza@gmail.com", profile: "البيتزا", icon: "target" },
+	{ company: "المطعم", email: "restaurant@gmail.com", profile: "المطعم", icon: "shopping-cart" },
 	{ company: "السوبر ماركت", email: "supermarket@gmail.com", profile: "السوبر ماركت", icon: "shopping-bag" },
-	{ company: "الألعاب", email: "toys@trilogy.com.sa", profile: "الألعاب", icon: "box" },
+	{ company: "الألعاب", email: "toys@gmail.com", profile: "الألعاب", icon: "box" },
 ];
 
 const loginForm = reactive({
