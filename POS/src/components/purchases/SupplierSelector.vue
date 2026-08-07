@@ -100,6 +100,16 @@
 				v-if="showDropdown && (options.length || search.trim().length >= 2)"
 				class="absolute z-50 mt-0.5 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"
 			>
+				<!-- Frequent Suppliers header (when showing the preloaded list) -->
+				<div
+					v-if="search.trim().length < 2 && options.length"
+					class="px-2 py-1 bg-gray-50 border-b border-gray-200"
+				>
+					<span class="text-[10px] font-medium text-gray-500 uppercase tracking-wide">
+						{{ __("Suppliers") }}
+					</span>
+				</div>
+
 				<button
 					type="button"
 					v-for="s in options"
@@ -107,9 +117,18 @@
 					@mousedown.prevent="selectSupplier(s)"
 					class="w-full text-start px-3 py-2 text-xs hover:bg-orange-50 transition-colors border-b border-gray-100 last:border-0"
 				>
-					<span class="font-semibold text-gray-900">{{ s.supplier_name }}</span>
-					<span class="text-gray-400 ms-2">{{ s.supplier_group }}</span>
+					<span class="font-semibold text-gray-900">{{ s.supplier_name || s.name }}</span>
+					<span v-if="s.supplier_group" class="text-gray-400 ms-2">{{ s.supplier_group }}</span>
 				</button>
+
+				<!-- No results for a 2+ char search -->
+				<div
+					v-if="search.trim().length >= 2 && !options.length"
+					class="px-3 py-2 text-center text-[11px] font-medium text-gray-500 border-b border-gray-100"
+				>
+					{{ __('No results for "{0}"', [search]) }}
+				</div>
+
 				<button
 					type="button"
 					v-if="search.trim().length >= 2"
@@ -160,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { call } from "@/utils/apiWrapper";
 import { useToast } from "@/composables/useToast";
 import { managerTranslate as __ } from "@/utils/managementI18n";
@@ -179,7 +198,9 @@ const { showError } = useToast();
 const rootRef = ref(null);
 const searchInput = ref(null);
 const search = ref("");
-const options = ref([]);
+// Preloaded supplier list (mirrors the customer selector's cached allCustomers) so
+// clicking the field shows results instantly with in-memory filtering.
+const allSuppliers = ref([]);
 const showDropdown = ref(false);
 const showCreate = ref(false);
 const searching = ref(false); // "Change" pressed on a selected supplier → show the picker
@@ -188,23 +209,45 @@ const newGroup = ref("");
 const supplierGroups = ref([]);
 const creating = ref(false);
 
+// Instant results, mirroring InvoiceCart's customerResults:
+// - focused with <2 chars → top 10 suppliers (the "click shows a list" behaviour)
+// - otherwise → in-memory filter on name / id / group.
+const options = computed(() => {
+	const q = search.value.trim().toLowerCase();
+	if (q.length < 2) {
+		return showDropdown.value ? allSuppliers.value.slice(0, 10) : [];
+	}
+	return allSuppliers.value
+		.filter((s) => {
+			const name = (s.supplier_name || "").toLowerCase();
+			const id = (s.name || "").toLowerCase();
+			const group = (s.supplier_group || "").toLowerCase();
+			return name.includes(q) || id.includes(q) || group.includes(q);
+		})
+		.slice(0, 20);
+});
+
 let searchTimer = null;
+// Client-side filtering covers the (small) supplier set; the API is only a fallback
+// for a 2+ char query that matches nothing locally (e.g. a supplier added elsewhere).
 function onSearch() {
+	showDropdown.value = true;
 	clearTimeout(searchTimer);
+	const q = search.value.trim();
+	if (q.length < 2 || options.value.length > 0) return;
 	searchTimer = setTimeout(async () => {
-		const q = search.value.trim();
-		if (q.length < 2) {
-			options.value = [];
-			return;
-		}
 		try {
 			const res = await call("pos_next.api.purchases.get_suppliers", {
 				search: q,
 				limit: 10,
 				pos_profile: props.posProfile,
 			});
-			options.value = res || [];
-			showDropdown.value = true;
+			// Merge any server-only matches into the cache so the computed picks them up.
+			for (const s of res || []) {
+				if (!allSuppliers.value.some((x) => x.name === s.name)) {
+					allSuppliers.value.push(s);
+				}
+			}
 		} catch (error) {
 			showError(error?.message || __("Failed to search suppliers"));
 		}
@@ -216,12 +259,13 @@ function selectSupplier(s) {
 	resetPicker();
 }
 
-// Change: reveal the search input over the selected supplier card.
+// Change: reveal the search input over the selected supplier card, with the list
+// already showing (parity with clicking the empty customer field).
 async function startChange() {
 	searching.value = true;
-	showDropdown.value = false;
 	await nextTick();
 	searchInput.value?.focus();
+	showDropdown.value = true;
 }
 
 // Clear: revert to the configured default supplier when one exists, otherwise
@@ -237,7 +281,6 @@ function clearSupplier() {
 
 function resetPicker() {
 	search.value = "";
-	options.value = [];
 	showDropdown.value = false;
 	searching.value = false;
 }
@@ -287,14 +330,23 @@ function handleClickOutside(event) {
 
 onMounted(async () => {
 	document.addEventListener("mousedown", handleClickOutside);
+	// Preload suppliers + groups so the field shows a list the instant it's focused
+	// (the supplier set is small; client-side filtering fully covers it).
 	try {
-		const res = await call("pos_next.api.purchases.get_supplier_groups", {
-			pos_profile: props.posProfile,
-		});
-		supplierGroups.value = res || [];
+		const [suppliers, groups] = await Promise.all([
+			call("pos_next.api.purchases.get_suppliers", {
+				limit: 100,
+				pos_profile: props.posProfile,
+			}).catch(() => []),
+			call("pos_next.api.purchases.get_supplier_groups", {
+				pos_profile: props.posProfile,
+			}).catch(() => []),
+		]);
+		allSuppliers.value = suppliers || [];
+		supplierGroups.value = groups || [];
 		newGroup.value = supplierGroups.value[0]?.name || "";
 	} catch (error) {
-		showError(error?.message || __("Failed to load supplier groups"));
+		showError(error?.message || __("Failed to load suppliers"));
 	}
 });
 
