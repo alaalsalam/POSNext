@@ -32,6 +32,9 @@ _asset_version = get_build_version()
 # include js, css files in header of desk.html
 # app_include_css = f"/assets/pos_next/css/pos_next.css?v={_asset_version}"
 # app_include_js = f"/assets/pos_next/js/pos_next.js?v={_asset_version}"
+app_include_js = [
+	f"/assets/pos_next/js/desk_route_redirect.js?v={_asset_version}",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/pos_next/css/pos_next.css"
