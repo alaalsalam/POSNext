@@ -37,7 +37,9 @@ app_include_js = [
 ]
 
 # include js, css files in header of web template
-# web_include_css = "/assets/pos_next/css/pos_next.css"
+web_include_css = [
+	f"/assets/pos_next/css/login.css?v={_asset_version}",
+]
 # web_include_js = "/assets/pos_next/js/pos_next.js"
 
 # include custom scss in every website theme (without file extension ".scss")

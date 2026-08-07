@@ -1,0 +1,206 @@
+/*
+ * pos_next — professional restyle of the Frappe Desk login page (/login).
+ * Loaded site-wide via web_include_css, but every rule is scoped to
+ * body[data-path="login"] so it only ever affects the login page.
+ * Brand accent = the app's configured emerald (#0a8754 / #064e3b).
+ */
+body[data-path="login"] {
+	--pn-primary: #0a8754;
+	--pn-primary-dark: #064e3b;
+	--pn-ink: #0f172a;
+	--pn-muted: #64748b;
+	--pn-border: #e2e8f0;
+	--pn-field-bg: #f8fafc;
+
+	min-height: 100vh;
+	margin: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	/* Soft, premium backdrop: light base with an emerald-tinted radial glow. */
+	background:
+		radial-gradient(1100px 520px at 50% -8%, rgba(10, 135, 84, 0.10), transparent 60%),
+		radial-gradient(900px 500px at 100% 110%, rgba(6, 78, 59, 0.08), transparent 55%),
+		linear-gradient(180deg, #f6f9f8 0%, #eef2f1 100%);
+	font-feature-settings: "kern" 1;
+}
+
+/* Kill Frappe's default top spacing / narrow container on this page. */
+body[data-path="login"] .web-footer,
+body[data-path="login"] footer {
+	display: none !important;
+}
+body[data-path="login"] main,
+body[data-path="login"] .page_content,
+body[data-path="login"] #body {
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+body[data-path="login"] .for-login {
+	width: 100%;
+	max-width: 430px;
+	margin: 0 auto;
+	padding: 24px;
+	animation: pn-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pn-rise {
+	from { opacity: 0; transform: translateY(14px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Logo header */
+body[data-path="login"] .page-card-head {
+	text-align: center;
+	border: 0 !important;
+	background: transparent !important;
+	padding: 0 0 18px !important;
+	margin-bottom: 4px;
+}
+body[data-path="login"] .page-card-head .app-logo,
+body[data-path="login"] img.app-logo {
+	width: auto !important;
+	max-height: 56px !important;
+	margin: 0 auto 2px !important;
+	filter: drop-shadow(0 6px 14px rgba(6, 78, 59, 0.16));
+}
+
+/* Title ("Sign in to …") sits just above the card */
+body[data-path="login"] h1,
+body[data-path="login"] h4,
+body[data-path="login"] .page-card-head + h4 {
+	text-align: center;
+	color: var(--pn-ink);
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+/* The card */
+body[data-path="login"] .login-content.page-card,
+body[data-path="login"] .page-card {
+	background: #ffffff;
+	border: 1px solid rgba(226, 232, 240, 0.9);
+	border-radius: 20px;
+	padding: 30px 28px 26px;
+	box-shadow:
+		0 1px 2px rgba(15, 23, 42, 0.04),
+		0 12px 28px -8px rgba(15, 23, 42, 0.12),
+		0 30px 60px -20px rgba(6, 78, 59, 0.14);
+	max-width: 100%;
+}
+
+body[data-path="login"] .page-card-body { padding: 0 !important; }
+
+body[data-path="login"] .form-group { margin-bottom: 18px; }
+
+/* Labels — visible + tidy (Frappe hides them with sr-only; keep that, spacing via fields) */
+body[data-path="login"] .form-label { color: var(--pn-muted); }
+
+/* Inputs */
+body[data-path="login"] .form-control {
+	height: 48px;
+	border-radius: 12px;
+	border: 1.5px solid var(--pn-border);
+	background: var(--pn-field-bg);
+	color: var(--pn-ink);
+	font-size: 15px;
+	padding-inline: 44px 16px; /* room for the field icon on the leading side */
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+	box-shadow: none;
+}
+body[data-path="login"] .form-control::placeholder { color: #9aa7b4; }
+body[data-path="login"] .form-control:hover { border-color: #cbd5e1; }
+body[data-path="login"] .form-control:focus {
+	outline: none;
+	border-color: var(--pn-primary);
+	background: #ffffff;
+	box-shadow: 0 0 0 4px rgba(10, 135, 84, 0.14);
+}
+
+/* Field icons — align to the leading edge (RTL-safe via inset-inline-start) */
+body[data-path="login"] .email-field,
+body[data-path="login"] .password-field {
+	position: relative;
+	display: block;
+}
+/* Make the input fill its wrapper so the overlaid icon/toggle sit inside it. */
+body[data-path="login"] .email-field .form-control,
+body[data-path="login"] .password-field .form-control {
+	width: 100%;
+	box-sizing: border-box;
+}
+body[data-path="login"] .field-icon {
+	position: absolute;
+	inset-inline-start: 14px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--pn-muted);
+	pointer-events: none;
+}
+
+/* "Show" password toggle — pin it inside the field on the trailing edge */
+body[data-path="login"] .toggle-password {
+	position: absolute;
+	right: auto !important;
+	left: auto !important;
+	inset-inline-end: 14px !important;
+	top: 50%;
+	transform: translateY(-50%);
+	cursor: pointer;
+	font-size: 12.5px;
+	font-weight: 600;
+	color: var(--pn-primary);
+	background: transparent;
+	user-select: none;
+	transition: color 0.15s ease;
+}
+body[data-path="login"] .toggle-password:hover { color: var(--pn-primary-dark); }
+
+/* Forgot password link */
+body[data-path="login"] .forgot-password-message,
+body[data-path="login"] .forgot-password-message a {
+	color: var(--pn-primary);
+	font-size: 13px;
+	text-decoration: none;
+}
+body[data-path="login"] .forgot-password-message a:hover { text-decoration: underline; }
+
+/* Primary button */
+body[data-path="login"] .page-card-actions { margin-top: 22px; }
+body[data-path="login"] .btn-login,
+body[data-path="login"] .btn.btn-primary.btn-login {
+	width: 100%;
+	height: 48px;
+	border: 0;
+	border-radius: 12px;
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	color: #ffffff !important;
+	background: linear-gradient(135deg, var(--pn-primary) 0%, var(--pn-primary-dark) 100%) !important;
+	box-shadow: 0 8px 18px -6px rgba(10, 135, 84, 0.5);
+	transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+body[data-path="login"] .btn-login:hover {
+	filter: brightness(1.04);
+	box-shadow: 0 12px 24px -6px rgba(10, 135, 84, 0.55);
+	transform: translateY(-1px);
+}
+body[data-path="login"] .btn-login:active { transform: translateY(0); box-shadow: 0 6px 14px -6px rgba(10, 135, 84, 0.5); }
+body[data-path="login"] .btn-login:focus-visible { outline: 3px solid rgba(10, 135, 84, 0.35); outline-offset: 2px; }
+
+/* Secondary / social login buttons stay clean & full-width */
+body[data-path="login"] .btn-login-option,
+body[data-path="login"] .btn-ldap-login {
+	width: 100%;
+	height: 46px;
+	border-radius: 12px;
+	border: 1.5px solid var(--pn-border);
+	font-weight: 600;
+}
+body[data-path="login"] .login-divider { color: var(--pn-muted); font-size: 12px; }
+
+/* Signup / helper text */
+body[data-path="login"] .page-card-actions .text-muted,
+body[data-path="login"] .login-content .text-muted { color: var(--pn-muted); }
