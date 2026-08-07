@@ -5,7 +5,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, flt, get_datetime, getdate, nowdate
+from frappe.utils import add_days, cint, date_diff, flt, get_datetime, getdate, nowdate
 
 from pos_next.api.reporting_access import (
 	assert_report_manager,
@@ -101,40 +101,82 @@ def get_report_filters():
 	}
 
 
+def _core_totals(invoices):
+	"""Headline KPIs for a set of invoices — shared by the current and previous windows."""
+	sales = [invoice for invoice in invoices if not invoice.is_return]
+	returns = [invoice for invoice in invoices if invoice.is_return]
+	sales_total = sum(flt(invoice.grand_total) for invoice in sales)
+	return {
+		"sales_total": sales_total,
+		"sales_count": len(sales),
+		"avg_invoice": sales_total / len(sales) if sales else 0.0,
+		"returns_total": sum(abs(flt(invoice.grand_total)) for invoice in returns),
+		"returns_count": len(returns),
+		"outstanding_total": sum(max(flt(invoice.outstanding_amount), 0) for invoice in sales),
+		"net_sales": sum(flt(invoice.grand_total) for invoice in invoices),
+		"net_total": sum(flt(invoice.net_total) for invoice in invoices),
+		"tax_total": sum(flt(invoice.total_taxes_and_charges) for invoice in invoices),
+		"rounding_total": sum(flt(invoice.rounding_adjustment) for invoice in invoices),
+	}
+
+
+def _pct_change(current, previous):
+	"""Percent change vs the previous window; None when there is no baseline to compare against."""
+	if not previous:
+		return None
+	return round((flt(current) - flt(previous)) / flt(previous) * 100, 1)
+
+
+def _previous_window(fd, td):
+	"""Same-length window immediately preceding [fd, td]."""
+	length = date_diff(td, fd) + 1
+	prev_td = add_days(fd, -1)
+	return add_days(prev_td, -(length - 1)), prev_td
+
+
 @frappe.whitelist()
 def get_daily_summary(pos_profile, period="today", from_date=None, to_date=None):
 	_authorize(pos_profile)
 	fd, td = _date_range(period, from_date, to_date)
-	invoices = _get_invoice_names(pos_profile, fd, td)
-
-	sales = [invoice for invoice in invoices if not invoice.is_return]
-	returns = [invoice for invoice in invoices if invoice.is_return]
-	sales_total = sum(flt(invoice.grand_total) for invoice in sales)
-	returns_total = sum(abs(flt(invoice.grand_total)) for invoice in returns)
-	net_sales = sum(flt(invoice.grand_total) for invoice in invoices)
-	net_total = sum(flt(invoice.net_total) for invoice in invoices)
-	tax_total = sum(flt(invoice.total_taxes_and_charges) for invoice in invoices)
-	rounding_total = sum(flt(invoice.rounding_adjustment) for invoice in invoices)
+	cur = _core_totals(_get_invoice_names(pos_profile, fd, td))
 	# ERPNext grand_total is pre-rounding; rounded_total is grand_total + rounding_adjustment.
-	component_difference = net_sales - net_total - tax_total
+	component_difference = cur["net_sales"] - cur["net_total"] - cur["tax_total"]
+
+	prev_fd, prev_td = _previous_window(fd, td)
+	prev = _core_totals(_get_invoice_names(pos_profile, prev_fd, prev_td))
 
 	return {
 		"from_date": fd,
 		"to_date": td,
 		"pos_profile": pos_profile,
-		"sales_total": round(sales_total, 2),
-		"sales_count": len(sales),
-		"avg_invoice": round(sales_total / len(sales), 2) if sales else 0.0,
-		"returns_total": round(returns_total, 2),
-		"returns_count": len(returns),
-		"outstanding_total": round(sum(max(flt(invoice.outstanding_amount), 0) for invoice in sales), 2),
-		"net_sales": round(net_sales, 2),
-		"net_total": round(net_total, 2),
-		"tax_total": round(tax_total, 2),
-		"rounding_adjustment": round(rounding_total, 2),
+		"sales_total": round(cur["sales_total"], 2),
+		"sales_count": cur["sales_count"],
+		"avg_invoice": round(cur["avg_invoice"], 2),
+		"returns_total": round(cur["returns_total"], 2),
+		"returns_count": cur["returns_count"],
+		"outstanding_total": round(cur["outstanding_total"], 2),
+		"net_sales": round(cur["net_sales"], 2),
+		"net_total": round(cur["net_total"], 2),
+		"tax_total": round(cur["tax_total"], 2),
+		"rounding_adjustment": round(cur["rounding_total"], 2),
 		"reconciliation_difference": round(component_difference, 2),
 		"reconciled": abs(component_difference) < 0.01,
 		"currency": frappe.db.get_value("POS Profile", pos_profile, "currency") or "SAR",
+		# Period-over-period comparison (same-length preceding window) so the UI can show trends.
+		"previous": {
+			"from_date": prev_fd,
+			"to_date": prev_td,
+			"sales_total": round(prev["sales_total"], 2),
+			"sales_count": prev["sales_count"],
+			"avg_invoice": round(prev["avg_invoice"], 2),
+			"returns_total": round(prev["returns_total"], 2),
+		},
+		"delta": {
+			"sales_total": _pct_change(cur["sales_total"], prev["sales_total"]),
+			"sales_count": _pct_change(cur["sales_count"], prev["sales_count"]),
+			"avg_invoice": _pct_change(cur["avg_invoice"], prev["avg_invoice"]),
+			"returns_total": _pct_change(cur["returns_total"], prev["returns_total"]),
+		},
 	}
 
 
@@ -311,3 +353,75 @@ def get_current_shift_profile():
 	except frappe.PermissionError:
 		return {"pos_profile": None}
 	return {"pos_profile": profile}
+
+
+@frappe.whitelist()
+def get_sales_trend(pos_profile, period="today", from_date=None, to_date=None):
+	"""Sales over time for the trend chart: hourly for a single day, daily otherwise."""
+	_authorize(pos_profile)
+	fd, td = _date_range(period, from_date, to_date)
+	invoices = [inv for inv in _get_invoice_names(pos_profile, fd, td) if not inv.is_return]
+	currency = frappe.db.get_value("POS Profile", pos_profile, "currency") or "SAR"
+
+	if fd == td:
+		buckets = {f"{hour:02d}": {"label": f"{hour:02d}:00", "sales": 0.0, "count": 0} for hour in range(24)}
+		for inv in invoices:
+			hour = get_datetime(f"{inv.posting_date} {inv.posting_time or '00:00:00'}").hour
+			bucket = buckets[f"{hour:02d}"]
+			bucket["sales"] += flt(inv.grand_total)
+			bucket["count"] += 1
+		ordered = list(buckets.values())
+		granularity = "hour"
+	else:
+		ordered = []
+		buckets = {}
+		day = getdate(fd)
+		end = getdate(td)
+		while day <= end:
+			key = str(day)
+			bucket = {"label": key, "sales": 0.0, "count": 0}
+			buckets[key] = bucket
+			ordered.append(bucket)
+			day = add_days(day, 1)
+		for inv in invoices:
+			bucket = buckets.get(str(getdate(inv.posting_date)))
+			if bucket:
+				bucket["sales"] += flt(inv.grand_total)
+				bucket["count"] += 1
+		granularity = "day"
+
+	for bucket in ordered:
+		bucket["sales"] = round(bucket["sales"], 2)
+	return {"from_date": fd, "to_date": td, "granularity": granularity, "buckets": ordered, "currency": currency}
+
+
+@frappe.whitelist()
+def get_top_items(pos_profile, period="today", from_date=None, to_date=None, limit=10):
+	"""Best-selling items (fast movers) by revenue over the period; returns excluded."""
+	_authorize(pos_profile)
+	fd, td = _date_range(period, from_date, to_date)
+	lim = max(1, min(cint(limit), 50))
+	currency = frappe.db.get_value("POS Profile", pos_profile, "currency") or "SAR"
+	names = [inv.name for inv in _get_invoice_names(pos_profile, fd, td, include_returns=False)]
+	if not names:
+		return {"from_date": fd, "to_date": td, "items": [], "currency": currency}
+
+	rows = frappe.get_all(
+		"Sales Invoice Item",
+		filters={"parent": ["in", names], "parenttype": "Sales Invoice"},
+		fields=["item_code", "item_name", "qty", "amount", "stock_uom"],
+		limit=0,
+	)
+	aggregated = {}
+	for row in rows:
+		entry = aggregated.setdefault(
+			row.item_code,
+			{"item_code": row.item_code, "item_name": row.item_name, "qty": 0.0, "amount": 0.0, "uom": row.stock_uom},
+		)
+		entry["qty"] += flt(row.qty)
+		entry["amount"] += flt(row.amount)
+	items = sorted(aggregated.values(), key=lambda entry: (-entry["amount"], -entry["qty"]))[:lim]
+	for entry in items:
+		entry["qty"] = round(entry["qty"], 2)
+		entry["amount"] = round(entry["amount"], 2)
+	return {"from_date": fd, "to_date": td, "items": items, "currency": currency}
