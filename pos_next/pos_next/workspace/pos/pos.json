@@ -7,12 +7,12 @@
  "docstatus": 0,
  "doctype": "Workspace",
  "hide_custom": 0,
- "icon": "point-of-sale",
+ "icon": "retail",
  "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
  "label": "POS",
- "link_type": "DocType",
+ "link_type": null,
  "links": [
   {
    "hidden": 0,
