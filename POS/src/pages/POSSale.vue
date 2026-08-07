@@ -1629,6 +1629,10 @@ onMounted(async () => {
 			log.debug("Skipping init — already initialized (remount)");
 			startActivityTracking();
 			updateLayoutBounds();
+			// Permission flags are component-scoped refs that reset on every remount,
+			// but heavy init is skipped here — so refresh them explicitly or the
+			// Catalog/Reports/Settings buttons would stay hidden after a remount.
+			checkCatalogPermission();
 			return;
 		}
 
@@ -1642,6 +1646,7 @@ onMounted(async () => {
 			}
 			if (_initializedKey) startActivityTracking();
 			updateLayoutBounds();
+			checkCatalogPermission();
 			return;
 		}
 
