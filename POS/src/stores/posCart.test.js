@@ -255,6 +255,51 @@ describe("posCart purchase mode", () => {
 		expect(submitMethod).toBe("pos_next.api.purchases.submit_purchase_invoice");
 	});
 
+	it("carries the Settings-sourced defaults (warehouse + tax + expense) into the payload", async () => {
+		// The main screen no longer shows warehouse/tax/expense pickers; those come
+		// silently from Settings → Purchase Defaults. POSSale.applyPurchaseDefaults()
+		// writes them into the store on entry — mirrored here via the setters — and the
+		// payload must carry them without any on-screen picker interaction.
+		const cart = usePOSCartStore();
+		cart.setMode("purchase");
+		cart.setSupplier({ name: "SUP-1", supplier_name: "Acme" });
+		cart.setPurchaseWarehouse("Stores - A");
+		cart.setPurchaseTaxTemplate("Purchase VAT 15%");
+		cart.setPurchaseExpenseAccount("Cost of Goods Sold - A");
+		cart.addItem({
+			item_code: "ITEM-1",
+			item_name: "A",
+			stock_uom: "Nos",
+			uom: "Nos",
+			rate: 5,
+		});
+
+		call
+			.mockResolvedValueOnce({ name: "PINV-2", modified: "2026-08-07 10:00:00" })
+			.mockResolvedValueOnce({
+				name: "PINV-2",
+				grand_total: 5,
+				outstanding_amount: 5,
+			});
+
+		const defaults = {
+			company: "ACME",
+			currency: "SAR",
+			posting_date: "2026-08-07",
+			due_date: "2026-09-06",
+			buying_price_list: "Standard Buying",
+		};
+		const result = await cart.submitPurchaseInvoice(defaults);
+
+		expect(result?.name).toBe("PINV-2");
+		const [, saveArgs] = call.mock.calls[0];
+		const payload = JSON.parse(saveArgs.data);
+		expect(payload.set_warehouse).toBe("Stores - A");
+		expect(payload.taxes_and_charges).toBe("Purchase VAT 15%");
+		expect(payload.items[0].warehouse).toBe("Stores - A");
+		expect(payload.items[0].expense_account).toBe("Cost of Goods Sold - A");
+	});
+
 	it("submitPurchaseInvoice refuses without a supplier", async () => {
 		const cart = usePOSCartStore();
 		cart.setMode("purchase");

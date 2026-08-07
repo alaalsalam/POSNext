@@ -86,50 +86,10 @@
 				</button>
 			</div>
 
-			<!-- Purchase mode: supplier + warehouse + tax template (compact) -->
+			<!-- Purchase mode: supplier only. Warehouse / tax template / expense
+			     account are silent defaults from Settings → Purchase Defaults. -->
 			<div v-if="isPurchaseMode" class="space-y-2">
 				<SupplierSelector v-model="selectedSupplier" :pos-profile="posProfile" />
-				<div class="grid grid-cols-2 gap-2">
-					<div>
-						<label class="block text-[10px] font-semibold text-gray-500 mb-1">
-							{{ __("Warehouse") }} <span class="text-red-500">*</span>
-						</label>
-						<select
-							v-model="purchaseWarehouse"
-							data-testid="purchase-warehouse-select"
-							class="w-full h-9 px-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-						>
-							<option value="">{{ __("Select Warehouse") }}</option>
-							<option v-for="w in purchaseWarehouses" :key="w.name" :value="w.name">
-								{{ w.warehouse_name || w.name }}
-							</option>
-						</select>
-					</div>
-					<div>
-						<label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("Tax Template") }}</label>
-						<select
-							v-model="purchaseTaxTemplate"
-							class="w-full h-9 px-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-						>
-							<option :value="null">{{ __("No Tax Template") }}</option>
-							<option v-for="t in purchaseTaxTemplates" :key="t.name" :value="t.name">
-								{{ t.title || t.name }}
-							</option>
-						</select>
-					</div>
-				</div>
-				<div>
-					<label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("Expense Account") }}</label>
-					<select
-						v-model="purchaseExpenseAccount"
-						class="w-full h-9 px-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-					>
-						<option value="">{{ __("Use ERPNext Default") }}</option>
-						<option v-for="a in purchaseExpenseAccounts" :key="a.name" :value="a.name">
-							{{ a.account_name || a.name }}
-						</option>
-					</select>
-				</div>
 			</div>
 
 			<!-- Inline Customer Search/Selection (sales mode only) -->
@@ -1614,18 +1574,6 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
-	purchaseWarehouses: {
-		type: Array,
-		default: () => [],
-	},
-	purchaseTaxTemplates: {
-		type: Array,
-		default: () => [],
-	},
-	purchaseExpenseAccounts: {
-		type: Array,
-		default: () => [],
-	},
 });
 
 /**
@@ -2258,21 +2206,6 @@ const isPurchaseMode = computed(() => cartStore.mode === "purchase");
 const selectedSupplier = computed({
 	get: () => cartStore.supplier,
 	set: (value) => cartStore.setSupplier(value),
-});
-
-const purchaseWarehouse = computed({
-	get: () => cartStore.purchaseWarehouse,
-	set: (value) => cartStore.setPurchaseWarehouse(value),
-});
-
-const purchaseTaxTemplate = computed({
-	get: () => cartStore.purchaseTaxTemplate,
-	set: (value) => cartStore.setPurchaseTaxTemplate(value),
-});
-
-const purchaseExpenseAccount = computed({
-	get: () => cartStore.purchaseExpenseAccount,
-	set: (value) => cartStore.setPurchaseExpenseAccount(value),
 });
 
 // Purchase checkout is only enabled with items, a supplier, a warehouse and the

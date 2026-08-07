@@ -393,7 +393,13 @@ def get_new_purchase_invoice_defaults(pos_profile=None):
 		)
 		if settings.get("posa_default_supplier")
 		else None,
-		"default_warehouse": settings.get("posa_default_purchase_warehouse"),
+		# The receiving warehouse has no on-screen picker in purchase mode, so it must
+		# resolve to something valid: the configured default, else the profile's own
+		# warehouse (the restricted cashier's permitted leaf), so day-one purchases work
+		# before anyone visits Settings. Tax template / expense account stay opt-in
+		# (settings-value-or-omit) — no silent VAT or expense injection.
+		"default_warehouse": settings.get("posa_default_purchase_warehouse")
+		or frappe.db.get_value("POS Profile", profile, "warehouse"),
 		"default_tax_template": settings.get("posa_default_purchase_tax_template"),
 		"default_expense_account": settings.get("posa_default_expense_account"),
 	}

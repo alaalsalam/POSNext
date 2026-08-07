@@ -460,7 +460,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			return null;
 		}
 		if (!purchaseWarehouse.value) {
-			showWarning(__("Please select a warehouse for the purchase"));
+			showWarning(
+				__("No purchase warehouse configured. Set a default purchase warehouse in Settings.")
+			);
 			return null;
 		}
 		if (offlineState.isOffline) {

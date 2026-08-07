@@ -499,9 +499,6 @@
 								:applied-offers="cartStore.appliedOffers"
 								:warehouses="profileWarehouses"
 								:can-submit-purchases="canSubmitPurchases"
-								:purchase-warehouses="purchaseWarehouseOptions"
-								:purchase-tax-templates="purchaseTaxTemplates"
-								:purchase-expense-accounts="purchaseExpenseAccounts"
 								@purchase-checkout="handlePurchaseCheckout"
 								@show-purchase-history="openPurchaseHistory"
 								@update-quantity="cartStore.updateItemQuantity"
@@ -1433,9 +1430,6 @@ const canViewReports = ref(false);
 
 // Purchase mode (main-screen unified purchase flow)
 const purchaseBuyingPrices = ref({}); // { item_code: buying_price }
-const purchaseWarehouseOptions = ref([]);
-const purchaseTaxTemplates = ref([]);
-const purchaseExpenseAccounts = ref([]);
 const purchaseMetaDefaults = ref({}); // company/currency/dates/buying_price_list
 let purchaseMetaLoaded = false;
 const cartSupplierPaymentInvoice = ref(null); // skippable payment after checkout
@@ -3526,34 +3520,23 @@ function onSupplierPaymentCreated() {
  */
 
 /**
- * Load purchase metadata (defaults, warehouses, tax templates, buying prices)
- * once when the user first enters purchase mode. One call each, no N+1.
+ * Load purchase metadata (new-invoice defaults + buying prices) once when the user
+ * first enters purchase mode. Warehouse / tax template / expense account are silent
+ * defaults resolved server-side into `get_new_purchase_invoice_defaults`, so no
+ * option lists are fetched for the main screen (Settings owns those pickers).
  */
 async function loadPurchaseMeta() {
 	if (purchaseMetaLoaded) return true;
 	try {
-		const [defaults, warehouses, taxTemplates, expenseAccounts, buyingPrices] =
-			await Promise.all([
-				call("pos_next.api.purchases.get_new_purchase_invoice_defaults", {
-					pos_profile: shiftStore.profileName,
-				}),
-				call("pos_next.api.purchases.get_warehouses", {
-					pos_profile: shiftStore.profileName,
-				}),
-				call("pos_next.api.purchases.get_purchase_tax_templates", {
-					pos_profile: shiftStore.profileName,
-				}),
-				call("pos_next.api.purchases.get_expense_accounts", {
-					pos_profile: shiftStore.profileName,
-				}),
-				call("pos_next.api.purchases.get_buying_prices", {
-					pos_profile: shiftStore.profileName,
-				}),
-			]);
+		const [defaults, buyingPrices] = await Promise.all([
+			call("pos_next.api.purchases.get_new_purchase_invoice_defaults", {
+				pos_profile: shiftStore.profileName,
+			}),
+			call("pos_next.api.purchases.get_buying_prices", {
+				pos_profile: shiftStore.profileName,
+			}),
+		]);
 		purchaseMetaDefaults.value = defaults || {};
-		purchaseWarehouseOptions.value = warehouses || [];
-		purchaseTaxTemplates.value = taxTemplates || [];
-		purchaseExpenseAccounts.value = expenseAccounts || [];
 		purchaseBuyingPrices.value = buyingPrices?.prices || {};
 		purchaseMetaLoaded = true;
 		return true;
