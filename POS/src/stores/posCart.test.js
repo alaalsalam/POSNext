@@ -172,6 +172,41 @@ describe("posCart purchase mode", () => {
 		expect(cart.supplier).toBeNull();
 	});
 
+	it("setMode('purchase') empties the purchase-default fields the pre-fill relies on", () => {
+		const cart = usePOSCartStore();
+		// Simulate a prior purchase session that left fields set.
+		cart.setMode("purchase");
+		cart.setSupplier({ name: "SUP-1", supplier_name: "Acme" });
+		cart.setPurchaseWarehouse("Stores - A");
+		cart.setPurchaseTaxTemplate("Std Purchase Tax");
+		cart.setPurchaseExpenseAccount("Cost of Goods Sold - A");
+
+		// Leaving and re-entering purchase mode must reset every purchase-default field
+		// so POSSale.applyPurchaseDefaults()'s "only fill when empty" guards are satisfied.
+		cart.setMode("sales");
+		cart.setMode("purchase");
+
+		expect(cart.supplier).toBeNull();
+		expect(cart.purchaseWarehouse).toBe("");
+		expect(cart.purchaseTaxTemplate).toBeNull();
+		expect(cart.purchaseExpenseAccount).toBe("");
+	});
+
+	it("purchase-default setters accept the values applyPurchaseDefaults writes on entry", () => {
+		const cart = usePOSCartStore();
+		cart.setMode("purchase");
+		// Mirrors POSSale.applyPurchaseDefaults(): supplier is an object, the rest are names.
+		cart.setSupplier({ name: "SUP-9", supplier_name: "SUP-9" });
+		cart.setPurchaseWarehouse("Main - A");
+		cart.setPurchaseTaxTemplate("Purchase VAT 15%");
+		cart.setPurchaseExpenseAccount("Expenses - A");
+
+		expect(cart.supplier).toEqual({ name: "SUP-9", supplier_name: "SUP-9" });
+		expect(cart.purchaseWarehouse).toBe("Main - A");
+		expect(cart.purchaseTaxTemplate).toBe("Purchase VAT 15%");
+		expect(cart.purchaseExpenseAccount).toBe("Expenses - A");
+	});
+
 	it("submitPurchaseInvoice saves + submits a Purchase Invoice with qty payload", async () => {
 		const cart = usePOSCartStore();
 		cart.setMode("purchase");

@@ -60,23 +60,25 @@
 			</div>
 		</button>
 
-		<!-- Purchases -->
+		<!-- Purchase mode toggle: activates/deactivates purchase mode on the main screen -->
 		<button
 			v-if="canManagePurchases"
+			data-testid="rail-purchase-mode-toggle"
 			@click="handleMenuClick('purchases')"
+			:aria-pressed="purchaseModeActive"
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
-				activeMenu === 'purchases'
-					? 'bg-orange-100 text-orange-600'
+				purchaseModeActive
+					? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-300'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
-			:title="__('المشتريات')"
+			:title="purchaseModeActive ? __('Exit purchase mode') : __('Activate purchase mode')"
 		>
 			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
 			</svg>
 			<div class="absolute start-full ms-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-				{{ __("المشتريات") }}
+				{{ purchaseModeActive ? __("Exit purchase mode") : __("Activate purchase mode") }}
 			</div>
 		</button>
 
@@ -165,6 +167,8 @@ const props = defineProps({
 	canManagePurchases: { type: Boolean, default: false },
 	canViewReports: { type: Boolean, default: false },
 	canManageSettings: { type: Boolean, default: false },
+	// True while the cart is in purchase mode — highlights the purchase toggle.
+	purchaseModeActive: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["menu-clicked"]);
@@ -172,7 +176,11 @@ const emit = defineEmits(["menu-clicked"]);
 const activeMenu = ref("");
 
 function handleMenuClick(menuItem) {
-	activeMenu.value = menuItem;
+	// "purchases" is a mode toggle, not a panel — its highlight is driven by the
+	// purchaseModeActive prop, so it must not claim the transient activeMenu state.
+	if (menuItem !== "purchases") {
+		activeMenu.value = menuItem;
+	}
 	emit("menu-clicked", menuItem);
 }
 

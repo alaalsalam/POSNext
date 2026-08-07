@@ -65,45 +65,15 @@
 	<div class="flex flex-col h-full bg-white">
 		<!-- Header with Customer -->
 		<div class="px-2.5 py-2 border-b border-gray-200 bg-gray-50">
-			<!-- Sales / Purchase mode switch (managers only) -->
-			<div v-if="canManagePurchases" class="flex items-center justify-between gap-2 mb-2">
-				<div class="flex items-center bg-gray-100 rounded-xl p-0.5">
-					<button
-						type="button"
-						@click="requestModeSwitch('sales')"
-						class="px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5"
-						:class="
-							!isPurchaseMode
-								? 'bg-white text-blue-600 shadow-sm'
-								: 'text-gray-500 hover:text-gray-700'
-						"
-						:title="__('Sales')"
-					>
-						<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-						</svg>
-						<span>{{ __("Sales") }}</span>
-					</button>
-					<button
-						type="button"
-						data-testid="cart-purchase-mode-button"
-						@click="requestModeSwitch('purchase')"
-						class="px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5"
-						:class="
-							isPurchaseMode
-								? 'bg-white text-orange-600 shadow-sm'
-								: 'text-gray-500 hover:text-gray-700'
-						"
-						:title="__('Purchase')"
-					>
-						<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
-						</svg>
-						<span>{{ __("Purchase") }}</span>
-					</button>
+			<!-- Purchase mode: header row (label + Purchase History) -->
+			<div v-if="isPurchaseMode" class="flex items-center justify-between gap-2 mb-2">
+				<div class="flex items-center gap-1.5 text-[11px] font-bold text-orange-600">
+					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+					</svg>
+					<span>{{ __("Purchase Mode") }}</span>
 				</div>
 				<button
-					v-if="isPurchaseMode"
 					type="button"
 					@click="$emit('show-purchase-history')"
 					class="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
@@ -1543,36 +1513,6 @@
 			@update-item="handleUpdateItem"
 		/>
 
-		<!-- Mode Switch Confirmation (cart is not empty) -->
-		<div
-			v-if="showModeSwitchConfirm"
-			class="fixed inset-0 z-[400] bg-black/40 flex items-center justify-center p-6"
-			@click.self="showModeSwitchConfirm = null"
-		>
-			<div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-				<h3 class="text-base font-bold text-gray-900 mb-2">{{ __("Switch mode?") }}</h3>
-				<p class="text-sm text-gray-600 mb-4">
-					{{ __("Switching mode will clear the current cart and party. Continue?") }}
-				</p>
-				<div class="flex gap-3">
-					<button
-						type="button"
-						@click="showModeSwitchConfirm = null"
-						class="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
-					>
-						{{ __("Cancel") }}
-					</button>
-					<button
-						type="button"
-						data-testid="confirm-mode-switch"
-						@click="confirmModeSwitch"
-						class="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 transition-colors"
-					>
-						{{ __("Switch & Clear") }}
-					</button>
-				</div>
-			</div>
-		</div>
 	</div>
 </template>
 
@@ -1670,10 +1610,6 @@ const props = defineProps({
 		default: () => [],
 	},
 	// Purchase mode
-	canManagePurchases: {
-		type: Boolean,
-		default: false,
-	},
 	canSubmitPurchases: {
 		type: Boolean,
 		default: false,
@@ -1719,7 +1655,6 @@ const emit = defineEmits([
 	"show-return", // () - Open return invoice dialog
 	"close-shift", // () - Close current shift
 	// "create-sales-order", // () - Create Sales Order // Removed as per instruction
-	"set-mode", // (mode) - Switch between 'sales' and 'purchase'
 	"purchase-checkout", // () - Create + submit purchase invoice from cart
 	"show-purchase-history", // () - Open the purchase invoices history panel
 ]);
@@ -2349,28 +2284,6 @@ const canConfirmPurchase = computed(
 		!!cartStore.supplier &&
 		!!cartStore.purchaseWarehouse
 );
-
-/**
- * Request a mode switch. If the cart has items, confirm before wiping so a misclick
- * never silently destroys a cart (switching modes always resets the cart/party).
- */
-function requestModeSwitch(nextMode) {
-	if (cartStore.mode === nextMode) return;
-	if (props.items.length > 0) {
-		showModeSwitchConfirm.value = nextMode;
-		return;
-	}
-	emit("set-mode", nextMode);
-}
-
-const showModeSwitchConfirm = ref(null); // holds the target mode while confirming
-
-function confirmModeSwitch() {
-	if (showModeSwitchConfirm.value) {
-		emit("set-mode", showModeSwitchConfirm.value);
-	}
-	showModeSwitchConfirm.value = null;
-}
 
 /**
  * Handle clicks outside interactive elements.

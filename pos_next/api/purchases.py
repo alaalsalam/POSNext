@@ -388,6 +388,11 @@ def get_new_purchase_invoice_defaults(pos_profile=None):
 		# Configurable purchase defaults (mirror the sales default customer) so
 		# Purchase mode opens pre-filled. Cashier can still change any of them.
 		"default_supplier": settings.get("posa_default_supplier"),
+		"default_supplier_name": frappe.db.get_value(
+			"Supplier", settings.get("posa_default_supplier"), "supplier_name"
+		)
+		if settings.get("posa_default_supplier")
+		else None,
 		"default_warehouse": settings.get("posa_default_purchase_warehouse"),
 		"default_tax_template": settings.get("posa_default_purchase_tax_template"),
 		"default_expense_account": settings.get("posa_default_expense_account"),

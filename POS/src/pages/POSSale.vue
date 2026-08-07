@@ -272,6 +272,7 @@
 					:can-manage-purchases="canManagePurchases"
 					:can-view-reports="canViewReports"
 					:can-manage-settings="canManageFeatureFlags"
+					:purchase-mode-active="cartStore.mode === 'purchase'"
 				/>
 
 				<!-- Main Content Container -->
@@ -497,14 +498,12 @@
 								:currency="shiftStore.profileCurrency"
 								:applied-offers="cartStore.appliedOffers"
 								:warehouses="profileWarehouses"
-								:can-manage-purchases="canManagePurchases"
 								:can-submit-purchases="canSubmitPurchases"
 								:purchase-warehouses="purchaseWarehouseOptions"
 								:purchase-tax-templates="purchaseTaxTemplates"
 								:purchase-expense-accounts="purchaseExpenseAccounts"
-								@set-mode="handleSetMode"
 								@purchase-checkout="handlePurchaseCheckout"
-								@show-purchase-history="handleManagementMenuClick('purchases')"
+								@show-purchase-history="openPurchaseHistory"
 								@update-quantity="cartStore.updateItemQuantity"
 								@remove-item="
 									(itemCode, uom) => cartStore.removeItem(itemCode, uom)
@@ -872,6 +871,37 @@
 						@back="purchaseView = 'list'"
 						@close="showPurchasesPanel = false"
 					/>
+				</div>
+			</div>
+
+			<!-- Mode switch confirmation (cart is not empty) -->
+			<div
+				v-if="pendingModeSwitch"
+				class="fixed inset-0 z-[400] bg-black/40 flex items-center justify-center p-6"
+				@click.self="cancelModeSwitch"
+			>
+				<div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+					<h3 class="text-base font-bold text-gray-900 mb-2">{{ __("Switch mode?") }}</h3>
+					<p class="text-sm text-gray-600 mb-4">
+						{{ __("Switching mode will clear the current cart and party. Continue?") }}
+					</p>
+					<div class="flex gap-3">
+						<button
+							type="button"
+							@click="cancelModeSwitch"
+							class="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+						>
+							{{ __("Cancel") }}
+						</button>
+						<button
+							type="button"
+							data-testid="confirm-mode-switch"
+							@click="confirmModeSwitch"
+							class="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 transition-colors"
+						>
+							{{ __("Switch & Clear") }}
+						</button>
+					</div>
 				</div>
 			</div>
 			<SupplierPaymentDialog
@@ -1409,6 +1439,10 @@ const purchaseExpenseAccounts = ref([]);
 const purchaseMetaDefaults = ref({}); // company/currency/dates/buying_price_list
 let purchaseMetaLoaded = false;
 const cartSupplierPaymentInvoice = ref(null); // skippable payment after checkout
+// Holds the target mode ('sales' | 'purchase') while confirming a cart wipe. Null
+// when no confirmation is pending. The rail toggle switches the cart's mode, and
+// switching modes always clears the cart, so a non-empty cart must be confirmed.
+const pendingModeSwitch = ref(null);
 
 // Invoice Detail dialog
 const showInvoiceDetail = ref(false);
@@ -1611,6 +1645,16 @@ onMounted(async () => {
 	// Listen to general settings changes (catch-all for any setting change)
 	onSettingsChanged(async ({ changes }) => {
 		log.info("Event: Settings changed", changes);
+
+		// Purchase defaults are cached once per session in loadPurchaseMeta. If a
+		// manager just changed any purchase default, invalidate the cache so the next
+		// time purchase mode is entered it pre-fills with the fresh values.
+		const purchaseDefaultChanged = Object.keys(changes || {}).some((key) =>
+			key.startsWith("posa_default_")
+		);
+		if (purchaseDefaultChanged) {
+			purchaseMetaLoaded = false;
+		}
 
 		// Reload settings to ensure all computed properties are fresh
 		await posSettingsStore.reloadSettings();
@@ -3281,8 +3325,10 @@ function handleManagementMenuClick(menuItem) {
 	} else if (menuItem === "catalog") {
 		showCatalogManagement.value = true;
 	} else if (menuItem === "purchases") {
-		showPurchasesPanel.value = true;
-		purchaseView.value = "list";
+		// The rail (and mobile) "Purchases" control now TOGGLES purchase mode on the
+		// main screen. The purchase invoices list is reachable via the in-cart
+		// "Purchase History" button (openPurchaseHistory).
+		togglePurchaseMode();
 	} else if (menuItem === "reports") {
 		showReportsPanel.value = true;
 	}
@@ -3524,13 +3570,71 @@ async function handleSetMode(nextMode) {
 		// Don't engage purchase mode if its data couldn't load.
 		if (!(await loadPurchaseMeta())) return;
 		cartStore.setMode("purchase");
-		// Default the target warehouse from the profile so Update Stock is satisfied.
-		if (shiftStore.profileWarehouse && !cartStore.purchaseWarehouse) {
-			cartStore.setPurchaseWarehouse(shiftStore.profileWarehouse);
-		}
+		applyPurchaseDefaults();
 	} else {
 		cartStore.setMode("sales");
 	}
+}
+
+/**
+ * Pre-fill supplier / warehouse / tax template / expense account from the POS
+ * Settings purchase defaults when entering purchase mode. Only fills empty fields
+ * so a value the cashier just picked is never overwritten. setMode() clears these
+ * on entry, so the guards match the profile-warehouse fallback pattern.
+ */
+function applyPurchaseDefaults() {
+	const defaults = purchaseMetaDefaults.value || {};
+
+	if (!cartStore.supplier && defaults.default_supplier) {
+		cartStore.setSupplier({
+			name: defaults.default_supplier,
+			supplier_name: defaults.default_supplier_name || defaults.default_supplier,
+		});
+	}
+	// Warehouse precedence: configured purchase default, then the profile warehouse
+	// (so Update Stock is always satisfied).
+	if (!cartStore.purchaseWarehouse) {
+		const warehouse = defaults.default_warehouse || shiftStore.profileWarehouse;
+		if (warehouse) cartStore.setPurchaseWarehouse(warehouse);
+	}
+	if (!cartStore.purchaseTaxTemplate && defaults.default_tax_template) {
+		cartStore.setPurchaseTaxTemplate(defaults.default_tax_template);
+	}
+	if (!cartStore.purchaseExpenseAccount && defaults.default_expense_account) {
+		cartStore.setPurchaseExpenseAccount(defaults.default_expense_account);
+	}
+}
+
+/**
+ * Toggle purchase mode from the side rail (or mobile). Switching modes always
+ * clears the cart, so confirm before wiping a non-empty cart.
+ */
+function togglePurchaseMode() {
+	if (!canManagePurchases.value) return;
+	const nextMode = cartStore.mode === "purchase" ? "sales" : "purchase";
+	if (cartStore.itemCount > 0) {
+		pendingModeSwitch.value = nextMode;
+		return;
+	}
+	handleSetMode(nextMode);
+}
+
+function confirmModeSwitch() {
+	if (pendingModeSwitch.value) {
+		handleSetMode(pendingModeSwitch.value);
+	}
+	pendingModeSwitch.value = null;
+}
+
+function cancelModeSwitch() {
+	pendingModeSwitch.value = null;
+}
+
+// Open the purchase invoices history/list panel (the in-cart "Purchase History"
+// button). Kept separate from the rail toggle so the rail only flips the mode.
+function openPurchaseHistory() {
+	showPurchasesPanel.value = true;
+	purchaseView.value = "list";
 }
 
 async function handlePurchaseCheckout() {

@@ -250,6 +250,54 @@
 										</span>
 									</label>
 								</div>
+									<!-- Purchase Defaults — pre-fill purchase mode (mirrors sales default customer) -->
+									<div v-if="settings.enable_purchases" class="border-t border-gray-100 p-5">
+										<div class="flex items-center gap-2 mb-1">
+											<svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+											</svg>
+											<h3 class="font-bold text-gray-900">{{ __("Purchase Defaults") }}</h3>
+										</div>
+										<p class="text-sm text-gray-600 mb-4">
+											{{ __("Pre-fill these when purchase mode is opened. The cashier can still change any of them.") }}
+										</p>
+
+										<div v-if="purchaseDefaultsLoading" class="text-sm text-gray-500 py-2">
+											{{ __("Loading purchase options...") }}
+										</div>
+										<div
+											v-else-if="purchaseDefaultsError"
+											class="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
+										>
+											{{ __("Enable Purchases and save settings first, then reopen to pick purchase defaults.") }}
+										</div>
+										<div v-else class="grid grid-cols-1 md:grid-cols-2 gap-2">
+											<SelectField
+												v-model="settings.posa_default_supplier"
+												:label="__('Default Supplier')"
+												:options="supplierOptions"
+												:description="__('Pre-selected supplier for new purchases.')"
+											/>
+											<SelectField
+												v-model="settings.posa_default_purchase_warehouse"
+												:label="__('Default Warehouse')"
+												:options="purchaseWarehouseOptions"
+												:description="__('Receiving warehouse for purchased stock.')"
+											/>
+											<SelectField
+												v-model="settings.posa_default_purchase_tax_template"
+												:label="__('Default Purchase Tax Template')"
+												:options="purchaseTaxTemplateOptions"
+												:description="__('Purchase taxes and charges template.')"
+											/>
+											<SelectField
+												v-model="settings.posa_default_expense_account"
+												:label="__('Default Expense Account')"
+												:options="expenseAccountOptions"
+												:description="__('Expense account for purchased expense items.')"
+											/>
+										</div>
+									</div>
 							</div>
 
 							<!-- Stock Settings Section - Prominent -->
@@ -1773,6 +1821,11 @@ const settings = ref({
 	enable_purchases: 0,
 	enable_supplier_payments: 0,
 	enable_pos_reports: 0,
+	// Purchase defaults (mirror the sales default customer) — pre-fill purchase mode
+	posa_default_supplier: "",
+	posa_default_purchase_warehouse: "",
+	posa_default_purchase_tax_template: "",
+	posa_default_expense_account: "",
 });
 
 const featureFlagDefinitions = computed(() => [
@@ -1798,6 +1851,111 @@ const featureFlagDefinitions = computed(() => [
 		description: __("Show operational reports to authorized managers inside POS."),
 	},
 ]);
+
+// Purchase defaults option lists (loaded lazily when the section is visible).
+const purchaseSuppliers = ref([]);
+const purchaseWarehouses = ref([]);
+const purchaseTaxTemplates = ref([]);
+const purchaseExpenseAccounts = ref([]);
+const purchaseDefaultsLoading = ref(false);
+const purchaseDefaultsError = ref(false);
+let purchaseDefaultsLoaded = false;
+
+/**
+ * Build SelectField options ([{value,label}]) from a fetched list. Ensures the
+ * currently-saved value is always present as an option even when it falls outside
+ * the fetched set (e.g. supplier list capped at 100, or a value now disabled),
+ * so the <select> never renders blank while a value is silently set.
+ */
+function toPurchaseOptions(list, valueKey, labelKey, savedValue) {
+	const options = (list || []).map((row) => ({
+		value: row[valueKey],
+		label: row[labelKey] || row[valueKey],
+	}));
+	if (savedValue && !options.some((o) => o.value === savedValue)) {
+		options.unshift({ value: savedValue, label: savedValue });
+	}
+	return options;
+}
+
+const supplierOptions = computed(() =>
+	toPurchaseOptions(
+		purchaseSuppliers.value,
+		"name",
+		"supplier_name",
+		settings.value.posa_default_supplier
+	)
+);
+const purchaseWarehouseOptions = computed(() =>
+	toPurchaseOptions(
+		purchaseWarehouses.value,
+		"name",
+		"warehouse_name",
+		settings.value.posa_default_purchase_warehouse
+	)
+);
+const purchaseTaxTemplateOptions = computed(() =>
+	toPurchaseOptions(
+		purchaseTaxTemplates.value,
+		"name",
+		"title",
+		settings.value.posa_default_purchase_tax_template
+	)
+);
+const expenseAccountOptions = computed(() =>
+	toPurchaseOptions(
+		purchaseExpenseAccounts.value,
+		"name",
+		"account_name",
+		settings.value.posa_default_expense_account
+	)
+);
+
+/**
+ * Lazily load the purchase-defaults option lists. Runs only when the Feature Flags
+ * tab is open with purchases enabled. The endpoints are feature-gated server-side,
+ * so if the manager just toggled purchases ON but hasn't saved yet, the load fails
+ * — surface a graceful inline note instead of a raw error.
+ */
+async function loadPurchaseDefaultOptions() {
+	if (purchaseDefaultsLoaded || purchaseDefaultsLoading.value) return;
+	if (!props.posProfile) return;
+	purchaseDefaultsLoading.value = true;
+	purchaseDefaultsError.value = false;
+	try {
+		const [suppliers, warehouses, taxTemplates, expenseAccounts] = await Promise.all([
+			call("pos_next.api.purchases.get_suppliers", {
+				limit: 100,
+				pos_profile: props.posProfile,
+			}),
+			call("pos_next.api.purchases.get_warehouses", { pos_profile: props.posProfile }),
+			call("pos_next.api.purchases.get_purchase_tax_templates", {
+				pos_profile: props.posProfile,
+			}),
+			call("pos_next.api.purchases.get_expense_accounts", {
+				pos_profile: props.posProfile,
+			}),
+		]);
+		purchaseSuppliers.value = suppliers || [];
+		purchaseWarehouses.value = warehouses || [];
+		purchaseTaxTemplates.value = taxTemplates || [];
+		purchaseExpenseAccounts.value = expenseAccounts || [];
+		purchaseDefaultsLoaded = true;
+	} catch (error) {
+		log.error("Error loading purchase default options:", error);
+		purchaseDefaultsError.value = true;
+	} finally {
+		purchaseDefaultsLoading.value = false;
+	}
+}
+
+// Load lazily when the Purchase Defaults section becomes visible.
+watch(
+	() => activeTab.value === "features" && !!settings.value.enable_purchases,
+	(visible) => {
+		if (visible) loadPurchaseDefaultOptions();
+	}
+);
 
 // Stock Sync Settings (localStorage persisted)
 const stockSyncEnabled = ref(false);
@@ -2095,6 +2253,14 @@ async function saveSettings() {
 		}
 
 		showSuccess(successMessage);
+
+		// If purchases was just enabled (or the earlier option load failed because the
+		// flag wasn't saved yet), the feature-gated purchase-default endpoints now pass
+		// — load the option lists so the section is usable without a manual reopen.
+		if (settings.value.enable_purchases && !purchaseDefaultsLoaded) {
+			purchaseDefaultsError.value = false;
+			loadPurchaseDefaultOptions();
+		}
 	} catch (error) {
 		log.error("Error saving settings:", error);
 		showError(error.message || __("Failed to save settings"));
