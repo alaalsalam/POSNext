@@ -364,6 +364,18 @@ def get_new_purchase_invoice_defaults(pos_profile=None):
 	frappe.has_permission("Purchase Invoice", "create", throw=True)
 	price_list = _default_buying_price_list(company)
 	price = _assert_price_list(price_list, company)
+	settings = frappe.db.get_value(
+		"POS Settings",
+		{"pos_profile": profile},
+		[
+			"posa_default_supplier",
+			"posa_default_purchase_warehouse",
+			"posa_default_purchase_tax_template",
+			"posa_default_expense_account",
+		],
+		as_dict=True,
+	) or {}
+	default_currency = frappe.db.get_value("Company", company, "default_currency")
 	return {
 		"pos_profile": profile,
 		"company": company,
@@ -371,8 +383,14 @@ def get_new_purchase_invoice_defaults(pos_profile=None):
 		"due_date": add_days(nowdate(), 30),
 		"buying_price_list": price.name,
 		"price_list_currency": price.currency,
-		"currency": frappe.db.get_value("Company", company, "default_currency"),
-		"company_currency": frappe.db.get_value("Company", company, "default_currency"),
+		"currency": default_currency,
+		"company_currency": default_currency,
+		# Configurable purchase defaults (mirror the sales default customer) so
+		# Purchase mode opens pre-filled. Cashier can still change any of them.
+		"default_supplier": settings.get("posa_default_supplier"),
+		"default_warehouse": settings.get("posa_default_purchase_warehouse"),
+		"default_tax_template": settings.get("posa_default_purchase_tax_template"),
+		"default_expense_account": settings.get("posa_default_expense_account"),
 	}
 
 

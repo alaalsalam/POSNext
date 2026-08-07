@@ -73,6 +73,12 @@
   "section_break_cash_variance",
   "posa_surplus_account",
   "posa_max_variance_for_posting",
+  "section_break_purchase_defaults",
+  "posa_default_supplier",
+  "posa_default_purchase_warehouse",
+  "column_break_purchase_defaults",
+  "posa_default_purchase_tax_template",
+  "posa_default_expense_account",
   "section_break_security",
   "enable_session_lock",
   "session_lock_timeout",
@@ -552,6 +558,44 @@
    "fieldname": "posa_max_variance_for_posting",
    "fieldtype": "Currency",
    "label": "Max Combined Variance Allowed for Posting"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_purchase_defaults",
+   "fieldtype": "Section Break",
+   "label": "Purchase Defaults"
+  },
+  {
+   "description": "Supplier pre-selected when the POS main screen is switched to Purchase mode (mirrors the sales default customer). The cashier can still change it.",
+   "fieldname": "posa_default_supplier",
+   "fieldtype": "Link",
+   "label": "Default Supplier",
+   "options": "Supplier"
+  },
+  {
+   "description": "Receiving warehouse pre-selected in Purchase mode (must be a non-group warehouse to receive stock).",
+   "fieldname": "posa_default_purchase_warehouse",
+   "fieldtype": "Link",
+   "label": "Default Purchase Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "column_break_purchase_defaults",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Purchase tax template pre-selected in Purchase mode.",
+   "fieldname": "posa_default_purchase_tax_template",
+   "fieldtype": "Link",
+   "label": "Default Purchase Tax Template",
+   "options": "Purchase Taxes and Charges Template"
+  },
+  {
+   "description": "Expense account pre-filled for expense/service line items in Purchase mode.",
+   "fieldname": "posa_default_expense_account",
+   "fieldtype": "Link",
+   "label": "Default Expense Account",
+   "options": "Account"
   },
   {
    "collapsible": 1,
