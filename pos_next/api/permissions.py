@@ -3,8 +3,31 @@
 
 import frappe
 
-from pos_next.api.feature_flags import FEATURE_DEFAULTS, get_feature_flags, is_feature_manager
+from pos_next.api.feature_flags import (
+	FEATURE_DEFAULTS,
+	_get_active_pos_profile,
+	get_feature_flags,
+	is_feature_manager,
+)
 from pos_next.api.reporting_access import is_report_manager
+
+
+def _resolve_ui_pos_profile(pos_profile=None):
+	"""Resolve the POS Profile to read feature flags from for UI show/hide.
+
+	The frontend sometimes asks for permissions before a shift/profile is active
+	(and used to get a degraded, all-flags-off result, spuriously hiding Catalog /
+	Reports). Fall back to the user's active shift profile, then to their assigned
+	POS Profile, so a legitimate POS user always gets their own shop's flags. This
+	is UI-only — actual operations are still gated per active profile by
+	require_feature().
+	"""
+	if pos_profile:
+		return pos_profile
+	active = _get_active_pos_profile()
+	if active:
+		return active
+	return frappe.db.get_value("POS Profile User", {"user": frappe.session.user}, "parent")
 
 
 @frappe.whitelist()
@@ -16,7 +39,7 @@ def get_pos_permissions(pos_profile=None):
 	user_roles = frappe.get_roles()
 	feature_flags = FEATURE_DEFAULTS.copy()
 	try:
-		feature_flags = get_feature_flags(pos_profile=pos_profile)
+		feature_flags = get_feature_flags(pos_profile=_resolve_ui_pos_profile(pos_profile))
 	except frappe.PermissionError:
 		pass
 

@@ -12,10 +12,16 @@ const permissionCache = ref({});
 // Shared POS permissions state — loaded once from get_pos_permissions()
 const _posPerms = ref(null);
 const _posPermsLoading = ref(false);
+// The POS Profile the cached permissions were loaded for. Feature-gated flags
+// (Catalog, Reports, Purchases…) are profile-specific, so a result loaded for an
+// empty/other profile must NOT be reused for a real one — otherwise an early
+// permission load (before the shift's profile is ready) would cache a degraded,
+// all-flags-off result and spuriously hide those buttons.
+let _posPermsProfile;
 
 /**
  * Load all POS permissions in one API call.
- * Shared across all components — only fetches once per session.
+ * Cached per profile; re-fetches when the requested profile differs from the cache.
  */
 export async function loadPOSPermissions({ force = false, posProfile = null } = {}) {
 	if (_posPermsLoading.value) {
@@ -25,27 +31,33 @@ export async function loadPOSPermissions({ force = false, posProfile = null } = 
 				if (!_posPermsLoading.value) { clearInterval(stop); resolve(); }
 			}, 50);
 		});
-		if (!force) return _posPerms.value;
+		if (!force && _posPerms.value && _posPermsProfile === posProfile) return _posPerms.value;
 	}
-	if (force) _posPerms.value = null;
+	if (force || _posPermsProfile !== posProfile) _posPerms.value = null;
 	if (_posPerms.value) return _posPerms.value;
 	_posPermsLoading.value = true;
 	try {
 		const result = await call("pos_next.api.permissions.get_pos_permissions", {
 			pos_profile: posProfile,
 		});
-		_posPerms.value = result || {};
+		// Never cache an empty/failed result — a transient hiccup during startup
+		// (e.g. a CSRF/session blip) would otherwise leave every gated button
+		// permanently hidden. Leaving _posPerms null lets the next call retry.
+		if (result && Object.keys(result).length) {
+			_posPerms.value = result;
+			_posPermsProfile = posProfile;
+		}
 	} catch (e) {
 		console.error("[POS Permissions] Failed to load:", e);
-		_posPerms.value = {};
 	} finally {
 		_posPermsLoading.value = false;
 	}
-	return _posPerms.value;
+	return _posPerms.value || {};
 }
 
 export function invalidatePOSPermissions() {
 	_posPerms.value = null;
+	_posPermsProfile = undefined;
 	permissionCache.value = {};
 }
 
