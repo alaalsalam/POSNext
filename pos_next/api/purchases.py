@@ -168,7 +168,17 @@ def _assert_price_list(name, company):
 
 
 def _default_buying_price_list(company):
-	return frappe.db.get_single_value("Buying Settings", "buying_price_list") or "Standard Buying"
+	"""Resolve a usable buying price list.
+
+	Falls back to the first enabled buying price list when Buying Settings is unset or
+	(as seen in the wild) points at a selling list, so purchase mode doesn't hard-fail on
+	a misconfigured default.
+	"""
+	configured = frappe.db.get_single_value("Buying Settings", "buying_price_list")
+	if configured and frappe.db.get_value("Price List", configured, ["enabled", "buying"]) == (1, 1):
+		return configured
+	fallback = frappe.db.get_value("Price List", {"enabled": 1, "buying": 1}, "name", order_by="creation")
+	return fallback or configured or "Standard Buying"
 
 
 def _validate_currency(currency, company, conversion_rate):
@@ -468,6 +478,26 @@ def get_item_buying_price(item_code, buying_price_list=None, uom=None, pos_profi
 	if len(prices) > 1:
 		frappe.throw(_("Multiple applicable buying prices exist; select the rate explicitly"))
 	return {"item_code": item.name, "buying_price": flt(prices[0].price_list_rate) if prices else 0, "price_list": price_list.name, "currency": price_list.currency}
+
+
+@frappe.whitelist()
+def get_buying_prices(buying_price_list=None, pos_profile=None):
+	"""Bulk buying-price map so the POS grid can show purchase prices in one call (no per-item N+1)."""
+	_profile, company = _context("purchases", pos_profile)
+	frappe.has_permission("Item Price", "read", throw=True)
+	price_list = _assert_price_list(buying_price_list or _default_buying_price_list(company), company)
+	rows = frappe.get_list(
+		"Item Price",
+		filters={"price_list": price_list.name, "buying": 1},
+		fields=["item_code", "uom", "price_list_rate"],
+		order_by="valid_from desc",
+		limit=0,
+	)
+	prices = {}
+	for row in rows:
+		# First occurrence wins (newest valid_from first); ignore later/duplicate rows.
+		prices.setdefault(row.item_code, flt(row.price_list_rate))
+	return {"price_list": price_list.name, "currency": price_list.currency, "prices": prices}
 
 
 @frappe.whitelist()

@@ -442,6 +442,7 @@
 								:pos-profile="shiftStore.profileName"
 								:cart-items="cartStore.invoiceItems"
 								:currency="shiftStore.profileCurrency"
+								:buying-prices="purchaseBuyingPrices"
 								@item-selected="handleItemSelected"
 							/>
 						</div>
@@ -496,6 +497,14 @@
 								:currency="shiftStore.profileCurrency"
 								:applied-offers="cartStore.appliedOffers"
 								:warehouses="profileWarehouses"
+								:can-manage-purchases="canManagePurchases"
+								:can-submit-purchases="canSubmitPurchases"
+								:purchase-warehouses="purchaseWarehouseOptions"
+								:purchase-tax-templates="purchaseTaxTemplates"
+								:purchase-expense-accounts="purchaseExpenseAccounts"
+								@set-mode="handleSetMode"
+								@purchase-checkout="handlePurchaseCheckout"
+								@show-purchase-history="handleManagementMenuClick('purchases')"
 								@update-quantity="cartStore.updateItemQuantity"
 								@remove-item="
 									(itemCode, uom) => cartStore.removeItem(itemCode, uom)
@@ -871,6 +880,15 @@
 				:pos-profile="shiftStore.profileName"
 				@close="supplierPaymentInvoice = null"
 				@created="onSupplierPaymentCreated"
+			/>
+
+			<!-- Supplier payment after a main-screen purchase checkout (skippable) -->
+			<SupplierPaymentDialog
+				v-if="cartSupplierPaymentInvoice"
+				:invoice="cartSupplierPaymentInvoice"
+				:pos-profile="shiftStore.profileName"
+				@close="cartSupplierPaymentInvoice = null"
+				@created="onCartSupplierPaymentCreated"
 			/>
 
 			<!-- Reports Panel -->
@@ -1383,6 +1401,15 @@ const supplierPaymentInvoice = ref(null);
 const showReportsPanel = ref(false);
 const canViewReports = ref(false);
 
+// Purchase mode (main-screen unified purchase flow)
+const purchaseBuyingPrices = ref({}); // { item_code: buying_price }
+const purchaseWarehouseOptions = ref([]);
+const purchaseTaxTemplates = ref([]);
+const purchaseExpenseAccounts = ref([]);
+const purchaseMetaDefaults = ref({}); // company/currency/dates/buying_price_list
+let purchaseMetaLoaded = false;
+const cartSupplierPaymentInvoice = ref(null); // skippable payment after checkout
+
 // Invoice Detail dialog
 const showInvoiceDetail = ref(false);
 const selectedInvoiceForView = ref(null);
@@ -1759,7 +1786,12 @@ async function handleFeatureFlagsUpdated(payload) {
 	await posSettingsStore.reloadSettings();
 	await checkCatalogPermission();
 	if (!canManageCatalog.value) showCatalogManagement.value = false;
-	if (!canManagePurchases.value) showPurchasesPanel.value = false;
+	if (!canManagePurchases.value) {
+		showPurchasesPanel.value = false;
+		// If purchase access was revoked mid-session, fall back to sales mode so the
+		// screen never gets stuck in an unavailable mode.
+		if (cartStore.mode === "purchase") cartStore.setMode("sales");
+	}
 	if (!canViewReports.value) showReportsPanel.value = false;
 }
 
@@ -2124,6 +2156,24 @@ async function handleShiftClosed() {
 }
 
 function handleItemSelected(item, autoAdd = false) {
+	// Purchase mode: add directly at stock UOM with the buying price. Sales-only
+	// concepts (variants/UOM/batch/serial dialogs, stock-out guard) don't apply.
+	if (cartStore.mode === "purchase") {
+		const buyingPrice = purchaseBuyingPrices.value[item.item_code] || 0;
+		cartStore.addItem(
+			{
+				...item,
+				uom: item.stock_uom || item.uom,
+				rate: buyingPrice,
+				price_list_rate: buyingPrice,
+			},
+			1,
+			false,
+			shiftStore.currentProfile
+		);
+		return;
+	}
+
 	// Auto-add mode
 	if (autoAdd) {
 		try {
@@ -3421,5 +3471,91 @@ function onSupplierPaymentCreated() {
 	requestAnimationFrame(() => {
 		showPurchasesPanel.value = true;
 	});
+}
+
+/**
+ * ============================================================================
+ * PURCHASE MODE (main-screen unified flow)
+ * ============================================================================
+ */
+
+/**
+ * Load purchase metadata (defaults, warehouses, tax templates, buying prices)
+ * once when the user first enters purchase mode. One call each, no N+1.
+ */
+async function loadPurchaseMeta() {
+	if (purchaseMetaLoaded) return true;
+	try {
+		const [defaults, warehouses, taxTemplates, expenseAccounts, buyingPrices] =
+			await Promise.all([
+				call("pos_next.api.purchases.get_new_purchase_invoice_defaults", {
+					pos_profile: shiftStore.profileName,
+				}),
+				call("pos_next.api.purchases.get_warehouses", {
+					pos_profile: shiftStore.profileName,
+				}),
+				call("pos_next.api.purchases.get_purchase_tax_templates", {
+					pos_profile: shiftStore.profileName,
+				}),
+				call("pos_next.api.purchases.get_expense_accounts", {
+					pos_profile: shiftStore.profileName,
+				}),
+				call("pos_next.api.purchases.get_buying_prices", {
+					pos_profile: shiftStore.profileName,
+				}),
+			]);
+		purchaseMetaDefaults.value = defaults || {};
+		purchaseWarehouseOptions.value = warehouses || [];
+		purchaseTaxTemplates.value = taxTemplates || [];
+		purchaseExpenseAccounts.value = expenseAccounts || [];
+		purchaseBuyingPrices.value = buyingPrices?.prices || {};
+		purchaseMetaLoaded = true;
+		return true;
+	} catch (error) {
+		log.error("Error loading purchase metadata:", error);
+		showError(__("Failed to load purchase data. Please try again."));
+		return false;
+	}
+}
+
+async function handleSetMode(nextMode) {
+	if (nextMode === "purchase") {
+		if (!canManagePurchases.value) return;
+		// Don't engage purchase mode if its data couldn't load.
+		if (!(await loadPurchaseMeta())) return;
+		cartStore.setMode("purchase");
+		// Default the target warehouse from the profile so Update Stock is satisfied.
+		if (shiftStore.profileWarehouse && !cartStore.purchaseWarehouse) {
+			cartStore.setPurchaseWarehouse(shiftStore.profileWarehouse);
+		}
+	} else {
+		cartStore.setMode("sales");
+	}
+}
+
+async function handlePurchaseCheckout() {
+	const result = await cartStore.submitPurchaseInvoice(purchaseMetaDefaults.value);
+	if (!result) return;
+	showSuccess(__("Purchase invoice {0} created", [result.name]));
+	// Reset the purchase cart for the next entry; supplier/warehouse persist for
+	// convenience of consecutive purchases from the same supplier.
+	const keepSupplier = cartStore.supplier;
+	const keepWarehouse = cartStore.purchaseWarehouse;
+	const keepTax = cartStore.purchaseTaxTemplate;
+	const keepExpense = cartStore.purchaseExpenseAccount;
+	cartStore.clearCart();
+	cartStore.setSupplier(keepSupplier);
+	cartStore.setPurchaseWarehouse(keepWarehouse);
+	cartStore.setPurchaseTaxTemplate(keepTax);
+	cartStore.setPurchaseExpenseAccount(keepExpense);
+	// Offer the (skippable) supplier payment; closing the dialog leaves it unpaid.
+	if (canCreateSupplierPayment.value && result.outstanding_amount > 0) {
+		cartSupplierPaymentInvoice.value = { name: result.name };
+	}
+}
+
+function onCartSupplierPaymentCreated() {
+	cartSupplierPaymentInvoice.value = null;
+	showSuccess(__("Supplier payment recorded"));
 }
 </script>

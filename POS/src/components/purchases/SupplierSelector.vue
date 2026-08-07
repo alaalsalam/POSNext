@@ -1,0 +1,241 @@
+<!--
+  Compact supplier picker for purchase mode on the main POS screen.
+  Reuses the supplier search + quick-create logic from PurchaseInvoiceForm.vue,
+  backed by the same pos_next.api.purchases endpoints.
+-->
+<template>
+	<div ref="rootRef" class="relative">
+		<!-- Selected supplier card -->
+		<div
+			v-if="modelValue"
+			class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm min-w-0"
+		>
+			<div
+				class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center flex-shrink-0"
+			>
+				<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17M17 13v6a2 2 0 11-4 0"
+					/>
+				</svg>
+			</div>
+			<div class="min-w-0 flex-1 px-1">
+				<p class="text-xs font-semibold text-gray-900 truncate leading-tight">
+					{{ modelValue.supplier_name || modelValue.name }}
+				</p>
+				<p class="text-[10px] text-gray-500 truncate leading-tight">{{ __("Supplier") }}</p>
+			</div>
+			<button
+				type="button"
+				@click.stop="clearSupplier"
+				class="w-7 h-7 flex items-center justify-center text-red-500 hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors touch-manipulation flex-shrink-0"
+				:title="__('Remove supplier')"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
+		</div>
+
+		<!-- Search input -->
+		<div v-else class="relative">
+			<div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
+				<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5"
+					/>
+				</svg>
+			</div>
+			<input
+				id="cart-supplier-search"
+				name="cart-supplier-search"
+				v-model="search"
+				@input="onSearch"
+				@focus="showDropdown = true"
+				type="text"
+				autocomplete="off"
+				:placeholder="__('Search or add supplier...')"
+				:aria-label="__('Search supplier in cart')"
+				class="w-full h-10 ps-9 pe-3 text-xs border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent shadow-sm transition-shadow"
+			/>
+
+			<!-- Dropdown -->
+			<div
+				v-if="showDropdown && (options.length || search.trim().length >= 2)"
+				class="absolute z-50 mt-0.5 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"
+			>
+				<button
+					type="button"
+					v-for="s in options"
+					:key="s.name"
+					@mousedown.prevent="selectSupplier(s)"
+					class="w-full text-start px-3 py-2 text-xs hover:bg-orange-50 transition-colors border-b border-gray-100 last:border-0"
+				>
+					<span class="font-semibold text-gray-900">{{ s.supplier_name }}</span>
+					<span class="text-gray-400 ms-2">{{ s.supplier_group }}</span>
+				</button>
+				<button
+					type="button"
+					v-if="search.trim().length >= 2"
+					@mousedown.prevent="openCreate"
+					class="w-full text-start px-3 py-2 text-xs text-orange-600 font-semibold hover:bg-orange-50 border-t border-gray-100 flex items-center gap-1"
+				>
+					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+					</svg>
+					{{ __("Create new supplier: {0}", [search]) }}
+				</button>
+			</div>
+		</div>
+
+		<!-- Quick create supplier -->
+		<div
+			v-if="showCreate"
+			class="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-xl grid grid-cols-1 gap-2"
+		>
+			<input
+				v-model="newName"
+				:placeholder="__('New supplier name')"
+				class="h-9 px-3 text-xs rounded-lg border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
+			/>
+			<select v-model="newGroup" class="h-9 px-2 text-xs rounded-lg border border-orange-300 bg-white">
+				<option value="">{{ __("Supplier Group") }}</option>
+				<option v-for="g in supplierGroups" :key="g.name" :value="g.name">{{ g.name }}</option>
+			</select>
+			<div class="flex gap-2">
+				<button
+					type="button"
+					@click="createSupplier"
+					:disabled="!newName || !newGroup || creating"
+					class="flex-1 h-9 px-3 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
+				>
+					{{ creating ? __("Creating...") : __("Create") }}
+				</button>
+				<button
+					type="button"
+					@click="showCreate = false"
+					class="h-9 px-3 text-xs font-semibold text-gray-600 bg-white border border-orange-200 rounded-lg"
+				>
+					{{ __("Cancel") }}
+				</button>
+			</div>
+		</div>
+	</div>
+</template>
+
+<script setup>
+import { ref, onMounted, onBeforeUnmount } from "vue";
+import { call } from "@/utils/apiWrapper";
+import { useToast } from "@/composables/useToast";
+import { managerTranslate as __ } from "@/utils/managementI18n";
+
+const props = defineProps({
+	modelValue: { type: Object, default: null },
+	posProfile: { type: String, required: true },
+});
+const emit = defineEmits(["update:modelValue"]);
+
+const { showError } = useToast();
+
+const rootRef = ref(null);
+const search = ref("");
+const options = ref([]);
+const showDropdown = ref(false);
+const showCreate = ref(false);
+const newName = ref("");
+const newGroup = ref("");
+const supplierGroups = ref([]);
+const creating = ref(false);
+
+let searchTimer = null;
+function onSearch() {
+	clearTimeout(searchTimer);
+	searchTimer = setTimeout(async () => {
+		const q = search.value.trim();
+		if (q.length < 2) {
+			options.value = [];
+			return;
+		}
+		try {
+			const res = await call("pos_next.api.purchases.get_suppliers", {
+				search: q,
+				limit: 10,
+				pos_profile: props.posProfile,
+			});
+			options.value = res || [];
+			showDropdown.value = true;
+		} catch (error) {
+			showError(error?.message || __("Failed to search suppliers"));
+		}
+	}, 300);
+}
+
+function selectSupplier(s) {
+	emit("update:modelValue", { name: s.name, supplier_name: s.supplier_name });
+	search.value = "";
+	options.value = [];
+	showDropdown.value = false;
+}
+
+function clearSupplier() {
+	emit("update:modelValue", null);
+}
+
+function openCreate() {
+	newName.value = search.value.trim();
+	showCreate.value = true;
+	showDropdown.value = false;
+}
+
+async function createSupplier() {
+	if (!newName.value || !newGroup.value) return;
+	creating.value = true;
+	try {
+		const res = await call("pos_next.api.purchases.create_supplier", {
+			supplier_name: newName.value,
+			supplier_group: newGroup.value,
+			supplier_type: "Company",
+			pos_profile: props.posProfile,
+		});
+		if (res?.name) {
+			selectSupplier(res);
+			showCreate.value = false;
+			newName.value = "";
+		}
+	} catch (error) {
+		showError(error?.message || __("Failed to create supplier"));
+	} finally {
+		creating.value = false;
+	}
+}
+
+function handleClickOutside(event) {
+	if (rootRef.value && !rootRef.value.contains(event.target)) {
+		showDropdown.value = false;
+	}
+}
+
+onMounted(async () => {
+	document.addEventListener("mousedown", handleClickOutside);
+	try {
+		const res = await call("pos_next.api.purchases.get_supplier_groups", {
+			pos_profile: props.posProfile,
+		});
+		supplierGroups.value = res || [];
+		newGroup.value = supplierGroups.value[0]?.name || "";
+	} catch (error) {
+		showError(error?.message || __("Failed to load supplier groups"));
+	}
+});
+
+onBeforeUnmount(() => {
+	document.removeEventListener("mousedown", handleClickOutside);
+	clearTimeout(searchTimer);
+});
+</script>

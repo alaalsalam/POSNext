@@ -6,8 +6,16 @@ import { parseError } from "@/utils/errorHandler";
 import { shouldValidateItemStock, checkStockAvailability } from "@/utils/stockValidator";
 import { offlineState } from "@/utils/offline/offlineState";
 import { useToast } from "@/composables/useToast";
+import { call } from "@/utils/apiWrapper";
 import { defineStore } from "pinia";
 import { computed, nextTick, ref, toRaw, watch } from "vue";
+
+function newIdempotencyKey(prefix) {
+	return (
+		globalThis.crypto?.randomUUID?.() ||
+		`${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+	);
+}
 
 /**
  * Creates an async task queue that ensures only one operation runs at a time.
@@ -121,6 +129,21 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	const currentDraftId = ref(null);
 	const targetDoctype = ref("Sales Invoice");
 
+	// Purchase mode: 'sales' (default, existing flow) | 'purchase'.
+	// `mode` is the higher-level switch; `targetDoctype` stays a sales-only concept.
+	const mode = ref("sales");
+	const isPurchaseMode = computed(() => mode.value === "purchase");
+	// Chosen supplier in purchase mode. Kept SEPARATE from `customer` so the offer
+	// watcher and cart-recovery snapshot (which key off `customer`) never treat a
+	// supplier as a customer.
+	const supplier = ref(null);
+	// Compact purchase header fields (target warehouse + tax template + expense account).
+	const purchaseWarehouse = ref("");
+	const purchaseTaxTemplate = ref(null);
+	const purchaseExpenseAccount = ref("");
+	// One idempotency key per checkout attempt; regenerated after a successful submit.
+	let purchaseIdempotencyKey = newIdempotencyKey("purchase");
+
 	// Offer processing state management
 	const offerProcessingState = ref({
 		isProcessing: false, // True while any offer operation is running
@@ -184,6 +207,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 	function saveCartRecoverySnapshot() {
 		if (typeof window === "undefined" || isRestoringCartRecovery || !posProfile.value) return;
+		// The recovery snapshot is a sales-cart resilience feature and is unaware of
+		// purchase mode. Never persist a purchase cart (it would restore as a sales cart).
+		if (mode.value === "purchase") return;
 		try {
 			if (!invoiceItems.value.length) {
 				localStorage.removeItem(getCartRecoveryKey());
@@ -265,6 +291,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	// Actions
 	function addItem(item, qty = 1, _autoAdd = false, currentProfile = null) {
 		if (
+			mode.value !== "purchase" &&
 			currentProfile &&
 			settingsStore.shouldEnforceStockValidation() &&
 			shouldValidateItemStock(item)
@@ -300,8 +327,10 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 		const newQty = Number.parseFloat(quantity) || 1;
 
-		// Only validate when quantity is increasing
+		// Only validate when quantity is increasing (and never in purchase mode,
+		// where buying more than current stock is the normal case).
 		if (
+			mode.value !== "purchase" &&
 			newQty > item.quantity &&
 			settingsStore.shouldEnforceStockValidation() &&
 			shouldValidateItemStock(item)
@@ -323,6 +352,7 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 		clearInvoiceCart();
 		customer.value = null;
+		supplier.value = null;
 		offersStore.clearOneTimeContext();
 		appliedOffers.value = [];
 		appliedCoupon.value = null;
@@ -341,6 +371,133 @@ export const usePOSCartStore = defineStore("posCart", () => {
 
 	function setTargetDoctype(doctype) {
 		targetDoctype.value = doctype;
+	}
+
+	/**
+	 * Switch between sales and purchase mode. Switching modes ALWAYS resets the
+	 * cart/party/price so a customer cart never bleeds into a purchase (and vice
+	 * versa). No-op when the mode is unchanged.
+	 */
+	function setMode(nextMode) {
+		const normalized = nextMode === "purchase" ? "purchase" : "sales";
+		if (mode.value === normalized) return;
+		// Clear the sales cart first (uses the current mode's rules), then flip mode
+		// and reset purchase-only fields. clearCart() also clears the sales recovery
+		// snapshot so a stale sales cart can't be restored over a purchase.
+		clearCart();
+		mode.value = normalized;
+		supplier.value = null;
+		purchaseWarehouse.value = "";
+		purchaseTaxTemplate.value = null;
+		purchaseExpenseAccount.value = "";
+		purchaseIdempotencyKey = newIdempotencyKey("purchase");
+	}
+
+	function setSupplier(selectedSupplier) {
+		supplier.value = selectedSupplier;
+	}
+
+	function setPurchaseWarehouse(warehouse) {
+		purchaseWarehouse.value = warehouse || "";
+	}
+
+	function setPurchaseTaxTemplate(template) {
+		purchaseTaxTemplate.value = template || null;
+	}
+
+	function setPurchaseExpenseAccount(account) {
+		purchaseExpenseAccount.value = account || "";
+	}
+
+	/**
+	 * Build the Purchase Invoice payload from the current cart. Mirrors the shape
+	 * that PurchaseInvoiceForm.buildPayload() produces (item field is `qty`, not the
+	 * cart's `quantity`). Free-item rows are sales-only and are excluded.
+	 */
+	function buildPurchasePayload(defaults) {
+		const items = invoiceItems.value
+			.filter((line) => line.item_code && !line.is_free_item)
+			.map((line) => ({
+				item_code: line.item_code,
+				qty: Number.parseFloat(line.quantity) || 1,
+				uom: line.uom || line.stock_uom || "Nos",
+				rate: Number.parseFloat(line.rate) || 0,
+				...(purchaseWarehouse.value ? { warehouse: purchaseWarehouse.value } : {}),
+				...(purchaseExpenseAccount.value
+					? { expense_account: purchaseExpenseAccount.value }
+					: {}),
+			}));
+		return {
+			supplier: supplier.value?.name || supplier.value,
+			posting_date: defaults.posting_date,
+			due_date: defaults.due_date || null,
+			company: defaults.company,
+			currency: defaults.currency,
+			conversion_rate: 1,
+			buying_price_list: defaults.buying_price_list,
+			plc_conversion_rate: 1,
+			items,
+			taxes_and_charges: purchaseTaxTemplate.value || null,
+			// update_stock so purchased stock goes IN; a target warehouse is required.
+			update_stock: 1,
+			set_warehouse: purchaseWarehouse.value,
+		};
+	}
+
+	/**
+	 * Create + submit a Purchase Invoice from the current cart.
+	 * @param {Object} defaults - New-invoice defaults (company/currency/dates/price list).
+	 * @returns {Object|null} The submitted purchase-invoice result, or null on failure.
+	 */
+	async function submitPurchaseInvoice(defaults) {
+		if (isSubmitting.value) return null;
+		if (invoiceItems.value.length === 0) {
+			showWarning(__("Cart is empty"));
+			return null;
+		}
+		if (!supplier.value) {
+			showWarning(__("Please select a supplier"));
+			return null;
+		}
+		if (!purchaseWarehouse.value) {
+			showWarning(__("Please select a warehouse for the purchase"));
+			return null;
+		}
+		if (offlineState.isOffline) {
+			showError(__("Purchases require an internet connection"));
+			return null;
+		}
+
+		isSubmitting.value = true;
+		try {
+			const payload = buildPurchasePayload(defaults);
+			const saveRes = await call("pos_next.api.purchases.save_purchase_invoice", {
+				data: JSON.stringify(payload),
+				idempotency_key: purchaseIdempotencyKey,
+				pos_profile: posProfile.value,
+			});
+			if (!saveRes?.name) {
+				showError(__("Failed to save purchase invoice"));
+				return null;
+			}
+			const submitRes = await call("pos_next.api.purchases.submit_purchase_invoice", {
+				name: saveRes.name,
+				expected_modified: saveRes.modified,
+				pos_profile: posProfile.value,
+			});
+			if (!submitRes?.name) {
+				showError(__("Failed to submit purchase invoice"));
+				return null;
+			}
+			// Success: fresh key so the next purchase isn't blocked as an idempotent replay.
+			purchaseIdempotencyKey = newIdempotencyKey("purchase");
+			return submitRes;
+		} catch (error) {
+			showError(parseError(error) || __("Failed to create purchase invoice"));
+			return null;
+		} finally {
+			isSubmitting.value = false;
+		}
 	}
 
 	const deliveryDate = ref("");
@@ -999,6 +1156,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	 * - Free Items (e.g., Buy 2 Get 1 Free)
 	 */
 	function applyOffersOffline() {
+		// Offers are sales-only; never apply them to a purchase cart.
+		if (mode.value === "purchase") return;
+
 		// Skip if cart is empty or no offers available
 		if (invoiceItems.value.length === 0 || !offersStore.hasFetched) {
 			return;
@@ -1466,8 +1626,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 				}
 			}
 
-			// Validate stock if quantity is being increased
+			// Validate stock if quantity is being increased (skipped in purchase mode).
 			if (
+				mode.value !== "purchase" &&
 				updates.quantity !== undefined &&
 				updates.quantity > cartItem.quantity &&
 				settingsStore.shouldEnforceStockValidation() &&
@@ -1588,6 +1749,10 @@ export const usePOSCartStore = defineStore("posCart", () => {
 	async function processOffersInternal(signal = null, generation = 0, force = false) {
 		// Check cancellation early
 		if (signal?.aborted) return;
+
+		// Offers are a sales-only concept. In purchase mode we never evaluate
+		// selling pricing rules against purchase items (which would mutate rates).
+		if (mode.value === "purchase") return;
 
 		// Check if this operation is stale (cart changed since this was queued)
 		if (generation > 0 && generation < cartGeneration) {
@@ -1971,6 +2136,29 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		{ immediate: true }
 	);
 
+	// A purchase idempotency key binds to its exact payload server-side. If the
+	// cart or supplier changes after a FAILED checkout attempt, reusing the same
+	// key would trigger a fingerprint conflict. Regenerate the key whenever the
+	// purchase payload's material inputs change while in purchase mode.
+	watch(
+		[
+			() => mode.value,
+			() =>
+				invoiceItems.value
+					.map((item) => `${item.item_code}:${item.quantity}:${item.rate || 0}:${item.uom || ""}`)
+					.join("|"),
+			() => supplier.value?.name || supplier.value || "",
+			() => purchaseWarehouse.value,
+			() => purchaseTaxTemplate.value || "",
+			() => purchaseExpenseAccount.value,
+		],
+		() => {
+			if (mode.value === "purchase") {
+				purchaseIdempotencyKey = newIdempotencyKey("purchase");
+			}
+		}
+	);
+
 	return {
 		// State
 		invoiceItems,
@@ -2035,6 +2223,20 @@ export const usePOSCartStore = defineStore("posCart", () => {
 		createSalesOrder,
 		deliveryDate,
 		setDeliveryDate,
+
+		// Purchase mode
+		mode,
+		isPurchaseMode,
+		supplier,
+		purchaseWarehouse,
+		purchaseTaxTemplate,
+		purchaseExpenseAccount,
+		setMode,
+		setSupplier,
+		setPurchaseWarehouse,
+		setPurchaseTaxTemplate,
+		setPurchaseExpenseAccount,
+		submitPurchaseInvoice,
 
 		// Write-off feature
 		writeOffAmount,

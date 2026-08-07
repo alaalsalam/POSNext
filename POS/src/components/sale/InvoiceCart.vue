@@ -65,8 +65,105 @@
 	<div class="flex flex-col h-full bg-white">
 		<!-- Header with Customer -->
 		<div class="px-2.5 py-2 border-b border-gray-200 bg-gray-50">
-			<!-- Inline Customer Search/Selection -->
-			<div ref="customerSearchContainer" class="relative">
+			<!-- Sales / Purchase mode switch (managers only) -->
+			<div v-if="canManagePurchases" class="flex items-center justify-between gap-2 mb-2">
+				<div class="flex items-center bg-gray-100 rounded-xl p-0.5">
+					<button
+						type="button"
+						@click="requestModeSwitch('sales')"
+						class="px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5"
+						:class="
+							!isPurchaseMode
+								? 'bg-white text-blue-600 shadow-sm'
+								: 'text-gray-500 hover:text-gray-700'
+						"
+						:title="__('Sales')"
+					>
+						<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+						</svg>
+						<span>{{ __("Sales") }}</span>
+					</button>
+					<button
+						type="button"
+						data-testid="cart-purchase-mode-button"
+						@click="requestModeSwitch('purchase')"
+						class="px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5"
+						:class="
+							isPurchaseMode
+								? 'bg-white text-orange-600 shadow-sm'
+								: 'text-gray-500 hover:text-gray-700'
+						"
+						:title="__('Purchase')"
+					>
+						<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+						</svg>
+						<span>{{ __("Purchase") }}</span>
+					</button>
+				</div>
+				<button
+					v-if="isPurchaseMode"
+					type="button"
+					@click="$emit('show-purchase-history')"
+					class="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+					:title="__('Purchase History')"
+				>
+					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+					<span class="hidden sm:inline">{{ __("History") }}</span>
+				</button>
+			</div>
+
+			<!-- Purchase mode: supplier + warehouse + tax template (compact) -->
+			<div v-if="isPurchaseMode" class="space-y-2">
+				<SupplierSelector v-model="selectedSupplier" :pos-profile="posProfile" />
+				<div class="grid grid-cols-2 gap-2">
+					<div>
+						<label class="block text-[10px] font-semibold text-gray-500 mb-1">
+							{{ __("Warehouse") }} <span class="text-red-500">*</span>
+						</label>
+						<select
+							v-model="purchaseWarehouse"
+							data-testid="purchase-warehouse-select"
+							class="w-full h-9 px-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+						>
+							<option value="">{{ __("Select Warehouse") }}</option>
+							<option v-for="w in purchaseWarehouses" :key="w.name" :value="w.name">
+								{{ w.warehouse_name || w.name }}
+							</option>
+						</select>
+					</div>
+					<div>
+						<label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("Tax Template") }}</label>
+						<select
+							v-model="purchaseTaxTemplate"
+							class="w-full h-9 px-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+						>
+							<option :value="null">{{ __("No Tax Template") }}</option>
+							<option v-for="t in purchaseTaxTemplates" :key="t.name" :value="t.name">
+								{{ t.title || t.name }}
+							</option>
+						</select>
+					</div>
+				</div>
+				<div>
+					<label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("Expense Account") }}</label>
+					<select
+						v-model="purchaseExpenseAccount"
+						class="w-full h-9 px-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+					>
+						<option value="">{{ __("Use ERPNext Default") }}</option>
+						<option v-for="a in purchaseExpenseAccounts" :key="a.name" :value="a.name">
+							{{ a.account_name || a.name }}
+						</option>
+					</select>
+				</div>
+			</div>
+
+			<!-- Inline Customer Search/Selection (sales mode only) -->
+			<div v-else ref="customerSearchContainer" class="relative">
 				<div v-if="customer">
 					<!-- Two Cards Layout: Customer Card + Document Type Card -->
 					<div class="flex items-stretch gap-2">
@@ -632,8 +729,8 @@
 				</div>
 			</div>
 
-			<!-- Offers & Coupon Buttons -->
-			<div class="flex gap-2">
+			<!-- Offers & Coupon Buttons (sales mode only) -->
+			<div v-if="!isPurchaseMode" class="flex gap-2">
 				<!-- View All Offers Button -->
 				<button
 					type="button"
@@ -725,8 +822,11 @@
 					{{ __("Select items to start or choose a quick action") }}
 				</p>
 
-				<!-- Quick Actions Grid -->
-				<div class="grid grid-cols-2 gap-2 sm:gap-2.5 w-full max-w-lg">
+				<!-- Quick Actions Grid (sales-specific — hidden in purchase mode) -->
+				<div
+					v-if="!isPurchaseMode"
+					class="grid grid-cols-2 gap-2 sm:gap-2.5 w-full max-w-lg"
+				>
 					<!-- View Shift — brand identity -->
 					<button
 						type="button"
@@ -1357,8 +1457,30 @@
 
 			<!-- Action Buttons -->
 			<div class="flex gap-1.5">
+				<!-- Purchase Checkout Button -->
+				<button
+					v-if="isPurchaseMode"
+					type="button"
+					data-testid="purchase-checkout-button"
+					@click="handleProceedToPayment"
+					:disabled="!canConfirmPurchase || cartStore.isSubmitting"
+					:class="[
+						'flex-1 py-2.5 px-3 rounded-lg font-bold text-xs text-white transition-all flex items-center justify-center touch-manipulation',
+						!canConfirmPurchase || cartStore.isSubmitting
+							? 'bg-gray-300 cursor-not-allowed'
+							: 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800 shadow-lg hover:shadow-xl active:scale-[0.98]',
+					]"
+					:aria-label="__('Confirm purchase')"
+				>
+					<svg class="w-4 h-4 me-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+					</svg>
+					<span>{{ cartStore.isSubmitting ? __("Saving...") : __("Confirm Purchase") }}</span>
+				</button>
+
 				<!-- Checkout Button (Primary - 50% width) -->
 				<button
+					v-else
 					type="button"
 					@click="handleProceedToPayment"
 					:disabled="items.length === 0"
@@ -1386,10 +1508,10 @@
 					<span>{{ __("Checkout") }}</span>
 				</button>
 
-				<!-- Hold Order Button (Secondary - 50% width) -->
+				<!-- Hold Order Button (Secondary - sales mode only) -->
 				<button
 					type="button"
-					v-if="items.length > 0"
+					v-if="!isPurchaseMode && items.length > 0"
 					@click="$emit('save-draft')"
 					class="flex-1 py-2.5 px-2 rounded-lg font-semibold text-xs text-orange-700 bg-orange-50 hover:bg-orange-100 active:bg-orange-200 transition-all touch-manipulation active:scale-[0.98] flex items-center justify-center"
 					:aria-label="__('Hold order as draft')"
@@ -1420,6 +1542,37 @@
 			:currency="currency"
 			@update-item="handleUpdateItem"
 		/>
+
+		<!-- Mode Switch Confirmation (cart is not empty) -->
+		<div
+			v-if="showModeSwitchConfirm"
+			class="fixed inset-0 z-[400] bg-black/40 flex items-center justify-center p-6"
+			@click.self="showModeSwitchConfirm = null"
+		>
+			<div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+				<h3 class="text-base font-bold text-gray-900 mb-2">{{ __("Switch mode?") }}</h3>
+				<p class="text-sm text-gray-600 mb-4">
+					{{ __("Switching mode will clear the current cart and party. Continue?") }}
+				</p>
+				<div class="flex gap-3">
+					<button
+						type="button"
+						@click="showModeSwitchConfirm = null"
+						class="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+					>
+						{{ __("Cancel") }}
+					</button>
+					<button
+						type="button"
+						data-testid="confirm-mode-switch"
+						@click="confirmModeSwitch"
+						class="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 transition-colors"
+					>
+						{{ __("Switch & Clear") }}
+					</button>
+				</div>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -1445,6 +1598,7 @@ const log = logger.create("InvoiceCart");
 import { createResource } from "frappe-ui";
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from "vue";
 import EditItemDialog from "./EditItemDialog.vue";
+import SupplierSelector from "@/components/purchases/SupplierSelector.vue";
 
 /**
  * ============================================================================
@@ -1458,6 +1612,10 @@ const customerSearchStore = useCustomerSearchStore(); // Pinia store for custome
 const { formatQuantity } = useFormatters(); // Quantity formatting utilities
 
 function handleProceedToPayment() {
+	if (isPurchaseMode.value) {
+		emit("purchase-checkout");
+		return;
+	}
 	emit("proceed-to-payment");
 }
 
@@ -1511,6 +1669,27 @@ const props = defineProps({
 		type: Array,
 		default: () => [],
 	},
+	// Purchase mode
+	canManagePurchases: {
+		type: Boolean,
+		default: false,
+	},
+	canSubmitPurchases: {
+		type: Boolean,
+		default: false,
+	},
+	purchaseWarehouses: {
+		type: Array,
+		default: () => [],
+	},
+	purchaseTaxTemplates: {
+		type: Array,
+		default: () => [],
+	},
+	purchaseExpenseAccounts: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 /**
@@ -1540,6 +1719,9 @@ const emit = defineEmits([
 	"show-return", // () - Open return invoice dialog
 	"close-shift", // () - Close current shift
 	// "create-sales-order", // () - Create Sales Order // Removed as per instruction
+	"set-mode", // (mode) - Switch between 'sales' and 'purchase'
+	"purchase-checkout", // () - Create + submit purchase invoice from cart
+	"show-purchase-history", // () - Open the purchase invoices history panel
 ]);
 
 // Cart sort composable (must be after defineProps)
@@ -2128,6 +2310,66 @@ async function handleUpdateItem(updatedItem) {
 
 function selectDocType(type) {
 	cartStore.setTargetDoctype(type);
+}
+
+/**
+ * ============================================================================
+ * PURCHASE MODE
+ * ============================================================================
+ */
+const isPurchaseMode = computed(() => cartStore.mode === "purchase");
+
+// Supplier v-model bridge to the cart store.
+const selectedSupplier = computed({
+	get: () => cartStore.supplier,
+	set: (value) => cartStore.setSupplier(value),
+});
+
+const purchaseWarehouse = computed({
+	get: () => cartStore.purchaseWarehouse,
+	set: (value) => cartStore.setPurchaseWarehouse(value),
+});
+
+const purchaseTaxTemplate = computed({
+	get: () => cartStore.purchaseTaxTemplate,
+	set: (value) => cartStore.setPurchaseTaxTemplate(value),
+});
+
+const purchaseExpenseAccount = computed({
+	get: () => cartStore.purchaseExpenseAccount,
+	set: (value) => cartStore.setPurchaseExpenseAccount(value),
+});
+
+// Purchase checkout is only enabled with items, a supplier, a warehouse and the
+// submit permission (the backend enforces this too — this is UX, not the gate).
+const canConfirmPurchase = computed(
+	() =>
+		props.canSubmitPurchases &&
+		props.items.length > 0 &&
+		!!cartStore.supplier &&
+		!!cartStore.purchaseWarehouse
+);
+
+/**
+ * Request a mode switch. If the cart has items, confirm before wiping so a misclick
+ * never silently destroys a cart (switching modes always resets the cart/party).
+ */
+function requestModeSwitch(nextMode) {
+	if (cartStore.mode === nextMode) return;
+	if (props.items.length > 0) {
+		showModeSwitchConfirm.value = nextMode;
+		return;
+	}
+	emit("set-mode", nextMode);
+}
+
+const showModeSwitchConfirm = ref(null); // holds the target mode while confirming
+
+function confirmModeSwitch() {
+	if (showModeSwitchConfirm.value) {
+		emit("set-mode", showModeSwitchConfirm.value);
+	}
+	showModeSwitchConfirm.value = null;
 }
 
 /**

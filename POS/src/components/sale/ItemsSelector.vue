@@ -551,9 +551,11 @@
 								{{ Object.values(item.attributes).join(" / ") }}
 							</p>
 							<p class="text-[9px] sm:text-[10px] text-gray-500 leading-tight">
-								<span class="font-semibold text-blue-600">{{
-									formatCurrency(item.rate || item.price_list_rate || 0)
-								}}</span>
+								<span
+									class="font-semibold"
+									:class="isPurchaseMode ? 'text-orange-600' : 'text-blue-600'"
+									>{{ formatCurrency(displayPrice(item)) }}</span
+								>
 								<span class="text-gray-400"
 									>/
 									{{
@@ -823,8 +825,11 @@
 								</div>
 							</td>
 							<td class="px-2 sm:px-3 py-2 whitespace-nowrap w-[70px] sm:w-[100px]">
-								<div class="text-xs sm:text-sm font-semibold text-blue-600">
-									{{ formatCurrency(item.rate || item.price_list_rate || 0) }}
+								<div
+									class="text-xs sm:text-sm font-semibold"
+									:class="isPurchaseMode ? 'text-orange-600' : 'text-blue-600'"
+								>
+									{{ formatCurrency(displayPrice(item)) }}
 								</div>
 							</td>
 							<td class="px-2 sm:px-3 py-2 whitespace-nowrap w-[70px] sm:w-[100px]">
@@ -1010,6 +1015,7 @@ import LazyImage from "@/components/common/LazyImage.vue";
 import WarehouseAvailabilityDialog from "@/components/sale/WarehouseAvailabilityDialog.vue";
 import { useItemSearchStore } from "@/stores/itemSearch";
 import { usePOSSettingsStore } from "@/stores/posSettings";
+import { usePOSCartStore } from "@/stores/posCart";
 import { useStock } from "@/composables/useStock";
 import { useDialogState } from "@/composables/useDialogState";
 import { useSearchInput } from "@/composables/useSearchInput";
@@ -1036,6 +1042,12 @@ const props = defineProps({
 		type: String,
 		default: DEFAULT_CURRENCY,
 	},
+	// Purchase mode: map of { item_code: buying_price } used for the grid price
+	// display and the rate of items added to the purchase cart.
+	buyingPrices: {
+		type: Object,
+		default: () => ({}),
+	},
 });
 
 const emit = defineEmits(["item-selected"]);
@@ -1043,6 +1055,19 @@ const emit = defineEmits(["item-selected"]);
 // Use composables
 const { getStockStatus } = useStock();
 const settingsStore = usePOSSettingsStore();
+const cartStore = usePOSCartStore();
+const isPurchaseMode = computed(() => cartStore.mode === "purchase");
+
+/**
+ * Price shown on an item card. In purchase mode this is the buying price
+ * (from the bulk buyingPrices map); in sales mode it's the selling rate.
+ */
+function displayPrice(item) {
+	if (isPurchaseMode.value) {
+		return props.buyingPrices[item.item_code] || 0;
+	}
+	return item.rate || item.price_list_rate || 0;
+}
 const { showError, showWarning } = useToast();
 const { isAnyDialogOpen } = useDialogState();
 
@@ -1415,8 +1440,10 @@ function clearLongPress() {
 function selectItem(item, autoAdd = false) {
 	if (!item) return false;
 
-	// Early out-of-stock guard — full qty validation happens in cartStore.addItem()
+	// Early out-of-stock guard — full qty validation happens in cartStore.addItem().
+	// Skipped in purchase mode: buying an out-of-stock item is the normal case.
 	if (
+		!isPurchaseMode.value &&
 		!item.has_variants &&
 		settingsStore.shouldEnforceStockValidation() &&
 		shouldValidateItemStock(item)
