@@ -52,6 +52,24 @@ const log = logger.create("Main");
 // =============================================================================
 
 if ("serviceWorker" in navigator) {
+	// When a new build's service worker takes control, the already-loaded page is still
+	// running the OLD bundle until it reloads — which is why fixes appeared "stuck" until a
+	// manual second refresh. Auto-reload once when control changes, but ONLY within the initial
+	// load window, so we never yank the page out from under a cashier who is mid-sale on a
+	// long-open session.
+	const swRegisteredAt = Date.now();
+	const hadControllerAtStart = !!navigator.serviceWorker.controller;
+	let reloadingForUpdate = false;
+	navigator.serviceWorker.addEventListener("controllerchange", () => {
+		if (reloadingForUpdate) return;
+		// Reload only on an actual update (a controller already existed — not a first
+		// install), and only within the initial load window so we never reload mid-sale.
+		if (hadControllerAtStart && Date.now() - swRegisteredAt < 15000) {
+			reloadingForUpdate = true;
+			window.location.reload();
+		}
+	});
+
 	window.addEventListener(
 		"load",
 		() => {
