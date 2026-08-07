@@ -52,10 +52,15 @@ class TestWarehouseUserPermission(FrappeTestCase):
 	@classmethod
 	def setUpClass(cls):
 		super().setUpClass()
-		from pos_next.patches.v2_0_0 import ship_pos_role_permissions, warehouse_transit_ignore_user_perms
+		from pos_next.patches.v2_0_0 import (
+			purchase_flow_ignore_user_perms,
+			ship_pos_role_permissions,
+			warehouse_transit_ignore_user_perms,
+		)
 
 		ship_pos_role_permissions.execute()
 		warehouse_transit_ignore_user_perms.execute()
+		purchase_flow_ignore_user_perms.execute()
 
 		# Use a real company that has at least one non-group, enabled warehouse.
 		cls.warehouse = frappe.db.get_value(
@@ -75,6 +80,29 @@ class TestWarehouseUserPermission(FrappeTestCase):
 		_add_user_permission(MANAGER, "Company", cls.company)
 		_add_user_permission(MANAGER, "Warehouse", cls.warehouse.name)
 
+		# An Item whose item_defaults warehouse is empty (the common case) — under strict user
+		# permissions the Warehouse UP used to cascade onto that empty child link and block the
+		# cashier from even reading the item on the purchase path.
+		cls.item_code = "TEST-POSNEXT-UP-ITEM"
+		if frappe.db.exists("Item", cls.item_code):
+			frappe.delete_doc("Item", cls.item_code, force=True, ignore_permissions=True)
+		item_group = frappe.db.get_value("Item Group", {"is_group": 0}, "name")
+		item = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": cls.item_code,
+				"item_name": cls.item_code,
+				"item_group": item_group,
+				"stock_uom": "Nos",
+				"is_purchase_item": 1,
+				"is_stock_item": 0,
+				"company": cls.company,
+				"item_defaults": [{"company": cls.company}],  # default_warehouse deliberately empty
+			}
+		)
+		item.flags.ignore_permissions = True
+		item.insert(ignore_permissions=True)
+
 	@classmethod
 	def tearDownClass(cls):
 		if getattr(cls, "warehouse", None):
@@ -84,6 +112,8 @@ class TestWarehouseUserPermission(FrappeTestCase):
 			frappe.clear_cache()
 		if frappe.db.exists("User", MANAGER):
 			frappe.delete_doc("User", MANAGER, force=True, ignore_permissions=True)
+		if getattr(cls, "item_code", None) and frappe.db.exists("Item", cls.item_code):
+			frappe.delete_doc("Item", cls.item_code, force=True, ignore_permissions=True)
 		super().tearDownClass()
 
 	def test_permitted_warehouse_is_visible_under_strict_user_permissions(self):
@@ -118,3 +148,33 @@ class TestWarehouseUserPermission(FrappeTestCase):
 			"value",
 		)
 		self.assertEqual(value, "1")
+
+	def test_restricted_cashier_can_read_purchase_item_with_empty_default_warehouse(self):
+		if not getattr(self, "warehouse", None):
+			self.skipTest("no non-group warehouse available in the test database")
+		item = frappe.get_doc("Item", self.item_code)
+		frappe.set_user(MANAGER)
+		try:
+			allowed = frappe.has_permission("Item", "read", doc=item)
+		finally:
+			frappe.set_user("Administrator")
+		self.assertTrue(
+			allowed,
+			"strict user permissions blocked a restricted cashier from reading a purchasable item "
+			"because its item_defaults.default_warehouse is empty — the purchase-flow Property "
+			"Setters are missing or not applied",
+		)
+
+	def test_purchase_flow_property_setters_are_shipped(self):
+		for doctype, fieldname in (
+			("Item Default", "default_warehouse"),
+			("Item Reorder", "warehouse"),
+			("Item Reorder", "warehouse_group"),
+			("Purchase Invoice", "represents_company"),
+		):
+			value = frappe.db.get_value(
+				"Property Setter",
+				{"doc_type": doctype, "field_name": fieldname, "property": "ignore_user_permissions"},
+				"value",
+			)
+			self.assertEqual(value, "1", f"{doctype}.{fieldname} ignore_user_permissions not shipped")
