@@ -181,6 +181,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 
 	// Computed - Cashier cash-drawer management (gates the rail entry + panel)
 	const enableCashManagement = computed(() => Boolean(settings.value.enable_cash_management));
+	const cashPostingMode = computed(() => settings.value.posa_cash_posting_mode || "Immediate");
 
 	// Computed - Security
 	const enableSessionLock = computed(() => Boolean(settings.value.enable_session_lock));
@@ -313,6 +314,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			enable_supplier_payments: 0,
 			enable_pos_reports: 0,
 			enable_cash_management: 0,
+			posa_cash_posting_mode: "Immediate",
 		};
 		isLoaded.value = false;
 	}
@@ -454,6 +456,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 
 		// Computed - Cash management
 		enableCashManagement,
+		cashPostingMode,
 
 		// Computed - Security
 		enableSessionLock,

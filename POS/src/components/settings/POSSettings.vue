@@ -250,6 +250,23 @@
 										</span>
 									</label>
 								</div>
+									<!-- Cash Management — drawer-movement posting mode (only when the feature is on) -->
+									<div v-if="settings.enable_cash_management" class="border-t border-gray-100 p-5">
+										<div class="flex items-center gap-2 mb-1">
+											<svg class="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+											</svg>
+											<h3 class="font-bold text-gray-900">{{ __mgr("إدارة الصندوق") }}</h3>
+										</div>
+										<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+											<SelectField
+												v-model="settings.posa_cash_posting_mode"
+												:label="__mgr('ترحيل حركات الصندوق')"
+												:options="cashPostingModeOptions"
+												:description="__mgr('تُعتمد من المدير قبل الترحيل')"
+											/>
+										</div>
+									</div>
 									<!-- Purchase Defaults — pre-fill purchase mode (mirrors sales default customer) -->
 									<div v-if="settings.enable_purchases" class="border-t border-gray-100 p-5">
 										<div class="flex items-center gap-2 mb-1">
@@ -1733,6 +1750,7 @@ import { usePOSEvents } from "@/composables/usePOSEvents";
 import TranslatedHTML from "../common/TranslatedHTML.vue";
 import { useQzTray } from "@/composables/useQzTray";
 import { getSetting, isOffline, setSetting } from "@/utils/offline";
+import { managerTranslate as __mgr } from "@/utils/managementI18n";
 
 const log = logger.create("POSSettings");
 const { detectSettingsChanges, updateSettingsSnapshot, emitStockSyncConfigured } = usePOSEvents();
@@ -1828,6 +1846,7 @@ const settings = ref({
 	enable_supplier_payments: 0,
 	enable_pos_reports: 0,
 	enable_cash_management: 0,
+	posa_cash_posting_mode: "Immediate",
 	// Purchase defaults (mirror the sales default customer) — pre-fill purchase mode
 	posa_default_supplier: "",
 	posa_default_purchase_warehouse: "",
@@ -1901,6 +1920,10 @@ const supplierOptions = computed(() =>
 		settings.value.posa_default_supplier
 	)
 );
+const cashPostingModeOptions = computed(() => [
+	{ value: "Immediate", label: __mgr("فوري") },
+	{ value: "After Approval", label: __mgr("بعد الاعتماد") },
+]);
 const purchaseWarehouseOptions = computed(() =>
 	toPurchaseOptions(
 		purchaseWarehouses.value,
