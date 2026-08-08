@@ -1846,6 +1846,7 @@ const settings = ref({
 	enable_supplier_payments: 0,
 	enable_pos_reports: 0,
 	enable_cash_management: 0,
+	enable_expense_types: 0,
 	posa_cash_posting_mode: "Immediate",
 	// Purchase defaults (mirror the sales default customer) — pre-fill purchase mode
 	posa_default_supplier: "",
@@ -1883,6 +1884,11 @@ const featureFlagDefinitions = computed(() => [
 		fieldname: "enable_cash_management",
 		label: __("Enable Cash Management (Expenses / Receipts)"),
 		description: __("Let cashiers record drawer cash movements (expense / receipt / payment) during a shift."),
+	},
+	{
+		fieldname: "enable_expense_types",
+		label: __("Enable Expense Types Management"),
+		description: __("Let a manager define expense types and their accounts, on its own screen."),
 	},
 ]);
 

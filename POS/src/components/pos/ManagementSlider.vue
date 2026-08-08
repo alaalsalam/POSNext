@@ -123,6 +123,27 @@
 			</div>
 		</button>
 
+		<!-- Expense Types — manager-only screen (gated by the enable_expense_types flag) -->
+		<button
+			v-if="canManageExpenseTypes"
+			data-testid="rail-expense-types-button"
+			@click="handleMenuClick('expense_types')"
+			:class="[
+				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
+				activeMenu === 'expense_types'
+					? 'bg-indigo-100 text-indigo-600'
+					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+			]"
+			:title="__('أنواع المصاريف')"
+		>
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 8V3a2 2 0 012-2z" />
+			</svg>
+			<div class="absolute start-full ms-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+				{{ __("أنواع المصاريف") }}
+			</div>
+		</button>
+
 		<!-- Catalog Management — only shown to authorized users -->
 		<button
 			v-if="canManageCatalog"
@@ -190,6 +211,8 @@ const props = defineProps({
 	canManageSettings: { type: Boolean, default: false },
 	// Cashier cash-drawer management (gated by the enable_cash_management flag).
 	canManageCash: { type: Boolean, default: false },
+	// Expense-type management screen (gated by the enable_expense_types flag + manager).
+	canManageExpenseTypes: { type: Boolean, default: false },
 	// True while the cart is in purchase mode — highlights the purchase toggle.
 	purchaseModeActive: { type: Boolean, default: false },
 });

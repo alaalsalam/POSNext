@@ -38,6 +38,7 @@ vi.mock("./ExpenseTypeManagement.vue", () => ({
 const SETUP = {
 	posting_mode: "Immediate",
 	is_manager: false,
+	can_manage_expense_types: false,
 	default_cash_account: "CASH-1",
 	cash_boxes: [
 		{ name: "CASH-1", account_name: "Main Drawer", account_type: "Cash" },
@@ -168,6 +169,28 @@ describe("CashManagement", () => {
 		await flushPromises()
 		expect(wrapper.find('[data-testid="expense-empty"]').exists()).toBe(true)
 		expect(wrapper.find('[data-testid="cash-submit"]').exists()).toBe(false)
+	})
+
+	it("empty-state shows the create button only when the user may manage expense types", async () => {
+		// May manage → text + create button.
+		const withPerm = mountPanel({
+			setup: { expense_types: [], can_manage_expense_types: true },
+		})
+		await flushPromises()
+		expect(withPerm.find('[data-testid="expense-empty"]').exists()).toBe(true)
+		expect(
+			withPerm.find('[data-testid="empty-manage-expense-types"]').exists(),
+		).toBe(true)
+
+		// May not manage → text only, no button.
+		const withoutPerm = mountPanel({
+			setup: { expense_types: [], can_manage_expense_types: false },
+		})
+		await flushPromises()
+		expect(withoutPerm.find('[data-testid="expense-empty"]').exists()).toBe(true)
+		expect(
+			withoutPerm.find('[data-testid="empty-manage-expense-types"]').exists(),
+		).toBe(false)
 	})
 
 	it("Receipt submits a party payload (Customer) into the chosen box; note optional", async () => {
@@ -336,7 +359,7 @@ describe("CashManagement", () => {
 
 	it("shows approve/reject on pending entries for a manager and calls the endpoints", async () => {
 		const wrapper = mountPanel({
-			setup: { is_manager: true },
+			setup: { is_manager: true, can_manage_expense_types: true },
 			entries: {
 				entries: [
 					{

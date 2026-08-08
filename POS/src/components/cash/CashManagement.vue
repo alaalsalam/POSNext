@@ -26,7 +26,7 @@
       </div>
       <div class="flex items-center gap-1">
         <button
-          v-if="isManager"
+          v-if="canManageExpenseTypes"
           type="button"
           data-testid="manage-expense-types"
           @click="showExpenseTypeManager = true"
@@ -129,7 +129,7 @@
             >
               <p class="text-xs text-amber-800">{{ __("لا توجد أنواع مصاريف — على المدير إضافتها") }}</p>
               <button
-                v-if="isManager"
+                v-if="canManageExpenseTypes"
                 type="button"
                 data-testid="empty-manage-expense-types"
                 @click="showExpenseTypeManager = true"
@@ -405,6 +405,8 @@ const remarks = ref("")
 // Setup (loaded once on open).
 const postingMode = ref("Immediate")
 const isManager = ref(false)
+// Own capability — expense-type editing (enable_expense_types flag + manager), separate from isManager.
+const canManageExpenseTypes = ref(false)
 const cashBoxes = ref([])
 const expenseTypes = ref([])
 const defaultCashAccount = ref("")
@@ -534,6 +536,7 @@ async function loadSetup() {
 		)
 		postingMode.value = res?.posting_mode || "Immediate"
 		isManager.value = !!res?.is_manager
+		canManageExpenseTypes.value = !!res?.can_manage_expense_types
 		cashBoxes.value = res?.cash_boxes || []
 		expenseTypes.value = res?.expense_types || []
 		defaultCashAccount.value = res?.default_cash_account || ""
@@ -604,6 +607,8 @@ async function loadEntries() {
 		totals.net_total = res?.net_total || 0
 		totals.pending_count = res?.pending_count || 0
 		if (typeof res?.is_manager === "boolean") isManager.value = res.is_manager
+		if (typeof res?.can_manage_expense_types === "boolean")
+			canManageExpenseTypes.value = res.can_manage_expense_types
 	} catch (error) {
 		console.error("Error loading cash entries", error)
 	} finally {

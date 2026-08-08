@@ -2080,4 +2080,6 @@ variance,فرق,
 "The source the buying price is fetched from in purchase mode (falls back to the other sources when unavailable).","المصدر الذي يُجلب منه سعر الشراء في وضع الشراء (يتراجع للمصادر الأخرى عند عدم توفّر السعر).",""
 "Enable Cash Management (Expenses / Receipts)","تفعيل إدارة الصندوق (مصاريف/قبض/دفع)",""
 "Let cashiers record drawer cash movements (expense / receipt / payment) during a shift.","السماح للكاشير بتسجيل حركات نقدية الصندوق (صرف/قبض/دفع) أثناء الوردية.",""
+"Enable Expense Types Management","تفعيل إدارة أنواع المصاريف",""
+"Let a manager define expense types and their accounts, on its own screen.","السماح للمدير بتعريف أنواع المصاريف وحساباتها، في شاشة مستقلة.",""
 "Cash Management","إدارة الصندوق",""

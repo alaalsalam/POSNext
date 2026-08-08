@@ -273,6 +273,7 @@
 					:can-view-reports="canViewReports"
 					:can-manage-settings="canManageFeatureFlags"
 					:can-manage-cash="canManageCash"
+					:can-manage-expense-types="canManageExpenseTypes"
 					:purchase-mode-active="cartStore.mode === 'purchase'"
 				/>
 
@@ -963,6 +964,16 @@
 				</div>
 			</div>
 
+			<!-- Expense Types Management Panel -->
+			<div
+				v-if="showExpenseTypesPanel"
+				class="absolute inset-0 z-[300] flex"
+			>
+				<div class="flex-1 flex flex-col overflow-hidden">
+					<ExpenseTypeManagement :pos-profile="shiftStore.profileName" @close="showExpenseTypesPanel = false" />
+				</div>
+			</div>
+
 			<!-- Clear Cart Confirmation Dialog -->
 			<Dialog
 				v-model="uiStore.showClearCartDialog"
@@ -1286,6 +1297,7 @@ import SupplierPaymentDialog from "@/components/purchases/SupplierPaymentDialog.
 import SupplierPaymentList from "@/components/purchases/SupplierPaymentList.vue";
 import POSReportDashboard from "@/components/reports/POSReportDashboard.vue";
 import CashManagement from "@/components/cash/CashManagement.vue";
+import ExpenseTypeManagement from "@/components/cash/ExpenseTypeManagement.vue";
 import POSHeader from "@/components/pos/POSHeader.vue";
 import ShiftStatsBar from "@/components/pos/ShiftStatsBar.vue";
 import BatchSerialDialog from "@/components/sale/BatchSerialDialog.vue";
@@ -1478,6 +1490,15 @@ const canManageCash = computed(() => posSettingsStore.enableCashManagement);
 // If a manager disables the flag mid-shift, close the panel so it can't linger.
 watch(canManageCash, (allowed) => {
 	if (!allowed) showCashPanel.value = false;
+});
+
+// Expense-type management — its own screen, gated by enable_expense_types + manager.
+const showExpenseTypesPanel = ref(false);
+const canManageExpenseTypes = computed(
+	() => posSettingsStore.enableExpenseTypes && canManageFeatureFlags.value
+);
+watch(canManageExpenseTypes, (allowed) => {
+	if (!allowed) showExpenseTypesPanel.value = false;
 });
 
 // Purchase mode (main-screen unified purchase flow)
@@ -3378,6 +3399,8 @@ function handleManagementMenuClick(menuItem) {
 		showReportsPanel.value = true;
 	} else if (menuItem === "cash") {
 		if (canManageCash.value) showCashPanel.value = true;
+	} else if (menuItem === "expense_types") {
+		if (canManageExpenseTypes.value) showExpenseTypesPanel.value = true;
 	}
 }
 
