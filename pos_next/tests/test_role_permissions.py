@@ -33,6 +33,8 @@ CONTRACT = [
 	("Journal Entry", "create", True, True),
 	("Journal Entry", "submit", True, True),
 	("Journal Entry", "cancel", False, True),
+	# Only a manager may reject (delete) a pending cash entry — the cashier stays locked out.
+	("Journal Entry", "delete", False, True),
 ]
 
 
