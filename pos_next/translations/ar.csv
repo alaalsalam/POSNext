@@ -2072,3 +2072,8 @@ variance,فرق,
 "Enter the buying price for: {0}","أدخل سعر الشراء للأصناف: {0}",""
 "Enter buying price","أدخل سعر الشراء",""
 "أدخل السعر","أدخل السعر",""
+"Purchase Price Source","مصدر سعر الشراء",""
+"Buying Price List","قائمة أسعار الشراء",""
+"Last Purchase Rate","آخر سعر شراء",""
+"Valuation Rate","متوسط التكلفة",""
+"The source the buying price is fetched from in purchase mode (falls back to the other sources when unavailable).","المصدر الذي يُجلب منه سعر الشراء في وضع الشراء (يتراجع للمصادر الأخرى عند عدم توفّر السعر).",""

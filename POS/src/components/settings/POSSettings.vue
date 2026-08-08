@@ -296,6 +296,12 @@
 												:options="expenseAccountOptions"
 												:description="__('Expense account for purchased expense items.')"
 											/>
+											<SelectField
+												v-model="settings.posa_purchase_price_source"
+												:label="__('Purchase Price Source')"
+												:options="purchasePriceSourceOptions"
+												:description="__('The source the buying price is fetched from in purchase mode (falls back to the other sources when unavailable).')"
+											/>
 										</div>
 									</div>
 							</div>
@@ -1826,6 +1832,9 @@ const settings = ref({
 	posa_default_purchase_warehouse: "",
 	posa_default_purchase_tax_template: "",
 	posa_default_expense_account: "",
+	// Which source purchase-mode buying prices are fetched from (backend expects the
+	// exact English string; falls back through the other sources).
+	posa_purchase_price_source: "Buying Price List",
 });
 
 const featureFlagDefinitions = computed(() => [
@@ -1910,6 +1919,12 @@ const expenseAccountOptions = computed(() =>
 		settings.value.posa_default_expense_account
 	)
 );
+// Fixed list; the stored value MUST be the exact English string the backend expects.
+const purchasePriceSourceOptions = computed(() => [
+	{ value: "Buying Price List", label: __("Buying Price List") },
+	{ value: "Last Purchase Rate", label: __("Last Purchase Rate") },
+	{ value: "Valuation Rate", label: __("Valuation Rate") },
+]);
 
 /**
  * Lazily load the purchase-defaults option lists. Runs only when the Feature Flags

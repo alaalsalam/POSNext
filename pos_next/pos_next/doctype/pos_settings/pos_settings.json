@@ -79,6 +79,7 @@
   "column_break_purchase_defaults",
   "posa_default_purchase_tax_template",
   "posa_default_expense_account",
+  "posa_purchase_price_source",
   "section_break_security",
   "enable_session_lock",
   "session_lock_timeout",
@@ -596,6 +597,14 @@
    "fieldtype": "Link",
    "label": "Default Expense Account",
    "options": "Account"
+  },
+  {
+   "default": "Buying Price List",
+   "description": "Which source to pre-fill the buying price from in Purchase mode. Falls back to the other sources when the chosen one has no rate, so the cashier rarely sees 0.",
+   "fieldname": "posa_purchase_price_source",
+   "fieldtype": "Select",
+   "label": "Purchase Price Source",
+   "options": "Buying Price List\nLast Purchase Rate\nValuation Rate"
   },
   {
    "collapsible": 1,

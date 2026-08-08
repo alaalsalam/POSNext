@@ -501,54 +501,90 @@ def get_purchase_items(search="", limit=30, pos_profile=None):
 	return frappe.get_list("Item", filters=filters, fields=["name as item_code", "item_name", "stock_uom", "item_group", "is_stock_item"], order_by="item_name", limit=min(cint(limit), 100))
 
 
+# Which source to pre-fill the purchase price from (configured per profile in POS Settings). Each
+# option is the PRIMARY source; the remaining sources are tried in order as fallbacks so the cashier
+# rarely sees 0. Keys: price_list (buying price list), last_purchase (Item.last_purchase_rate,
+# maintained by ERPNext on every purchase submit), valuation (Item.valuation_rate / average cost).
+_PURCHASE_PRICE_SOURCE_ORDERS = {
+	"Buying Price List": ("price_list", "last_purchase", "valuation"),
+	"Last Purchase Rate": ("last_purchase", "price_list", "valuation"),
+	"Valuation Rate": ("valuation", "last_purchase", "price_list"),
+}
+
+
+def _purchase_price_source_order(profile):
+	source = frappe.db.get_value("POS Settings", {"pos_profile": profile}, "posa_purchase_price_source")
+	return _PURCHASE_PRICE_SOURCE_ORDERS.get(source, _PURCHASE_PRICE_SOURCE_ORDERS["Buying Price List"])
+
+
+def _pick_by_source(order, by_source):
+	"""First source in `order` with a positive rate wins; 0 when none has one."""
+	for src in order:
+		if flt(by_source.get(src)) > 0:
+			return flt(by_source[src])
+	return 0.0
+
+
 @frappe.whitelist()
 def get_item_buying_price(item_code, buying_price_list=None, uom=None, pos_profile=None):
-	_profile, company = _context("purchases", pos_profile)
+	profile, company = _context("purchases", pos_profile)
 	item = assert_doc_permission("Item", item_code)
 	price_list = _assert_price_list(buying_price_list or _default_buying_price_list(company), company)
 	filters = {"item_code": item.name, "price_list": price_list.name, "buying": 1, "uom": uom or item.stock_uom}
 	prices = frappe.get_list("Item Price", filters=filters, fields=["name", "price_list_rate", "currency", "uom", "valid_from", "valid_upto"], order_by="valid_from desc", limit=2)
 	if len(prices) > 1:
 		frappe.throw(_("Multiple applicable buying prices exist; select the rate explicitly"))
-	# Same fallback as the bulk map: last actual purchase rate, then valuation, so the rate is
-	# pre-filled instead of 0 when there's no configured buying-price-list entry.
-	buying_price = flt(prices[0].price_list_rate) if prices else (flt(item.last_purchase_rate) or flt(item.valuation_rate) or 0)
+	# Pre-fill the rate from the profile's configured source (with fallback) instead of 0.
+	buying_price = _pick_by_source(
+		_purchase_price_source_order(profile),
+		{
+			"price_list": flt(prices[0].price_list_rate) if prices else 0.0,
+			"last_purchase": flt(item.last_purchase_rate),
+			"valuation": flt(item.valuation_rate),
+		},
+	)
 	return {"item_code": item.name, "buying_price": buying_price, "price_list": price_list.name, "currency": price_list.currency}
 
 
 @frappe.whitelist()
 def get_buying_prices(buying_price_list=None, pos_profile=None):
-	"""Bulk buying-price map so the POS grid can show purchase prices in one call (no per-item N+1)."""
-	_profile, company = _context("purchases", pos_profile)
+	"""Bulk buying-price map so the POS grid can show purchase prices in one call (no per-item N+1).
+
+	Each item's rate is taken from the profile's configured price source (POS Settings →
+	posa_purchase_price_source) — Buying Price List / Last Purchase Rate / Valuation Rate — falling
+	back through the other sources so purchase mode pre-fills a real cost instead of 0."""
+	profile, company = _context("purchases", pos_profile)
 	frappe.has_permission("Item Price", "read", throw=True)
+	frappe.has_permission("Item", "read", throw=True)
 	price_list = _assert_price_list(buying_price_list or _default_buying_price_list(company), company)
-	rows = frappe.get_list(
+	order = _purchase_price_source_order(profile)
+
+	pl_rates = {}
+	for row in frappe.get_list(
 		"Item Price",
 		filters={"price_list": price_list.name, "buying": 1},
-		fields=["item_code", "uom", "price_list_rate"],
+		fields=["item_code", "price_list_rate"],
 		order_by="valid_from desc",
 		limit=0,
-	)
-	prices = {}
-	for row in rows:
-		# First occurrence wins (newest valid_from first); ignore later/duplicate rows.
-		prices.setdefault(row.item_code, flt(row.price_list_rate))
-	# For items with no configured buying-price-list rate, fall back to the item's last actual
-	# purchase rate (ERPNext maintains Item.last_purchase_rate on every purchase submit), then to
-	# the current valuation (average cost) — so purchase mode pre-fills a real cost instead of 0,
-	# and the last price is remembered after each purchase. Cashier can still edit any line.
-	frappe.has_permission("Item", "read", throw=True)
-	for item in frappe.get_list(
-		"Item",
-		filters={"disabled": 0, "is_purchase_item": 1},
-		fields=["name", "last_purchase_rate", "valuation_rate"],
-		limit=0,
 	):
-		if not prices.get(item.name):
-			fallback = flt(item.last_purchase_rate) or flt(item.valuation_rate)
-			if fallback > 0:
-				prices[item.name] = fallback
-	return {"price_list": price_list.name, "currency": price_list.currency, "prices": prices}
+		# First occurrence wins (newest valid_from first); ignore later/duplicate rows.
+		pl_rates.setdefault(row.item_code, flt(row.price_list_rate))
+	item_rates = {
+		item.name: (flt(item.last_purchase_rate), flt(item.valuation_rate))
+		for item in frappe.get_list(
+			"Item",
+			filters={"disabled": 0, "is_purchase_item": 1},
+			fields=["name", "last_purchase_rate", "valuation_rate"],
+			limit=0,
+		)
+	}
+	prices = {}
+	for code in set(pl_rates) | set(item_rates):
+		last_purchase, valuation = item_rates.get(code, (0.0, 0.0))
+		rate = _pick_by_source(order, {"price_list": pl_rates.get(code, 0.0), "last_purchase": last_purchase, "valuation": valuation})
+		if rate > 0:
+			prices[code] = rate
+	return {"price_list": price_list.name, "currency": price_list.currency, "prices": prices, "price_source": order[0]}
 
 
 @frappe.whitelist()
