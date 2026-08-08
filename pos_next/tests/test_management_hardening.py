@@ -285,3 +285,27 @@ class TestPurchaseHardening(TestCase):
 		self.assertEqual(fingerprint, purchases._payment_request_fingerprint(dict(base)))
 		changed_mode = {**base, "mode_of_payment": "جيب"}
 		self.assertNotEqual(fingerprint, purchases._payment_request_fingerprint(changed_mode))
+
+	def test_zero_rate_stock_purchase_is_rejected_with_the_item_name(self):
+		# Receiving stock at rate 0 would book 0-cost inventory; require a real buying price and
+		# name the item (not "Row #1") so the cashier knows exactly which line to fix.
+		item = frappe._dict(
+			name="ITEM-1", item_name="AirPods 4", disabled=0, is_purchase_item=1, stock_uom="Nos"
+		)
+		data = {
+			"supplier": "SUP", "company": "Company A", "update_stock": 1,
+			"buying_price_list": "Buying", "currency": "SAR",
+			"items": [{"item_code": "ITEM-1", "qty": 1, "rate": 0, "uom": "Nos", "warehouse": "WH-A"}],
+		}
+		with (
+			patch.object(purchases, "_assert_supplier"),
+			patch.object(purchases, "_default_buying_price_list", return_value="Buying"),
+			patch.object(purchases, "_assert_price_list", return_value=frappe._dict(name="Buying", currency="SAR")),
+			patch.object(purchases, "_validate_currency"),
+			patch.object(purchases, "assert_doc_permission", return_value=item),
+			patch.object(purchases.frappe, "throw", side_effect=frappe.ValidationError) as throw,
+		):
+			with self.assertRaises(frappe.ValidationError):
+				purchases._validate_purchase_payload(data, "POS-A", "Company A")
+		# the raised message names the item, not a row index
+		self.assertTrue(any("AirPods 4" in str(c.args[0]) for c in throw.call_args_list))

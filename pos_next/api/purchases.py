@@ -215,6 +215,10 @@ def _validate_purchase_payload(data, profile, company):
 			frappe.throw(_("Item {0} is not enabled for purchasing").format(item.name))
 		if flt(row.get("qty")) <= 0 or flt(row.get("rate")) < 0:
 			frappe.throw(_("Quantity must be positive and rate cannot be negative in row {0}").format(index))
+		# Receiving stock at a zero rate would book 0-cost inventory (ERPNext rejects it late with a
+		# cryptic "Allow Zero Valuation Rate" error); require an actual buying price, named clearly.
+		if cint(data.get("update_stock")) and flt(row.get("rate")) <= 0:
+			frappe.throw(_("Enter a purchase price for item {0}").format(item.item_name or item.name))
 		uom = row.get("uom") or item.stock_uom
 		assert_doc_permission("UOM", uom)
 		warehouse = row.get("warehouse") or data.get("set_warehouse")
@@ -506,7 +510,10 @@ def get_item_buying_price(item_code, buying_price_list=None, uom=None, pos_profi
 	prices = frappe.get_list("Item Price", filters=filters, fields=["name", "price_list_rate", "currency", "uom", "valid_from", "valid_upto"], order_by="valid_from desc", limit=2)
 	if len(prices) > 1:
 		frappe.throw(_("Multiple applicable buying prices exist; select the rate explicitly"))
-	return {"item_code": item.name, "buying_price": flt(prices[0].price_list_rate) if prices else 0, "price_list": price_list.name, "currency": price_list.currency}
+	# Same fallback as the bulk map: last actual purchase rate, then valuation, so the rate is
+	# pre-filled instead of 0 when there's no configured buying-price-list entry.
+	buying_price = flt(prices[0].price_list_rate) if prices else (flt(item.last_purchase_rate) or flt(item.valuation_rate) or 0)
+	return {"item_code": item.name, "buying_price": buying_price, "price_list": price_list.name, "currency": price_list.currency}
 
 
 @frappe.whitelist()
@@ -526,6 +533,21 @@ def get_buying_prices(buying_price_list=None, pos_profile=None):
 	for row in rows:
 		# First occurrence wins (newest valid_from first); ignore later/duplicate rows.
 		prices.setdefault(row.item_code, flt(row.price_list_rate))
+	# For items with no configured buying-price-list rate, fall back to the item's last actual
+	# purchase rate (ERPNext maintains Item.last_purchase_rate on every purchase submit), then to
+	# the current valuation (average cost) — so purchase mode pre-fills a real cost instead of 0,
+	# and the last price is remembered after each purchase. Cashier can still edit any line.
+	frappe.has_permission("Item", "read", throw=True)
+	for item in frappe.get_list(
+		"Item",
+		filters={"disabled": 0, "is_purchase_item": 1},
+		fields=["name", "last_purchase_rate", "valuation_rate"],
+		limit=0,
+	):
+		if not prices.get(item.name):
+			fallback = flt(item.last_purchase_rate) or flt(item.valuation_rate)
+			if fallback > 0:
+				prices[item.name] = fallback
 	return {"price_list": price_list.name, "currency": price_list.currency, "prices": prices}
 
 

@@ -477,6 +477,16 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			showError(__("Purchases require an internet connection"));
 			return null;
 		}
+		// Require a real buying price on every line: a zero-rate update_stock line
+		// silently corrupts COGS/valuation. The cashier types the price via the line
+		// editor; block here with the offending item NAMES (backend enforces it too).
+		const zeroRateNames = invoiceItems.value
+			.filter((item) => Number(item.rate || 0) <= 0)
+			.map((item) => item.item_name || item.item_code);
+		if (zeroRateNames.length > 0) {
+			showWarning(__("Enter the buying price for: {0}", [zeroRateNames.join("، ")]));
+			return null;
+		}
 
 		isSubmitting.value = true;
 		try {
@@ -503,7 +513,9 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			purchaseIdempotencyKey = newIdempotencyKey("purchase");
 			return submitRes;
 		} catch (error) {
-			showError(parseError(error) || __("Failed to create purchase invoice"));
+			// parseError returns a STRUCTURED object; the toast takes a plain string,
+			// so pass .message (passing the object renders "[object Object]" / raw JSON).
+			showError(parseError(error).message || __("Failed to create purchase invoice"));
 			return null;
 		} finally {
 			isSubmitting.value = false;
@@ -1673,7 +1685,8 @@ export const usePOSCartStore = defineStore("posCart", () => {
 			return true;
 		} catch (error) {
 			console.error("Error updating item:", error);
-			showError(parseError(error) || __("Failed to update item."));
+			// parseError returns a structured object; pass its .message string to the toast.
+			showError(parseError(error).message || __("Failed to update item."));
 			return false;
 		}
 	}

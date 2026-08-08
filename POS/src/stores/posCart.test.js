@@ -91,13 +91,10 @@ vi.mock("@/utils/offline/offlineState", () => ({
 	offlineState,
 }));
 
-vi.mock("@/composables/useToast", () => ({
-	useToast: () => ({
-		showSuccess: vi.fn(),
-		showError: vi.fn(),
-		showWarning: vi.fn(),
-	}),
+const { toast } = vi.hoisted(() => ({
+	toast: { showSuccess: vi.fn(), showError: vi.fn(), showWarning: vi.fn() },
 }));
+vi.mock("@/composables/useToast", () => ({ useToast: () => toast }));
 
 const { call } = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock("@/utils/apiWrapper", () => ({ call: (...args) => call(...args) }));
@@ -109,8 +106,15 @@ vi.mock("@/utils/stockValidator", () => ({
 	checkStockAvailability: () => ({ available: false, error: "Out of stock" }),
 }));
 
+// Mirror the real parseError: a STRUCTURED object (the toast fix reads .message).
 vi.mock("@/utils/errorHandler", () => ({
-	parseError: (e) => e?.message || "error",
+	parseError: (e) => ({
+		title: "Error",
+		message: e?.message || "error",
+		type: "generic",
+		retryable: false,
+		technicalDetails: null,
+	}),
 }));
 
 import { usePOSCartStore } from "./posCart";
@@ -120,12 +124,16 @@ import { usePOSCartStore } from "./posCart";
 describe("posCart purchase mode", () => {
 	beforeEach(() => {
 		setActivePinia(createPinia());
-		globalThis.__ = (value, args) => value;
+		globalThis.__ = (value, args = []) =>
+			args.reduce((s, a, i) => s.replace(`{${i}}`, a), value);
 		offlineState.isOffline = false;
 		enforceStock.value = false;
 		fakeInvoice.invoiceItems.value = [];
 		fakeInvoice.customer.value = null;
 		call.mockReset();
+		toast.showWarning.mockClear();
+		toast.showError.mockClear();
+		toast.showSuccess.mockClear();
 	});
 
 	afterEach(() => {
@@ -323,6 +331,42 @@ describe("posCart purchase mode", () => {
 		const result = await cart.submitPurchaseInvoice({});
 		expect(result).toBeNull();
 		expect(call).not.toHaveBeenCalled();
+	});
+
+	it("blocks a zero-rate line, names the item, and never calls the save API", async () => {
+		const cart = usePOSCartStore();
+		cart.setMode("purchase");
+		cart.setSupplier({ name: "SUP-1", supplier_name: "Acme" });
+		cart.setPurchaseWarehouse("Stores - A");
+		// Two lines: one priced, one at rate 0 (the AirPods case from the report).
+		cart.addItem({ item_code: "ITEM-1", item_name: "iPhone", stock_uom: "Nos", uom: "Nos", rate: 5 });
+		cart.addItem({ item_code: "ITEM-2", item_name: "AirPods 4", stock_uom: "Nos", uom: "Nos", rate: 0 });
+
+		const result = await cart.submitPurchaseInvoice({});
+		expect(result).toBeNull();
+		expect(call).not.toHaveBeenCalled(); // never reaches save_purchase_invoice
+		// A warning listing the offending item NAME (not a row number).
+		expect(toast.showWarning).toHaveBeenCalled();
+		const msg = toast.showWarning.mock.calls.at(-1)[0];
+		expect(typeof msg).toBe("string");
+		expect(msg).toContain("AirPods 4");
+		expect(msg).not.toContain("iPhone"); // only the offending line is named
+	});
+
+	it("shows a parseError STRING (not [object Object]) when submit throws", async () => {
+		const cart = usePOSCartStore();
+		cart.setMode("purchase");
+		cart.setSupplier({ name: "SUP-1", supplier_name: "Acme" });
+		cart.setPurchaseWarehouse("Stores - A");
+		cart.addItem({ item_code: "ITEM-1", item_name: "A", stock_uom: "Nos", uom: "Nos", rate: 5 });
+		call.mockRejectedValueOnce({ message: "أدخل سعر الشراء للصنف AirPods 4" });
+
+		const result = await cart.submitPurchaseInvoice({});
+		expect(result).toBeNull();
+		const shown = toast.showError.mock.calls.at(-1)[0];
+		expect(typeof shown).toBe("string");
+		expect(shown).not.toBe("[object Object]");
+		expect(shown).toContain("أدخل سعر الشراء للصنف");
 	});
 
 	it("does not stock-block quantity increases in purchase mode", () => {

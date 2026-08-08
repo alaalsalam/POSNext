@@ -1276,8 +1276,22 @@
 										</div>
 									</div>
 
-									<!-- Price -->
-									<span class="text-[10px] sm:text-xs font-bold text-gray-700">
+									<!-- Price — in purchase mode a zero rate is invalid (COGS/valuation),
+									     so surface a tappable «أدخل السعر» chip instead of "0.00". -->
+									<button
+										v-if="isPurchaseMode && !(item.rate > 0)"
+										type="button"
+										data-testid="enter-price-chip"
+										@click.stop="openEditDialog(item)"
+										class="inline-flex items-center gap-1 px-2 h-6 rounded-md bg-amber-100 text-amber-700 border border-amber-300 text-[10px] sm:text-xs font-bold hover:bg-amber-200 active:bg-amber-300 transition-colors touch-manipulation"
+										:title="__('Enter buying price')"
+									>
+										<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+										</svg>
+										<span>{{ __("أدخل السعر") }}</span>
+									</button>
+									<span v-else class="text-[10px] sm:text-xs font-bold text-gray-700">
 										{{ formatCurrency(item.rate) }}
 									</span>
 								</div>
