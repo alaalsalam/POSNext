@@ -357,6 +357,17 @@
 							<span>{{ __("إدارة الصندوق") }}</span>
 						</button>
 						<button
+							v-if="canManageExpenseTypes"
+							data-testid="mobile-expense-types-button"
+							@click="handleManagementMenuClick('expense_types')"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-100 text-xs font-semibold flex items-center gap-2 active:bg-purple-100"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 8V3a2 2 0 012-2z" />
+							</svg>
+							<span>{{ __("أنواع المصاريف") }}</span>
+						</button>
+						<button
 							v-if="canManageFeatureFlags"
 							@click="handleManagementMenuClick('settings')"
 							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold flex items-center gap-2 active:bg-gray-200"

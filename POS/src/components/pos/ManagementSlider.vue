@@ -131,7 +131,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'expense_types'
-					? 'bg-indigo-100 text-indigo-600'
+					? 'bg-purple-100 text-purple-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('أنواع المصاريف')"
