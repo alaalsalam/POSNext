@@ -29,6 +29,13 @@
 					<p class="text-xs text-amber-800">{{ __("Open over 1 minute — close the shift or cancel.") }}</p>
 				</div>
 
+				<!-- Pending (unapproved) cash entries are NOT in the expected cash yet — warn so the
+				     drawer is not mistaken for short until a manager approves them. -->
+				<div v-if="closingData.pending_cash_entries > 0" class="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+					<FeatherIcon name="alert-triangle" class="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+					<p class="text-xs text-amber-800">{{ __("{0} cash entries await manager approval — not counted in the expected cash yet, so the drawer may look short until approved.", [closingData.pending_cash_entries]) }}</p>
+				</div>
+
 				<!-- ── HEADER STRIP ── -->
 				<div class="flex items-center justify-between bg-slate-800 text-white px-4 py-2.5 rounded-xl gap-4">
 					<div class="min-w-0">

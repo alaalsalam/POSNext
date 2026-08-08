@@ -1984,6 +1984,7 @@ Not posted — combined variance {0} exceeds the allowed cap {1}.,لم يُرح�
 Not posted — no account is configured (cashier shortage account or surplus account).,لم يُرحَّل — لا يوجد حساب مُعرَّف (حساب عجز الكاشير أو حساب الزيادة).,
 Offline payment deleted successfully,تم حذف الدفعة غير المتصلة بنجاح,
 Open over 1 minute — close the shift or cancel.,مفتوحة لأكثر من دقيقة — أغلق الوردية أو ألغِ.,
+"{0} cash entries await manager approval — not counted in the expected cash yet, so the drawer may look short until approved.","{0} حركة صندوق بانتظار اعتماد المدير — لم تُحتسب بعد في النقد المتوقع، وقد يظهر الصندوق ناقصاً حتى الاعتماد.",""
 Opening {0} · Expected {1},الافتتاح {0} · المتوقع {1},
 POS Warehouse (cached),مستودع نقطة البيع (مخزّن),
 Payment saved offline and will sync when online,تم حفظ الدفعة دون اتصال وستتم مزامنتها عند الاتصال,
