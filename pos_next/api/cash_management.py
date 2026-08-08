@@ -322,3 +322,107 @@ def get_cash_entries(pos_profile=None, limit=50):
 		"pending_count": pending,
 		"is_manager": bool(is_feature_manager()),
 	}
+
+
+# ── Expense type management (manager-only) ──────────────────────────────────────────────────
+# A manager defines the expense types (and the account each posts to) from the app so cashiers
+# never touch Desk or the full chart of accounts. Company-scoped: a type is bound to the POS
+# Profile's company and its account is validated against it by the POS Expense Type controller.
+
+
+def _assert_cash_manager(pos_profile):
+	profile, company = _cash_context(pos_profile)
+	if not is_feature_manager():
+		frappe.throw(_("Only a POS manager can manage expense types"), frappe.PermissionError)
+	return profile, company
+
+
+@frappe.whitelist()
+def get_expense_types(pos_profile=None):
+	"""Every expense type (enabled and disabled) of the profile's company, for the manager screen."""
+	profile, company = _assert_cash_manager(pos_profile)
+	frappe.has_permission("POS Expense Type", "read", throw=True)
+	rows = frappe.get_list(
+		"POS Expense Type",
+		filters={"company": company},
+		fields=["name", "expense_type_name", "expense_account", "enabled"],
+		order_by="expense_type_name",
+		limit=500,
+	)
+	if rows:
+		names = {r.expense_account for r in rows}
+		account_names = {
+			a.name: a.account_name
+			for a in frappe.get_all("Account", filters={"name": ["in", list(names)]}, fields=["name", "account_name"])
+		}
+		for r in rows:
+			r["account_name"] = account_names.get(r.expense_account, r.expense_account)
+	return {"expense_types": rows, "company": company}
+
+
+@frappe.whitelist()
+def get_expense_accounts(pos_profile=None):
+	"""The company's non-group, enabled Expense accounts — the scoped picker for a type, so the
+	manager never has to scroll the whole chart of accounts."""
+	profile, company = _assert_cash_manager(pos_profile)
+	frappe.has_permission("Account", "read", throw=True)
+	accounts = frappe.get_list(
+		"Account",
+		filters={"company": company, "root_type": "Expense", "is_group": 0, "disabled": 0},
+		fields=["name", "account_name"],
+		order_by="account_name",
+		limit=1000,
+	)
+	return {"accounts": accounts, "company": company}
+
+
+@frappe.whitelist()
+def save_expense_type(expense_type_name, expense_account, pos_profile=None, enabled=1, name=None):
+	"""Create or update an expense type. The company is always the profile's — a manager can never
+	create a type for, or move one to, another company. Account rules are enforced by the controller."""
+	profile, company = _assert_cash_manager(pos_profile)
+	expense_type_name = (expense_type_name or "").strip()
+	if not expense_type_name:
+		frappe.throw(_("Enter an expense type name"))
+	if not expense_account:
+		frappe.throw(_("Select an expense account"))
+
+	if name:
+		if frappe.db.get_value("POS Expense Type", name, "company") != company:
+			frappe.throw(_("This expense type belongs to a different company"), frappe.PermissionError)
+		doc = frappe.get_doc("POS Expense Type", name)
+		doc.expense_type_name = expense_type_name
+		doc.expense_account = expense_account
+		doc.enabled = cint(enabled)
+		doc.save()
+	else:
+		doc = frappe.get_doc({
+			"doctype": "POS Expense Type",
+			"expense_type_name": expense_type_name,
+			"company": company,
+			"expense_account": expense_account,
+			"enabled": cint(enabled),
+		})
+		doc.insert()
+
+	return {
+		"name": doc.name,
+		"expense_type_name": doc.expense_type_name,
+		"expense_account": doc.expense_account,
+		"enabled": cint(doc.enabled),
+	}
+
+
+@frappe.whitelist()
+def delete_expense_type(name, pos_profile=None):
+	"""Remove an expense type. Past cash entries store the resolved account, not this link, so a
+	delete never rewrites history."""
+	profile, company = _assert_cash_manager(pos_profile)
+	existing_company = frappe.db.get_value("POS Expense Type", name, "company")
+	if not existing_company:
+		frappe.throw(_("Expense type not found"))
+	if existing_company != company:
+		frappe.throw(_("This expense type belongs to a different company"), frappe.PermissionError)
+	frappe.has_permission("POS Expense Type", "delete", throw=True)
+	frappe.delete_doc("POS Expense Type", name)
+	return {"name": name, "deleted": True}

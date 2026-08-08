@@ -360,3 +360,90 @@ class TestCashManagementFeatureGating(TestCase):
 			self.assertRaises(frappe.ValidationError),
 		):
 			cm.get_cash_entry_accounts("Expense", pos_profile="POS-TEST")
+
+
+class TestExpenseTypeManagement(TestCase):
+	"""Expense-type CRUD is manager-only and can never cross company boundaries."""
+
+	def test_list_denied_to_non_manager_before_db(self):
+		with (
+			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "is_feature_manager", return_value=False),
+			patch.object(cm.frappe, "has_permission") as permission,
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.PermissionError),
+		):
+			cm.get_expense_types(pos_profile="POS-TEST")
+		permission.assert_not_called()
+
+	def test_save_denied_to_non_manager_before_db(self):
+		with (
+			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "is_feature_manager", return_value=False),
+			patch.object(cm.frappe, "get_doc") as get_doc,
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.PermissionError),
+		):
+			cm.save_expense_type("Fuel", "Fuel Expense - TC", pos_profile="POS-TEST")
+		get_doc.assert_not_called()
+
+	def test_save_requires_a_name_and_account(self):
+		with (
+			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+		):
+			with self.assertRaises(frappe.ValidationError):
+				cm.save_expense_type("   ", "Fuel Expense - TC", pos_profile="POS-TEST")
+			with self.assertRaises(frappe.ValidationError):
+				cm.save_expense_type("Fuel", "", pos_profile="POS-TEST")
+
+	def test_edit_cannot_cross_company(self):
+		database = MagicMock()
+		database.get_value.return_value = "Other Company"  # existing type's company
+		with (
+			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.dict(cm.frappe.__dict__, {"db": database}),
+			patch.object(cm.frappe, "get_doc") as get_doc,
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.PermissionError),
+		):
+			cm.save_expense_type("Fuel", "Fuel Expense - TC", pos_profile="POS-TEST", name="EXP-9")
+		get_doc.assert_not_called()
+
+	def test_new_type_is_bound_to_the_profile_company(self):
+		created = {}
+		doc = MagicMock()
+		doc.name = "EXP-00007"
+		doc.expense_type_name = "Fuel"
+		doc.expense_account = "Fuel Expense - TC"
+		doc.enabled = 1
+
+		def get_doc(payload):
+			created.update(payload)
+			return doc
+
+		with (
+			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.object(cm.frappe, "get_doc", side_effect=get_doc),
+		):
+			result = cm.save_expense_type("Fuel", "Fuel Expense - TC", pos_profile="POS-TEST", enabled=1)
+		self.assertEqual(created["company"], "Test Company")
+		doc.insert.assert_called_once()
+		self.assertEqual(result["name"], "EXP-00007")
+
+	def test_delete_cannot_cross_company(self):
+		database = MagicMock()
+		database.get_value.return_value = "Other Company"
+		with (
+			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.dict(cm.frappe.__dict__, {"db": database}),
+			patch.object(cm.frappe, "delete_doc") as delete_doc,
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.PermissionError),
+		):
+			cm.delete_expense_type("EXP-9", pos_profile="POS-TEST")
+		delete_doc.assert_not_called()
