@@ -49,6 +49,34 @@ describe("SupplierSelector", () => {
 		vi.clearAllMocks();
 	});
 
+	it("empty state renders the card shell + avatar + create icon (not a bare input)", async () => {
+		const wrapper = mountSelector({ modelValue: null });
+		await flushPromises();
+		// The inline search input lives inside the card container (same shell classes
+		// as the selected/customer card: rounded-xl + shadow-sm).
+		const input = wrapper.find("#cart-supplier-search");
+		expect(input.exists()).toBe(true);
+		const card = input.element.closest(".rounded-xl");
+		expect(card).toBeTruthy();
+		expect(card.className).toContain("shadow-sm");
+		// The input is borderless so it reads as part of the card, not a boxed input.
+		expect(input.classes()).toContain("border-0");
+		// The always-visible create (+) affordance is present before any interaction.
+		expect(wrapper.find('[data-testid="supplier-create"]').exists()).toBe(true);
+		// The avatar icon (orange gradient) is present in the card shell.
+		expect(card.querySelector(".bg-gradient-to-br")).toBeTruthy();
+	});
+
+	it("focusing the empty-state input shows the preloaded supplier list (one click)", async () => {
+		const wrapper = mountSelector({ modelValue: null });
+		await flushPromises();
+		await wrapper.find("#cart-supplier-search").trigger("focus");
+		await flushPromises();
+		const text = wrapper.text();
+		expect(text).toContain("Acme Supplies");
+		expect(text).toContain("Globex Trading");
+	});
+
 	it("preloads suppliers on mount so the list is ready before typing", async () => {
 		mountSelector();
 		await flushPromises();

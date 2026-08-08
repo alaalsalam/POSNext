@@ -65,22 +65,28 @@
 	<div class="flex flex-col h-full bg-white">
 		<!-- Header with Customer -->
 		<div class="px-2.5 py-2 border-b border-gray-200 bg-gray-50">
-			<!-- Purchase mode: header label -->
-			<div v-if="isPurchaseMode" class="flex items-center gap-1.5 text-[11px] font-bold text-orange-600 mb-2">
-				<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
-				</svg>
-				<span>{{ __("Purchase Mode") }}</span>
-			</div>
+			<!-- Purchase mode: party row divides like the sales row —
+			     [وضع الشراء / Purchase Mode chip][supplier card]. Warehouse / tax
+			     template / expense account are silent defaults from Settings. -->
+			<div v-if="isPurchaseMode" class="flex items-stretch gap-2">
+				<!-- Purchase Mode chip (leading side, mirrors sales' doctype toggle card) -->
+				<div
+					class="flex flex-col items-center justify-center gap-0.5 bg-white border border-orange-200 rounded-xl px-2.5 shadow-sm flex-shrink-0 text-orange-600"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+					</svg>
+					<span class="text-[9px] font-bold leading-none whitespace-nowrap">{{ __("Purchase Mode") }}</span>
+				</div>
 
-			<!-- Purchase mode: supplier only. Warehouse / tax template / expense
-			     account are silent defaults from Settings → Purchase Defaults. -->
-			<div v-if="isPurchaseMode" class="space-y-2">
-				<SupplierSelector
-					v-model="selectedSupplier"
-					:pos-profile="posProfile"
-					:default-supplier="cartStore.purchaseDefaultSupplier"
-				/>
+				<!-- Supplier card (fills the row) -->
+				<div class="flex-1 min-w-0">
+					<SupplierSelector
+						v-model="selectedSupplier"
+						:pos-profile="posProfile"
+						:default-supplier="cartStore.purchaseDefaultSupplier"
+					/>
+				</div>
 			</div>
 
 			<!-- Inline Customer Search/Selection (sales mode only) -->

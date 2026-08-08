@@ -69,31 +69,49 @@
 			</div>
 		</div>
 
-		<!-- Search input (no supplier, or Change requested) -->
+		<!-- Empty / searching state — SAME card shell as the selected card, so the
+		     un-interacted first impression is a sibling of the sales customer card:
+		     [orange avatar] [inline borderless search input] [green create icon]. -->
 		<div v-else class="relative">
-			<div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
-				<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5"
-					/>
-				</svg>
+			<div class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm min-w-0 focus-within:ring-2 focus-within:ring-orange-500 focus-within:border-transparent transition-shadow">
+				<div
+					class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center flex-shrink-0"
+				>
+					<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17M17 13v6a2 2 0 11-4 0"
+						/>
+					</svg>
+				</div>
+				<input
+					id="cart-supplier-search"
+					name="cart-supplier-search"
+					ref="searchInput"
+					v-model="search"
+					@input="onSearch"
+					@focus="showDropdown = true"
+					type="text"
+					autocomplete="off"
+					:placeholder="__('Search or add supplier...')"
+					:aria-label="__('Search supplier in cart')"
+					class="min-w-0 flex-1 h-8 px-1 text-xs bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-gray-400"
+				/>
+				<button
+					type="button"
+					data-testid="supplier-create"
+					@click.stop="openCreate"
+					class="w-7 h-7 flex items-center justify-center text-green-600 hover:bg-green-50 active:bg-green-100 rounded-lg transition-colors touch-manipulation flex-shrink-0"
+					:title="__('Create new supplier')"
+					:aria-label="__('Create new supplier')"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+					</svg>
+				</button>
 			</div>
-			<input
-				id="cart-supplier-search"
-				name="cart-supplier-search"
-				ref="searchInput"
-				v-model="search"
-				@input="onSearch"
-				@focus="showDropdown = true"
-				type="text"
-				autocomplete="off"
-				:placeholder="__('Search or add supplier...')"
-				:aria-label="__('Search supplier in cart')"
-				class="w-full h-10 ps-9 pe-3 text-xs border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent shadow-sm transition-shadow"
-			/>
 
 			<!-- Dropdown -->
 			<div
