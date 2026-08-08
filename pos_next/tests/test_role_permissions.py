@@ -28,6 +28,11 @@ CONTRACT = [
 	("POS Settings", "write", False, True),
 	("Purchase Invoice", "create", False, True),
 	("Company", "read", False, True),
+	# Cash Management: the cashier records cash movements (Journal Entry) but cannot void them.
+	("Journal Entry", "read", True, True),
+	("Journal Entry", "create", True, True),
+	("Journal Entry", "submit", True, True),
+	("Journal Entry", "cancel", False, True),
 ]
 
 
@@ -53,9 +58,10 @@ class TestAppOwnedRolePermissions(FrappeTestCase):
 	def setUpClass(cls):
 		super().setUpClass()
 		# Ensure the shipped grants are applied (idempotent) so the test is self-contained.
-		from pos_next.patches.v2_0_0 import ship_pos_role_permissions
+		from pos_next.patches.v2_0_0 import ship_cash_management_permissions, ship_pos_role_permissions
 
 		ship_pos_role_permissions.execute()
+		ship_cash_management_permissions.execute()
 		_make_user(CASHIER, ["POSNext Cashier"])
 		_make_user(MANAGER, ["POSNext Cashier", "POS Manager"])
 

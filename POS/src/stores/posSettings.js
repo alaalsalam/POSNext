@@ -179,6 +179,9 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		() => settings.value.enable_sales_persons === "Multiple"
 	);
 
+	// Computed - Cashier cash-drawer management (gates the rail entry + panel)
+	const enableCashManagement = computed(() => Boolean(settings.value.enable_cash_management));
+
 	// Computed - Security
 	const enableSessionLock = computed(() => Boolean(settings.value.enable_session_lock));
 	const sessionLockTimeout = computed(
@@ -309,6 +312,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 			enable_purchases: 0,
 			enable_supplier_payments: 0,
 			enable_pos_reports: 0,
+			enable_cash_management: 0,
 		};
 		isLoaded.value = false;
 	}
@@ -447,6 +451,9 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		salesPersonsMode,
 		isSingleSalesPerson,
 		isMultipleSalesPersons,
+
+		// Computed - Cash management
+		enableCashManagement,
 
 		// Computed - Security
 		enableSessionLock,

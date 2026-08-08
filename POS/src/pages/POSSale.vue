@@ -272,6 +272,7 @@
 					:can-manage-purchases="canManagePurchases"
 					:can-view-reports="canViewReports"
 					:can-manage-settings="canManageFeatureFlags"
+					:can-manage-cash="canManageCash"
 					:purchase-mode-active="cartStore.mode === 'purchase'"
 				/>
 
@@ -342,6 +343,17 @@
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V9m6 10V5m6 14v-7m4 7H2" />
 							</svg>
 							<span>{{ __("Reports") }}</span>
+						</button>
+						<button
+							v-if="canManageCash"
+							data-testid="mobile-cash-button"
+							@click="handleManagementMenuClick('cash')"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 text-xs font-semibold flex items-center gap-2 active:bg-teal-100"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+							</svg>
+							<span>{{ __("إدارة الصندوق") }}</span>
 						</button>
 						<button
 							v-if="canManageFeatureFlags"
@@ -941,6 +953,16 @@
 				</div>
 			</div>
 
+			<!-- Cash Management Panel -->
+			<div
+				v-if="showCashPanel"
+				class="absolute inset-0 z-[300] flex"
+			>
+				<div class="flex-1 flex flex-col overflow-hidden">
+					<CashManagement :pos-profile="shiftStore.profileName" @close="showCashPanel = false" />
+				</div>
+			</div>
+
 			<!-- Clear Cart Confirmation Dialog -->
 			<Dialog
 				v-model="uiStore.showClearCartDialog"
@@ -1263,6 +1285,7 @@ import PurchaseInvoiceDetailDialog from "@/components/purchases/PurchaseInvoiceD
 import SupplierPaymentDialog from "@/components/purchases/SupplierPaymentDialog.vue";
 import SupplierPaymentList from "@/components/purchases/SupplierPaymentList.vue";
 import POSReportDashboard from "@/components/reports/POSReportDashboard.vue";
+import CashManagement from "@/components/cash/CashManagement.vue";
 import POSHeader from "@/components/pos/POSHeader.vue";
 import ShiftStatsBar from "@/components/pos/ShiftStatsBar.vue";
 import BatchSerialDialog from "@/components/sale/BatchSerialDialog.vue";
@@ -1448,6 +1471,14 @@ const canCancelSupplierPayment = ref(false);
 const supplierPaymentInvoice = ref(null);
 const showReportsPanel = ref(false);
 const canViewReports = ref(false);
+
+// Cash management — cashier-available, gated purely by the enable_cash_management flag.
+const showCashPanel = ref(false);
+const canManageCash = computed(() => posSettingsStore.enableCashManagement);
+// If a manager disables the flag mid-shift, close the panel so it can't linger.
+watch(canManageCash, (allowed) => {
+	if (!allowed) showCashPanel.value = false;
+});
 
 // Purchase mode (main-screen unified purchase flow)
 const purchaseBuyingPrices = ref({}); // { item_code: buying_price }
@@ -3345,6 +3376,8 @@ function handleManagementMenuClick(menuItem) {
 		togglePurchaseMode();
 	} else if (menuItem === "reports") {
 		showReportsPanel.value = true;
+	} else if (menuItem === "cash") {
+		if (canManageCash.value) showCashPanel.value = true;
 	}
 }
 

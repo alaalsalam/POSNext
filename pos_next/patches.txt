@@ -10,3 +10,4 @@ pos_next.patches.v2_0_0.cleanup_legacy_workspace
 pos_next.patches.v2_0_0.ship_pos_role_permissions
 pos_next.patches.v2_0_0.warehouse_transit_ignore_user_perms
 pos_next.patches.v2_0_0.purchase_flow_ignore_user_perms
+pos_next.patches.v2_0_0.ship_cash_management_permissions

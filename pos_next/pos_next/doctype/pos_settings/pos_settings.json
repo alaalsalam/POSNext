@@ -86,6 +86,7 @@
   "section_break_feature_flags",
   "enable_catalog_management",
   "enable_purchases",
+  "enable_cash_management",
   "column_break_feature_flags",
   "enable_supplier_payments",
   "enable_pos_reports",
@@ -665,6 +666,13 @@
    "fieldname": "enable_pos_reports",
    "fieldtype": "Check",
    "label": "Enable In-POS Reports"
+  },
+  {
+   "default": "0",
+   "description": "Lets the cashier record cash movements from the drawer (expense / receipt / payment) with notes. Entries post a Cash Entry journal linked to the open shift and adjust the expected closing cash.",
+   "fieldname": "enable_cash_management",
+   "fieldtype": "Check",
+   "label": "Enable Cash Management (Expenses / Receipts)"
   },
   {
    "fieldname": "barcode_tab",

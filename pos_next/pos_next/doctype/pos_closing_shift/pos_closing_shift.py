@@ -643,6 +643,22 @@ def make_closing_shift_from_opening(opening_shift):
 		amount = get_base_value(py, "paid_amount", "base_paid_amount")
 		_aggregate_payment(payments, py.mode_of_payment, amount)
 
+	# Cash Management entries recorded during the shift adjust the expected cash: a Receipt adds
+	# to the drawer, an Expense/Payment takes from it — so a mid-shift expense is reflected in the
+	# expected cash and is NOT mistaken for a cashier shortage (which could otherwise be posted as
+	# a variance). Mirrors how payment entries above feed _aggregate_payment.
+	for entry in frappe.get_all(
+		"Journal Entry",
+		filters={
+			"posa_pos_opening_shift": opening_shift.get("name"),
+			"docstatus": 1,
+			"posa_cash_entry_type": ["in", ["Expense", "Receipt", "Payment"]],
+		},
+		fields=["posa_cash_entry_type", "total_debit"],
+	):
+		net = flt(entry.total_debit) if entry.posa_cash_entry_type == "Receipt" else -flt(entry.total_debit)
+		_aggregate_payment(payments, cash_mode, net)
+
 	# Update closing shift with totals
 	closing_shift.grand_total = summary["grand_total"]
 	closing_shift.net_total = summary["net_total"]

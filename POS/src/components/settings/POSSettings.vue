@@ -1827,6 +1827,7 @@ const settings = ref({
 	enable_purchases: 0,
 	enable_supplier_payments: 0,
 	enable_pos_reports: 0,
+	enable_cash_management: 0,
 	// Purchase defaults (mirror the sales default customer) — pre-fill purchase mode
 	posa_default_supplier: "",
 	posa_default_purchase_warehouse: "",
@@ -1858,6 +1859,11 @@ const featureFlagDefinitions = computed(() => [
 		fieldname: "enable_pos_reports",
 		label: __("In-POS Reports"),
 		description: __("Show operational reports to authorized managers inside POS."),
+	},
+	{
+		fieldname: "enable_cash_management",
+		label: __("Enable Cash Management (Expenses / Receipts)"),
+		description: __("Let cashiers record drawer cash movements (expense / receipt / payment) during a shift."),
 	},
 ]);
 

@@ -102,6 +102,27 @@
 			</div>
 		</button>
 
+		<!-- Cash Management — cashier drawer movements (gated by feature flag) -->
+		<button
+			v-if="canManageCash"
+			data-testid="rail-cash-button"
+			@click="handleMenuClick('cash')"
+			:class="[
+				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
+				activeMenu === 'cash'
+					? 'bg-teal-100 text-teal-600'
+					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+			]"
+			:title="__('إدارة الصندوق')"
+		>
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+			</svg>
+			<div class="absolute start-full ms-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+				{{ __("إدارة الصندوق") }}
+			</div>
+		</button>
+
 		<!-- Catalog Management — only shown to authorized users -->
 		<button
 			v-if="canManageCatalog"
@@ -167,6 +188,8 @@ const props = defineProps({
 	canManagePurchases: { type: Boolean, default: false },
 	canViewReports: { type: Boolean, default: false },
 	canManageSettings: { type: Boolean, default: false },
+	// Cashier cash-drawer management (gated by the enable_cash_management flag).
+	canManageCash: { type: Boolean, default: false },
 	// True while the cart is in purchase mode — highlights the purchase toggle.
 	purchaseModeActive: { type: Boolean, default: false },
 });
