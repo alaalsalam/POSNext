@@ -6,6 +6,7 @@ const ARABIC_TO_ENGLISH = {
 	"إجمالي النتائج: {0}": "Total results: {0}",
 	"إدارة المشتريات": "Manage Purchases",
 	"إضافة صنف": "Add Item",
+	إضافة: "Add",
 	إعادة: "Reset",
 	"إلغاء الدفعة": "Cancel Payment",
 	"إلغاء الفاتورة": "Cancel Invoice",
@@ -21,6 +22,7 @@ const ARABIC_TO_ENGLISH = {
 	اعتماد: "Submit",
 	الأصناف: "Items",
 	"الإجمالي الكلي": "Grand Total",
+	"المجموع الكلي": "Total Amount",
 	الإجمالي: "Total",
 	"الإجمالي:": "Total:",
 	"الرصيد المستحق": "Outstanding Amount",
@@ -89,6 +91,7 @@ const ARABIC_TO_ENGLISH = {
 	"مبلغ الدفع أكبر من الرصيد المستحق":
 		"Payment amount exceeds the outstanding amount",
 	"مبلغ الدفعة": "Payment Amount",
+	"مبالغ سريعة": "Quick Amounts",
 	متأخرة: "Overdue",
 	"متبقي: {0}": "Outstanding: {0}",
 	مدفوع: "Paid",

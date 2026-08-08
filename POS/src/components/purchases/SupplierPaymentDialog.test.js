@@ -116,29 +116,46 @@ describe("SupplierPaymentDialog", () => {
 		expect(create[1].idempotency_key).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,139}$/)
 	})
 
-	it("shows the remaining amount for a partial payment and 'paid in full' at outstanding", async () => {
+	it("numpad digit entry updates the amount display", async () => {
 		const wrapper = mountDialog()
 		await flushPromises()
-		// Defaults to the full outstanding → paid in full.
-		expect(wrapper.find('[data-testid="remaining-panel"]').text()).toContain("مسدَّد بالكامل")
-
-		// Partial payment → remaining shows.
-		await wrapper.find('input[type="number"]').setValue(40)
+		// Clear the pre-filled outstanding, then type 4 then 0 → 40.
+		await wrapper.find('[data-testid="key-clear"]').trigger("click")
+		const keys = wrapper.findAll("button.numkey")
+		const key = (label) => keys.find((b) => b.text().trim() === label)
+		await key("4").trigger("click")
+		await key("0").trigger("click")
 		await flushPromises()
+		expect(wrapper.find('[data-testid="amount-display"]').text()).toContain("40.00")
 		const panel = wrapper.find('[data-testid="remaining-panel"]').text()
-		expect(panel).toContain("المتبقي بعد الدفع")
+		expect(panel).toContain("المتبقي")
 		expect(panel).toContain("60.00")
 	})
 
-	it("prevents overpayment: caps the amount at outstanding", async () => {
+	it("«كامل» quick-amount chip sets the amount to the full outstanding", async () => {
 		const wrapper = mountDialog()
 		await flushPromises()
-		const input = wrapper.find('input[type="number"]')
-		await input.setValue(500) // more than the 100 outstanding
+		await wrapper.find('[data-testid="key-clear"]').trigger("click")
+		expect(wrapper.find('[data-testid="amount-display"]').text()).toContain("0.00")
+		await wrapper.find('[data-testid="quick-full"]').trigger("click")
 		await flushPromises()
-		// Capped to outstanding; remaining reads paid-in-full, not negative.
+		expect(wrapper.find('[data-testid="amount-display"]').text()).toContain("100.00")
 		expect(wrapper.find('[data-testid="remaining-panel"]').text()).toContain("مسدَّد بالكامل")
-		expect(Number(input.element.value)).toBeLessThanOrEqual(100)
+	})
+
+	it("prevents overpayment: numpad entry is capped at outstanding", async () => {
+		const wrapper = mountDialog()
+		await flushPromises()
+		await wrapper.find('[data-testid="key-clear"]').trigger("click")
+		const keys = wrapper.findAll("button.numkey")
+		const key = (label) => keys.find((b) => b.text().trim() === label)
+		// Type 9, 9, 9 → would be 999, but must cap at the 100 outstanding.
+		await key("9").trigger("click")
+		await key("9").trigger("click")
+		await key("9").trigger("click")
+		await flushPromises()
+		expect(wrapper.find('[data-testid="amount-display"]').text()).toContain("100.00")
+		expect(wrapper.find('[data-testid="remaining-panel"]').text()).toContain("مسدَّد بالكامل")
 	})
 
 	it("keeps reference no + date behind the additional-details disclosure", async () => {
