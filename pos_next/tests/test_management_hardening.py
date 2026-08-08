@@ -249,3 +249,39 @@ class TestPurchaseHardening(TestCase):
 			self.assertRaises(frappe.TimestampMismatchError),
 		):
 			purchases.save_purchase_invoice({"name": "PINV-1", "company": "Company A"}, expected_modified="older", pos_profile="POS-A")
+
+	def test_supplier_payment_account_resolves_from_settings_and_guards(self):
+		methods = [frappe._dict(mode_of_payment="نقد"), frappe._dict(mode_of_payment="جيب")]
+		accounts = {"نقد": "Cash - A", "جيب": None}  # جيب has no account mapping for the company
+		with patch.object(purchases, "_profile_payment_method_accounts", return_value=(methods, accounts)):
+			with patch.object(
+				purchases, "assert_company_resource",
+				return_value=frappe._dict(name="Cash - A", account_type="Cash"),
+			):
+				# mode-only resolves to the settings-mapped account (client never sends an account)
+				self.assertEqual(purchases._resolve_payment_account("POS-A", "Company A", "نقد", None), "Cash - A")
+				# an explicit account that matches the mode's configured account is accepted
+				self.assertEqual(purchases._resolve_payment_account("POS-A", "Company A", "نقد", "Cash - A"), "Cash - A")
+			# a mode not enabled for the profile is rejected (settings-scoped)
+			with self.assertRaises(frappe.PermissionError):
+				purchases._resolve_payment_account("POS-A", "Company A", "مدى", None)
+			# a mode with no configured account for the company is rejected
+			with self.assertRaises(frappe.ValidationError):
+				purchases._resolve_payment_account("POS-A", "Company A", "جيب", None)
+			# an explicit account that mismatches the mode's configured account is rejected
+			with self.assertRaises(frappe.ValidationError):
+				purchases._resolve_payment_account("POS-A", "Company A", "نقد", "Other - A")
+
+	def test_supplier_payment_fingerprint_tracks_client_request_not_resolved_account(self):
+		# The fingerprint is over what the CLIENT sent (mode + the client's paid_from, None when
+		# mode-only) — so a Settings change to the mode's account can't alter an identical request's
+		# fingerprint and wrongly trip the idempotency-conflict guard.
+		base = {
+			"invoice_name": "PINV-1", "amount": 50, "paid_from": None, "posting_date": "2026-08-01",
+			"reference_date": "2026-08-01", "mode_of_payment": "نقد", "reference_no": None,
+			"remarks": None, "company": "Company A", "pos_profile": "POS-A",
+		}
+		fingerprint = purchases._payment_request_fingerprint(base)
+		self.assertEqual(fingerprint, purchases._payment_request_fingerprint(dict(base)))
+		changed_mode = {**base, "mode_of_payment": "جيب"}
+		self.assertNotEqual(fingerprint, purchases._payment_request_fingerprint(changed_mode))

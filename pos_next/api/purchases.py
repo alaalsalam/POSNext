@@ -556,20 +556,75 @@ def get_purchase_tax_templates(pos_profile=None):
 	)
 
 
+def _profile_payment_method_accounts(profile, company):
+	"""The POS profile's configured payment methods, each mapped to its Cash/Bank account for
+	this company (linked from settings). Used to drive the supplier-payment method tiles and to
+	resolve/validate the payment account server-side so the client never handles account names."""
+	methods = frappe.get_all(
+		"POS Payment Method",
+		filters={"parent": profile, "parenttype": "POS Profile"},
+		fields=["mode_of_payment", "default", "idx"],
+		order_by="idx",
+	)
+	mode_names = [row.mode_of_payment for row in methods]
+	accounts = {
+		row.parent: row.default_account
+		for row in frappe.get_all(
+			"Mode of Payment Account",
+			filters={"company": company, "parent": ["in", mode_names or [""]]},
+			fields=["parent", "default_account"],
+			limit=0,
+		)
+	}
+	return methods, accounts
+
+
+def _resolve_payment_account(profile, company, mode_of_payment, paid_from):
+	"""Resolve the Cash/Bank account for a supplier payment. `mode_of_payment` is the primary
+	input — it must be one of the profile's configured methods, and its settings-mapped account
+	is used. An explicit `paid_from` is accepted for back-compat but must match the mode's account."""
+	resolved = paid_from or None
+	if mode_of_payment:
+		methods, accounts = _profile_payment_method_accounts(profile, company)
+		if mode_of_payment not in {row.mode_of_payment for row in methods}:
+			frappe.throw(_("This payment method is not enabled for this POS Profile"), frappe.PermissionError)
+		mode_account = accounts.get(mode_of_payment)
+		if not mode_account:
+			frappe.throw(_("The payment method {0} has no account configured in Settings for this company").format(mode_of_payment))
+		if resolved and resolved != mode_account:
+			frappe.throw(_("The selected account does not match the payment method configured in Settings"))
+		resolved = mode_account
+	if not resolved:
+		frappe.throw(_("A payment method is required"))
+	account = assert_company_resource("Account", resolved, company)
+	if account.account_type not in {"Cash", "Bank"}:
+		frappe.throw(_("The payment account must be a Cash or Bank account"))
+	return account.name
+
+
 @frappe.whitelist()
 def get_supplier_payment_defaults(invoice_name, pos_profile=None):
 	profile, company = _context("supplier_payments", pos_profile)
 	frappe.has_permission("Payment Entry", "create", throw=True)
 	invoice = _get_payable_invoice(invoice_name, profile, company)
+	methods, method_accounts = _profile_payment_method_accounts(profile, company)
+	payment_methods = [
+		{
+			"mode_of_payment": row.mode_of_payment,
+			"default": cint(row.default),
+			# Server resolves the account; the UI only needs to know the method is usable.
+			"account_missing": not bool(method_accounts.get(row.mode_of_payment)),
+		}
+		for row in methods
+	]
+	# Legacy keys kept additively so an older cached dialog bundle keeps working during rollout;
+	# the new dialog uses `payment_methods` and never handles account names. Remove next pass.
 	accounts = frappe.get_list("Account", filters={"company": company, "is_group": 0, "disabled": 0, "account_type": ["in", ["Cash", "Bank"]]}, fields=["name", "account_name", "account_type", "account_currency"], order_by="account_type, account_name", limit=200)
-	modes = frappe.get_list("Mode of Payment", fields=["name", "type"], order_by="name", limit=100)
-	mode_accounts = frappe.get_all("Mode of Payment Account", filters={"company": company, "parent": ["in", [row.name for row in modes] or [""]]}, fields=["parent", "default_account"], limit=0)
-	defaults = {row.parent: row.default_account for row in mode_accounts}
-	for mode in modes:
-		mode["default_account"] = defaults.get(mode.name)
+	modes = [{"name": row.mode_of_payment, "default_account": method_accounts.get(row.mode_of_payment)} for row in methods]
 	return {
 		"invoice": {"name": invoice.name, "supplier": invoice.supplier, "supplier_name": invoice.supplier_name, "company": company, "currency": invoice.currency, "grand_total": flt(invoice.grand_total), "outstanding_amount": flt(invoice.outstanding_amount)},
 		"posting_date": nowdate(),
+		"payment_methods": payment_methods,
 		"accounts": accounts,
 		"modes_of_payment": modes,
 		"can_submit": bool(frappe.has_permission("Payment Entry", "submit")),
@@ -589,17 +644,15 @@ def _payment_result(payment, invoice=None):
 
 
 @frappe.whitelist()
-def create_supplier_payment(invoice_name, amount, paid_from, idempotency_key, posting_date=None, mode_of_payment=None, reference_no=None, reference_date=None, remarks=None, submit=0, pos_profile=None):
+def create_supplier_payment(invoice_name, amount, paid_from=None, idempotency_key=None, posting_date=None, mode_of_payment=None, reference_no=None, reference_date=None, remarks=None, submit=0, pos_profile=None):
 	profile, company = _context("supplier_payments", pos_profile)
 	frappe.has_permission("Payment Entry", "create", throw=True)
 	if cint(submit):
 		frappe.has_permission("Payment Entry", "submit", throw=True)
 	key = normalize_idempotency_key(idempotency_key)
-	account = assert_company_resource("Account", paid_from, company)
-	if account.account_type not in {"Cash", "Bank"}:
-		frappe.throw(_("The payment account must be a Cash or Bank account"))
-	if mode_of_payment:
-		assert_doc_permission("Mode of Payment", mode_of_payment)
+	# The client sends the payment METHOD (from the profile's configured methods); the account is
+	# resolved + validated here from Settings so account names never leave the server.
+	resolved_from = _resolve_payment_account(profile, company, mode_of_payment, paid_from)
 	posting_date = getdate(posting_date or nowdate())
 	reference_date = getdate(reference_date or posting_date)
 	fingerprint = _payment_request_fingerprint({
@@ -632,14 +685,14 @@ def create_supplier_payment(invoice_name, amount, paid_from, idempotency_key, po
 	try:
 		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
-		payment = get_payment_entry("Purchase Invoice", invoice.name, party_amount=amount, bank_account=paid_from, payment_type="Pay", reference_date=reference_date)
+		payment = get_payment_entry("Purchase Invoice", invoice.name, party_amount=amount, bank_account=resolved_from, payment_type="Pay", reference_date=reference_date)
 		payment.update({
 			"posting_date": posting_date,
 			"reference_date": reference_date,
 			"mode_of_payment": mode_of_payment,
 			"reference_no": reference_no,
 			"remarks": remarks,
-			"paid_from": paid_from,
+			"paid_from": resolved_from,
 			"custom_posnext_pos_profile": profile,
 			"custom_posnext_idempotency_key": key,
 			"custom_posnext_request_fingerprint": fingerprint,
