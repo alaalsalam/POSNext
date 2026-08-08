@@ -88,6 +88,7 @@
   "enable_purchases",
   "enable_cash_management",
   "posa_cash_posting_mode",
+  "enable_expense_types",
   "column_break_feature_flags",
   "enable_supplier_payments",
   "enable_pos_reports",
@@ -683,6 +684,13 @@
    "fieldtype": "Select",
    "label": "Cash Posting Mode",
    "options": "Immediate\nAfter Approval"
+  },
+  {
+   "default": "0",
+   "description": "Lets a manager define expense types (and the account each posts to) from the POS, so cashiers pick from a short list instead of the full chart of accounts. Independent of Cash Management.",
+   "fieldname": "enable_expense_types",
+   "fieldtype": "Check",
+   "label": "Enable Expense Types Management"
   },
   {
    "fieldname": "barcode_tab",

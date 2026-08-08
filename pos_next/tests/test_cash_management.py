@@ -363,34 +363,41 @@ class TestCashManagementFeatureGating(TestCase):
 
 
 class TestExpenseTypeManagement(TestCase):
-	"""Expense-type CRUD is manager-only and can never cross company boundaries."""
+	"""Expense-type CRUD is an independent capability: it requires the enable_expense_types flag
+	AND a manager (both enforced by require_manager_feature), and can never cross companies."""
 
-	def test_list_denied_to_non_manager_before_db(self):
+	def test_list_rejected_when_flag_off_or_not_manager(self):
+		# require_manager_feature raises when the enable_expense_types flag is off OR the user is
+		# not a manager — either way the endpoint must exit before touching permissions or the DB.
 		with (
-			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=False),
+			patch.object(cm, "require_manager_feature", side_effect=frappe.PermissionError),
 			patch.object(cm.frappe, "has_permission") as permission,
-			patch.object(cm.frappe, "throw", side_effect=_throw),
 			self.assertRaises(frappe.PermissionError),
 		):
 			cm.get_expense_types(pos_profile="POS-TEST")
 		permission.assert_not_called()
 
-	def test_save_denied_to_non_manager_before_db(self):
+	def test_save_rejected_when_flag_off_or_not_manager(self):
 		with (
-			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=False),
+			patch.object(cm, "require_manager_feature", side_effect=frappe.PermissionError),
 			patch.object(cm.frappe, "get_doc") as get_doc,
-			patch.object(cm.frappe, "throw", side_effect=_throw),
 			self.assertRaises(frappe.PermissionError),
 		):
 			cm.save_expense_type("Fuel", "Fuel Expense - TC", pos_profile="POS-TEST")
 		get_doc.assert_not_called()
 
+	def test_delete_rejected_when_flag_off_or_not_manager(self):
+		with (
+			patch.object(cm, "require_manager_feature", side_effect=frappe.PermissionError),
+			patch.object(cm.frappe, "delete_doc") as delete_doc,
+			self.assertRaises(frappe.PermissionError),
+		):
+			cm.delete_expense_type("EXP-9", pos_profile="POS-TEST")
+		delete_doc.assert_not_called()
+
 	def test_save_requires_a_name_and_account(self):
 		with (
-			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "throw", side_effect=_throw),
 		):
 			with self.assertRaises(frappe.ValidationError):
@@ -402,8 +409,7 @@ class TestExpenseTypeManagement(TestCase):
 		database = MagicMock()
 		database.get_value.return_value = "Other Company"  # existing type's company
 		with (
-			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
 			patch.dict(cm.frappe.__dict__, {"db": database}),
 			patch.object(cm.frappe, "get_doc") as get_doc,
 			patch.object(cm.frappe, "throw", side_effect=_throw),
@@ -425,8 +431,7 @@ class TestExpenseTypeManagement(TestCase):
 			return doc
 
 		with (
-			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "get_doc", side_effect=get_doc),
 		):
 			result = cm.save_expense_type("Fuel", "Fuel Expense - TC", pos_profile="POS-TEST", enabled=1)
@@ -438,8 +443,7 @@ class TestExpenseTypeManagement(TestCase):
 		database = MagicMock()
 		database.get_value.return_value = "Other Company"
 		with (
-			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=True),
+			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
 			patch.dict(cm.frappe.__dict__, {"db": database}),
 			patch.object(cm.frappe, "delete_doc") as delete_doc,
 			patch.object(cm.frappe, "throw", side_effect=_throw),

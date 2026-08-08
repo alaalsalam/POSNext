@@ -13,6 +13,7 @@ FEATURE_FLAGS = {
 	"supplier_payments": "enable_supplier_payments",
 	"pos_reports": "enable_pos_reports",
 	"cash_management": "enable_cash_management",
+	"expense_types": "enable_expense_types",
 }
 
 FEATURE_DEPENDENCIES = {

@@ -20,8 +20,12 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, nowdate
 
-from pos_next.api.feature_flags import is_feature_manager, require_feature
-from pos_next.api.management_scope import assert_company_resource, assert_doc_permission
+from pos_next.api.feature_flags import get_feature_flags, is_feature_manager, require_feature
+from pos_next.api.management_scope import (
+	assert_company_resource,
+	assert_doc_permission,
+	require_manager_feature,
+)
 
 CASH_ENTRY_TYPES = ("Expense", "Receipt", "Payment", "Transfer")
 _NOTES_REQUIRED = {"Expense", "Payment"}
@@ -110,9 +114,15 @@ def get_cash_management_setup(pos_profile=None):
 		order_by="expense_type_name",
 		limit=500,
 	)
+	# Expense-type editing is its own capability (enable_expense_types + manager) — the nested
+	# gear/empty-state entry points show only when the cashier's manager may actually manage types.
+	expense_types_enabled = cint(
+		frappe.db.get_value("POS Settings", {"pos_profile": profile, "enabled": 1}, "enable_expense_types")
+	)
 	return {
 		"posting_mode": _posting_mode(profile),
 		"is_manager": bool(is_feature_manager()),
+		"can_manage_expense_types": bool(is_feature_manager()) and bool(expense_types_enabled),
 		"default_cash_account": _default_cash_account(profile, company),
 		"cash_boxes": boxes,
 		"expense_types": expense_types,
@@ -331,10 +341,10 @@ def get_cash_entries(pos_profile=None, limit=50):
 
 
 def _assert_cash_manager(pos_profile):
-	profile, company = _cash_context(pos_profile)
-	if not is_feature_manager():
-		frappe.throw(_("Only a POS manager can manage expense types"), frappe.PermissionError)
-	return profile, company
+	"""Expense-type management is an INDEPENDENT capability: it needs its own enable_expense_types
+	flag plus a manager role — not the cash_management flag. A business can pre-configure expense
+	types without giving cashiers the drawer panel, or run the drawer without exposing type editing."""
+	return require_manager_feature("expense_types", pos_profile=pos_profile)
 
 
 @frappe.whitelist()
