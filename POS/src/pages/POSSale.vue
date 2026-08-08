@@ -899,6 +899,21 @@
 					</div>
 				</div>
 			</div>
+			<!-- Read-only purchase invoice review (opened from Invoice Management → Purchases) -->
+			<PurchaseInvoiceDetailDialog
+				v-if="purchaseDetailName"
+				:key="purchaseDetailName + '-' + purchaseInvoicesRefreshToken"
+				:invoice-name="purchaseDetailName"
+				:pos-profile="shiftStore.profileName"
+				:can-pay="canCreateSupplierPayment"
+				:can-write="canWritePurchases"
+				:can-cancel="canCancelPurchases"
+				@close="purchaseDetailName = null"
+				@pay-invoice="payFromPurchaseDetail"
+				@edit-invoice="editFromPurchaseDetail"
+				@cancel-invoice="cancelFromPurchaseDetail"
+			/>
+
 			<SupplierPaymentDialog
 				v-if="supplierPaymentInvoice"
 				:invoice="supplierPaymentInvoice"
@@ -1244,6 +1259,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner.vue";
 import ManagementSlider from "@/components/pos/ManagementSlider.vue";
 import CatalogManagement from "@/components/pos/CatalogManagement.vue";
 import PurchaseInvoiceForm from "@/components/purchases/PurchaseInvoiceForm.vue";
+import PurchaseInvoiceDetailDialog from "@/components/purchases/PurchaseInvoiceDetailDialog.vue";
 import SupplierPaymentDialog from "@/components/purchases/SupplierPaymentDialog.vue";
 import SupplierPaymentList from "@/components/purchases/SupplierPaymentList.vue";
 import POSReportDashboard from "@/components/reports/POSReportDashboard.vue";
@@ -1417,6 +1433,8 @@ const canManageFeatureFlags = ref(false);
 // Purchases panel
 const showPurchasesPanel = ref(false);
 const purchaseView = ref("form"); // "form" | "payments" (the list lives in Invoice Management)
+// Read-only purchase invoice being reviewed (opened from Invoice Management → Purchases).
+const purchaseDetailName = ref(null);
 const currentPurchaseName = ref(null);
 const canManagePurchases = ref(false);
 const canCreatePurchases = ref(false);
@@ -3495,12 +3513,31 @@ function handleTabSwitch(tab) {
 	});
 }
 
-// Invoice Management (Purchases mode) row click → open the purchase invoice form
-// panel. Invoice Management stays mounted underneath; closing the panel returns to it.
+// Invoice Management (Purchases mode) row click → open the READ-ONLY review dialog
+// (mirrors sales, which opens a clean receipt, not the editable form). Invoice
+// Management stays mounted underneath; the editable form is reached only via the
+// detail's «تعديل» (drafts) or the create flow.
 function openPurchaseInvoiceFromManagement(inv) {
-	currentPurchaseName.value = inv?.name || null;
+	if (!inv?.name) return;
+	purchaseDetailName.value = inv.name;
+}
+
+// «تسجيل دفعة» from the review dialog → open the existing supplier-payment dialog.
+function payFromPurchaseDetail(inv) {
+	openSupplierPayment({ name: inv.name });
+}
+
+// «تعديل» from the review dialog (drafts only) → open the editable form panel.
+function editFromPurchaseDetail(inv) {
+	purchaseDetailName.value = null;
+	currentPurchaseName.value = inv.name;
 	purchaseView.value = "form";
 	showPurchasesPanel.value = true;
+}
+
+// «إلغاء الفاتورة» (subtle) → open the form panel, where the guarded cancel lives.
+function cancelFromPurchaseDetail(inv) {
+	editFromPurchaseDetail(inv);
 }
 
 // Invoice Management (Purchases mode) "supplier payments" → open the payments list panel.
