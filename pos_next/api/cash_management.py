@@ -1,29 +1,33 @@
 # Copyright (c) 2026, POS Next and contributors
 # For license information, please see license.txt
 
-"""Cashier cash-management: record drawer cash movements (expense / receipt / payment) with a
-note, as a Cash Entry Journal Entry linked to the open shift. Gated by the enable_cash_management
-feature flag; available to the cashier (not manager-only). The cash account is resolved
-server-side from the profile's cash mode of payment — the client only picks the counter account."""
+"""Cashier cash management — a small-business vouchers screen so cashiers don't need Desk.
+
+Records drawer cash movements as a "Cash Entry" Journal Entry linked to the open shift:
+  - Expense  : money out to an expense account (chosen via a POS Expense Type, so only the
+               configured expense accounts appear — not the whole chart).
+  - Receipt  : money in (سند قبض) — optionally from a Customer (party).
+  - Payment  : money out (سند صرف) — optionally to an Employee (party).
+  - Transfer : move cash between two cash/bank boxes.
+
+Posting mode (POS Settings → posa_cash_posting_mode): "Immediate" submits the entry (posts to the
+ledger); "After Approval" saves a draft (no ledger impact) that a MANAGER approves/rejects. The
+account for a party entry is derived server-side; the cash box defaults to the profile's cash mode
+but can be chosen. Gated by the enable_cash_management feature flag; cashier-available.
+"""
 
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, nowdate
 
-from pos_next.api.feature_flags import require_feature
-from pos_next.api.management_scope import assert_company_resource
+from pos_next.api.feature_flags import is_feature_manager, require_feature
+from pos_next.api.management_scope import assert_company_resource, assert_doc_permission
 
-# Stable internal keys (the UI shows Arabic labels). Expense/Payment take money OUT of the drawer,
-# Receipt brings money IN. Notes are required for the money-out types (audit trail).
-CASH_ENTRY_TYPES = ("Expense", "Receipt", "Payment")
+CASH_ENTRY_TYPES = ("Expense", "Receipt", "Payment", "Transfer")
 _NOTES_REQUIRED = {"Expense", "Payment"}
-# Counter-account root types allowed per entry type (Expense entries must hit an expense account;
-# receipts/payments can legitimately hit any non-drawer account).
-_ALLOWED_ROOT_TYPES = {
-	"Expense": ["Expense"],
-	"Receipt": ["Expense", "Income", "Liability", "Asset", "Equity"],
-	"Payment": ["Expense", "Income", "Liability", "Asset", "Equity"],
-}
+# Party types allowed per entry type (empty = no party).
+_PARTY_TYPES = {"Receipt": ("Customer",), "Payment": ("Employee",), "Expense": (), "Transfer": ()}
+_PARTY_NAME_FIELD = {"Customer": "customer_name", "Employee": "employee_name"}
 
 
 def _cash_context(pos_profile):
@@ -32,17 +36,47 @@ def _cash_context(pos_profile):
 	return profile, company
 
 
-def _resolve_cash_account(profile, company):
-	"""The drawer's cash account, from the profile's cash mode of payment (settings)."""
+def _posting_mode(profile):
+	return frappe.db.get_value("POS Settings", {"pos_profile": profile}, "posa_cash_posting_mode") or "Immediate"
+
+
+def _default_cash_account(profile, company):
 	cash_mode = frappe.db.get_value("POS Profile", profile, "posa_cash_mode_of_payment") or "Cash"
 	account = frappe.db.get_value("Mode of Payment Account", {"parent": cash_mode, "company": company}, "default_account")
 	if not account:
 		account = frappe.db.get_value(
 			"Account", {"company": company, "account_type": "Cash", "is_group": 0, "disabled": 0}, "name", order_by="creation"
 		)
-	if not account:
+	return account
+
+
+def _resolve_cash_box(profile, company, cash_account):
+	"""The cash/bank box for the movement — the chosen one, else the profile's default cash account."""
+	if cash_account:
+		box = assert_company_resource("Account", cash_account, company)
+		if box.account_type not in ("Cash", "Bank"):
+			frappe.throw(_("The cash box must be a Cash or Bank account"))
+		return box.name
+	box = _default_cash_account(profile, company)
+	if not box:
 		frappe.throw(_("No cash account is configured for this POS Profile's company. Set the cash Mode of Payment account in Settings."))
-	return account, cash_mode
+	return box
+
+
+def _resolve_expense_account(expense_type, company):
+	row = frappe.db.get_value("POS Expense Type", expense_type, ["expense_account", "company", "enabled"], as_dict=True)
+	if not row or not row.enabled or row.company != company:
+		frappe.throw(_("Select a valid expense type"))
+	return row.expense_account
+
+
+def _resolve_party_account(party_type, party, company):
+	from erpnext.accounts.party import get_party_account
+
+	account = get_party_account(party_type, party, company)
+	if not account:
+		frappe.throw(_("No default account is configured for {0} {1}").format(_(party_type), party))
+	return account
 
 
 def _current_shift(profile, required=True):
@@ -58,28 +92,83 @@ def _current_shift(profile, required=True):
 
 
 @frappe.whitelist()
-def get_cash_entry_accounts(entry_type, pos_profile=None):
-	"""Counter accounts for the picker, filtered by the entry type."""
+def get_cash_management_setup(pos_profile=None):
+	"""Everything the panel needs on open: posting mode, the drawer's cash boxes, expense types."""
 	profile, company = _cash_context(pos_profile)
 	frappe.has_permission("Account", "read", throw=True)
-	if entry_type not in CASH_ENTRY_TYPES:
-		frappe.throw(_("Invalid cash entry type"))
-	cash_account, _mode = _resolve_cash_account(profile, company)
+	boxes = frappe.get_list(
+		"Account",
+		filters={"company": company, "is_group": 0, "disabled": 0, "account_type": ["in", ["Cash", "Bank"]]},
+		fields=["name", "account_name", "account_type"],
+		order_by="account_type, account_name",
+		limit=200,
+	)
+	expense_types = frappe.get_list(
+		"POS Expense Type",
+		filters={"company": company, "enabled": 1},
+		fields=["name", "expense_type_name"],
+		order_by="expense_type_name",
+		limit=500,
+	)
+	return {
+		"posting_mode": _posting_mode(profile),
+		"is_manager": bool(is_feature_manager()),
+		"default_cash_account": _default_cash_account(profile, company),
+		"cash_boxes": boxes,
+		"expense_types": expense_types,
+		"currency": frappe.db.get_value("Company", company, "default_currency"),
+	}
+
+
+@frappe.whitelist()
+def get_cash_entry_accounts(entry_type, pos_profile=None):
+	"""Counter accounts for a general (party-less) Receipt/Payment — expense entries use a type,
+	transfers use cash boxes, so those don't call this."""
+	profile, company = _cash_context(pos_profile)
+	frappe.has_permission("Account", "read", throw=True)
+	if entry_type not in ("Receipt", "Payment"):
+		frappe.throw(_("Select an account only for a general receipt or payment"))
+	cash_account = _default_cash_account(profile, company)
 	accounts = frappe.get_list(
 		"Account",
-		filters={"company": company, "is_group": 0, "disabled": 0, "root_type": ["in", _ALLOWED_ROOT_TYPES[entry_type]], "name": ["!=", cash_account]},
+		filters={"company": company, "is_group": 0, "disabled": 0, "name": ["!=", cash_account]},
 		fields=["name", "account_name", "account_type", "root_type"],
 		order_by="root_type, account_name",
 		limit=500,
 	)
-	return {"accounts": accounts, "currency": frappe.db.get_value("Company", company, "default_currency")}
+	return {"accounts": accounts}
 
 
 @frappe.whitelist()
-def create_cash_entry(entry_type, amount, account, remarks=None, pos_profile=None):
+def get_parties(party_type, search="", pos_profile=None):
+	"""Party options for a receipt/payment (Customer / Employee / Supplier)."""
+	_cash_context(pos_profile)
+	if party_type not in _PARTY_NAME_FIELD:
+		frappe.throw(_("Invalid party type"))
+	frappe.has_permission(party_type, "read", throw=True)
+	name_field = _PARTY_NAME_FIELD[party_type]
+	filters = {}
+	if search:
+		filters[name_field] = ["like", f"%{search}%"]
+	rows = frappe.get_list(party_type, filters=filters, fields=["name", f"{name_field} as party_name"], order_by=name_field, limit=20)
+	return {"parties": rows}
+
+
+@frappe.whitelist()
+def create_cash_entry(
+	entry_type,
+	amount,
+	pos_profile=None,
+	cash_account=None,
+	to_account=None,
+	account=None,
+	expense_type=None,
+	party_type=None,
+	party=None,
+	remarks=None,
+):
 	profile, company = _cash_context(pos_profile)
 	frappe.has_permission("Journal Entry", "create", throw=True)
-	frappe.has_permission("Journal Entry", "submit", throw=True)
 	if entry_type not in CASH_ENTRY_TYPES:
 		frappe.throw(_("Invalid cash entry type"))
 	amount = flt(amount)
@@ -89,20 +178,48 @@ def create_cash_entry(entry_type, amount, account, remarks=None, pos_profile=Non
 	if entry_type in _NOTES_REQUIRED and not remarks:
 		frappe.throw(_("A note is required for this cash entry"))
 
-	counter = assert_company_resource("Account", account, company)
-	if counter.root_type not in _ALLOWED_ROOT_TYPES[entry_type]:
-		frappe.throw(_("The selected account is not valid for this entry type"))
-	cash_account, _cash_mode = _resolve_cash_account(profile, company)
-	if counter.name == cash_account:
-		frappe.throw(_("The account cannot be the drawer's cash account"))
+	box = _resolve_cash_box(profile, company, cash_account)
+	party_row = None
+
+	if entry_type == "Transfer":
+		destination = assert_company_resource("Account", to_account, company)
+		if destination.account_type not in ("Cash", "Bank"):
+			frappe.throw(_("The destination must be a Cash or Bank account"))
+		if destination.name == box:
+			frappe.throw(_("The source and destination cash boxes must differ"))
+		debit_account, credit_account = destination.name, box  # Dr to-box / Cr from-box
+	elif entry_type == "Expense":
+		expense_account = _resolve_expense_account(expense_type, company)
+		debit_account, credit_account = expense_account, box  # Dr expense / Cr cash
+	else:
+		# Receipt / Payment — party (derives its account) OR a general account.
+		if party_type or party:
+			if party_type not in _PARTY_TYPES[entry_type]:
+				frappe.throw(_("This party type is not allowed for this entry"))
+			if not party:
+				frappe.throw(_("Select a {0}").format(_(party_type)))
+			assert_doc_permission(party_type, party)
+			counter_account = _resolve_party_account(party_type, party, company)
+			party_row = (party_type, party)
+		else:
+			counter = assert_company_resource("Account", account, company)
+			counter_account = counter.name
+		if counter_account == box:
+			frappe.throw(_("The account cannot be the drawer's cash box"))
+		if entry_type == "Receipt":
+			debit_account, credit_account = box, counter_account  # Dr cash / Cr account
+		else:
+			debit_account, credit_account = counter_account, box  # Dr account / Cr cash
+
 	shift = _current_shift(profile)
 	cost_center = frappe.db.get_value("Company", company, "cost_center")
 
-	# Receipt = cash IN (Dr cash / Cr account); Expense & Payment = cash OUT (Dr account / Cr cash).
-	if entry_type == "Receipt":
-		debit_account, credit_account = cash_account, counter.name
-	else:
-		debit_account, credit_account = counter.name, cash_account
+	def _line(acct, debit, credit):
+		row = {"account": acct, "debit_in_account_currency": debit, "credit_in_account_currency": credit, "cost_center": cost_center}
+		# The party attaches to the non-cash counter row.
+		if party_row and acct not in (box,):
+			row["party_type"], row["party"] = party_row
+		return row
 
 	journal = frappe.get_doc({
 		"doctype": "Journal Entry",
@@ -112,30 +229,72 @@ def create_cash_entry(entry_type, amount, account, remarks=None, pos_profile=Non
 		"user_remark": remarks or _("POS cash entry"),
 		"posa_pos_opening_shift": shift,
 		"posa_cash_entry_type": entry_type,
-		"accounts": [
-			{"account": debit_account, "debit_in_account_currency": amount, "cost_center": cost_center},
-			{"account": credit_account, "credit_in_account_currency": amount, "cost_center": cost_center},
-		],
+		"accounts": [_line(debit_account, amount, 0), _line(credit_account, 0, amount)],
 	})
 	journal.insert(ignore_permissions=False)
-	journal.submit()
+
+	submitted = False
+	if _posting_mode(profile) == "Immediate":
+		frappe.has_permission("Journal Entry", "submit", throw=True)
+		journal.submit()
+		submitted = True
+
 	return {
 		"name": journal.name,
 		"entry_type": entry_type,
 		"amount": amount,
-		"account": counter.name,
-		"account_name": counter.account_name,
 		"remarks": remarks,
 		"posting_date": str(journal.posting_date),
+		"status": "Approved" if submitted else "Pending Approval",
+		"docstatus": journal.docstatus,
 	}
+
+
+def _get_cash_entry(name, profile, company, ptype="read"):
+	journal = assert_doc_permission("Journal Entry", name, ptype)
+	if journal.company != company or not journal.get("posa_cash_entry_type"):
+		frappe.throw(_("This is not a POS cash entry"), frappe.PermissionError)
+	if journal.get("posa_pos_opening_shift") and not frappe.db.exists(
+		"POS Opening Shift", {"name": journal.posa_pos_opening_shift, "pos_profile": profile}
+	):
+		frappe.throw(_("This cash entry belongs to a different POS Profile"), frappe.PermissionError)
+	return journal
+
+
+@frappe.whitelist()
+def approve_cash_entry(name, pos_profile=None):
+	"""Post a pending (draft) cash entry to the ledger. Manager only."""
+	profile, company = _cash_context(pos_profile)
+	if not is_feature_manager():
+		frappe.throw(_("Only a POS manager can approve cash entries"), frappe.PermissionError)
+	frappe.has_permission("Journal Entry", "submit", throw=True)
+	journal = _get_cash_entry(name, profile, company, "submit")
+	if journal.docstatus != 0:
+		frappe.throw(_("Only pending cash entries can be approved"))
+	journal.submit()
+	return {"name": journal.name, "status": "Approved", "docstatus": journal.docstatus}
+
+
+@frappe.whitelist()
+def reject_cash_entry(name, pos_profile=None):
+	"""Discard a pending (draft) cash entry. Manager only."""
+	profile, company = _cash_context(pos_profile)
+	if not is_feature_manager():
+		frappe.throw(_("Only a POS manager can reject cash entries"), frappe.PermissionError)
+	frappe.has_permission("Journal Entry", "delete", throw=True)
+	journal = _get_cash_entry(name, profile, company, "delete")
+	if journal.docstatus != 0:
+		frappe.throw(_("Only pending cash entries can be rejected"))
+	frappe.delete_doc("Journal Entry", journal.name, ignore_permissions=False)
+	return {"name": name, "status": "Rejected"}
 
 
 @frappe.whitelist()
 def get_cash_entries(pos_profile=None, limit=50):
-	"""Cash entries for the current shift (or today's, when no shift is open)."""
+	"""Cash entries for the current shift (or today's) — both posted and pending."""
 	profile, company = _cash_context(pos_profile)
 	frappe.has_permission("Journal Entry", "read", throw=True)
-	filters = {"company": company, "posa_cash_entry_type": ["in", list(CASH_ENTRY_TYPES)], "docstatus": 1}
+	filters = {"company": company, "posa_cash_entry_type": ["in", list(CASH_ENTRY_TYPES)], "docstatus": ["<", 2]}
 	shift = _current_shift(profile, required=False)
 	if shift:
 		filters["posa_pos_opening_shift"] = shift
@@ -145,10 +304,21 @@ def get_cash_entries(pos_profile=None, limit=50):
 	rows = frappe.get_list(
 		"Journal Entry",
 		filters=filters,
-		fields=["name", "posa_cash_entry_type", "total_debit", "user_remark", "posting_date", "creation"],
+		fields=["name", "posa_cash_entry_type", "total_debit", "user_remark", "posting_date", "creation", "docstatus"],
 		order_by="creation desc",
 		limit=min(cint(limit), 100),
 	)
-	received = sum(flt(r.total_debit) for r in rows if r.posa_cash_entry_type == "Receipt")
-	paid = sum(flt(r.total_debit) for r in rows if r.posa_cash_entry_type in ("Expense", "Payment"))
-	return {"entries": rows, "received_total": round(received, 2), "paid_total": round(paid, 2), "net_total": round(received - paid, 2)}
+	for row in rows:
+		row["status"] = "Approved" if row.docstatus == 1 else "Pending Approval"
+	posted = [r for r in rows if r.docstatus == 1]
+	received = sum(flt(r.total_debit) for r in posted if r.posa_cash_entry_type == "Receipt")
+	paid = sum(flt(r.total_debit) for r in posted if r.posa_cash_entry_type in ("Expense", "Payment"))
+	pending = sum(1 for r in rows if r.docstatus == 0)
+	return {
+		"entries": rows,
+		"received_total": round(received, 2),
+		"paid_total": round(paid, 2),
+		"net_total": round(received - paid, 2),
+		"pending_count": pending,
+		"is_manager": bool(is_feature_manager()),
+	}

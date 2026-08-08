@@ -44,6 +44,7 @@ POS_SETTINGS_FIELDS = [
 	"enable_supplier_payments",
 	"enable_pos_reports",
 	"enable_cash_management",
+	"posa_cash_posting_mode",
 ]
 
 # Default POS Settings values
@@ -79,4 +80,5 @@ DEFAULT_POS_SETTINGS = {
 	"enable_supplier_payments": 0,
 	"enable_pos_reports": 0,
 	"enable_cash_management": 0,
+	"posa_cash_posting_mode": "Immediate",
 }

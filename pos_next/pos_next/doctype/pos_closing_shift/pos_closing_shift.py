@@ -643,21 +643,33 @@ def make_closing_shift_from_opening(opening_shift):
 		amount = get_base_value(py, "paid_amount", "base_paid_amount")
 		_aggregate_payment(payments, py.mode_of_payment, amount)
 
-	# Cash Management entries recorded during the shift adjust the expected cash: a Receipt adds
-	# to the drawer, an Expense/Payment takes from it — so a mid-shift expense is reflected in the
-	# expected cash and is NOT mistaken for a cashier shortage (which could otherwise be posted as
-	# a variance). Mirrors how payment entries above feed _aggregate_payment.
-	for entry in frappe.get_all(
+	# Cash Management entries recorded during the shift adjust the expected drawer cash so a
+	# mid-shift movement is NOT mistaken for a cashier shortage. Net by the drawer's ACTUAL cash
+	# account (debit − credit), not by entry type: this is direction- and box-agnostic — a Receipt
+	# or a Transfer INTO the drawer raises expected cash, an Expense/Payment or a Transfer OUT lowers
+	# it, and an entry paid from a different box (bank) leaves the drawer untouched.
+	from pos_next.api.cash_management import _default_cash_account
+
+	drawer_account = _default_cash_account(opening_shift.get("pos_profile"), closing_shift.company)
+	cash_je_names = frappe.get_all(
 		"Journal Entry",
 		filters={
 			"posa_pos_opening_shift": opening_shift.get("name"),
 			"docstatus": 1,
-			"posa_cash_entry_type": ["in", ["Expense", "Receipt", "Payment"]],
+			"posa_cash_entry_type": ["in", ["Expense", "Receipt", "Payment", "Transfer"]],
 		},
-		fields=["posa_cash_entry_type", "total_debit"],
-	):
-		net = flt(entry.total_debit) if entry.posa_cash_entry_type == "Receipt" else -flt(entry.total_debit)
-		_aggregate_payment(payments, cash_mode, net)
+		pluck="name",
+	)
+	if drawer_account and cash_je_names:
+		drawer_net = 0.0
+		for row in frappe.get_all(
+			"Journal Entry Account",
+			filters={"parent": ["in", cash_je_names], "account": drawer_account},
+			fields=["debit_in_account_currency", "credit_in_account_currency"],
+		):
+			drawer_net += flt(row.debit_in_account_currency) - flt(row.credit_in_account_currency)
+		if drawer_net:
+			_aggregate_payment(payments, cash_mode, drawer_net)
 
 	# Update closing shift with totals
 	closing_shift.grand_total = summary["grand_total"]
@@ -685,6 +697,17 @@ def make_closing_shift_from_opening(opening_shift):
 			"sales_total": summary["sales_total"],
 			"sales_count": summary["sales_count"],
 			"pos_transactions": pos_transactions,  # Include return info for display
+			# Draft (unapproved) cash entries have NOT posted to the ledger, so they are not in the
+			# expected cash above — surface the count so the close screen can warn that the drawer
+			# will look short by their value until a manager approves them.
+			"pending_cash_entries": frappe.db.count(
+				"Journal Entry",
+				{
+					"posa_pos_opening_shift": opening_shift.get("name"),
+					"docstatus": 0,
+					"posa_cash_entry_type": ["in", ["Expense", "Receipt", "Payment", "Transfer"]],
+				},
+			),
 		}
 	)
 

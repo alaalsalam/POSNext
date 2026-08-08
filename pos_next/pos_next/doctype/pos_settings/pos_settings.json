@@ -87,6 +87,7 @@
   "enable_catalog_management",
   "enable_purchases",
   "enable_cash_management",
+  "posa_cash_posting_mode",
   "column_break_feature_flags",
   "enable_supplier_payments",
   "enable_pos_reports",
@@ -673,6 +674,15 @@
    "fieldname": "enable_cash_management",
    "fieldtype": "Check",
    "label": "Enable Cash Management (Expenses / Receipts)"
+  },
+  {
+   "default": "Immediate",
+   "depends_on": "enable_cash_management",
+   "description": "When cash movements post to the ledger: Immediate (posted on record) or After Approval (recorded as a draft with no ledger impact, posted only when a manager approves it).",
+   "fieldname": "posa_cash_posting_mode",
+   "fieldtype": "Select",
+   "label": "Cash Posting Mode",
+   "options": "Immediate\nAfter Approval"
   },
   {
    "fieldname": "barcode_tab",
