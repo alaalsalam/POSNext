@@ -1,6 +1,35 @@
 {
  "custom_fields": [
   {
+   "dt": "Journal Entry",
+   "fieldname": "custom_posnext_idempotency_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "insert_after": "posa_cash_entry_type",
+   "label": "POSNext Idempotency Key",
+   "length": 140,
+   "module": "POS Next",
+   "name": "Journal Entry-custom_posnext_idempotency_key",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "dt": "Journal Entry",
+   "fieldname": "custom_posnext_request_fingerprint",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "insert_after": "custom_posnext_idempotency_key",
+   "label": "POSNext Request Fingerprint",
+   "length": 64,
+   "module": "POS Next",
+   "name": "Journal Entry-custom_posnext_request_fingerprint",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
    "_assign": null,
    "_comments": null,
    "_liked_by": null,

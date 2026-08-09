@@ -13,7 +13,7 @@
 			class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm min-w-0"
 		>
 			<div
-				class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center flex-shrink-0"
+				class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0"
 			>
 				<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path
@@ -37,7 +37,7 @@
 					type="button"
 					data-testid="supplier-change"
 					@click.stop="startChange"
-					class="w-7 h-7 flex items-center justify-center text-orange-500 hover:bg-orange-50 active:bg-orange-100 rounded-lg transition-colors touch-manipulation"
+					class="w-7 h-7 flex items-center justify-center text-blue-500 hover:bg-blue-50 active:bg-blue-100 rounded-lg transition-colors touch-manipulation"
 					:title="__('Change supplier')"
 				>
 					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -71,11 +71,11 @@
 
 		<!-- Empty / searching state — SAME card shell as the selected card, so the
 		     un-interacted first impression is a sibling of the sales customer card:
-		     [orange avatar] [inline borderless search input] [green create icon]. -->
+		     [blue avatar] [inline borderless search input] [green create icon]. -->
 		<div v-else class="relative">
-			<div class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm min-w-0 focus-within:ring-2 focus-within:ring-orange-500 focus-within:border-transparent transition-shadow">
+			<div class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm min-w-0 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-shadow">
 				<div
-					class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center flex-shrink-0"
+					class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0"
 				>
 					<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
@@ -133,7 +133,7 @@
 					v-for="s in options"
 					:key="s.name"
 					@mousedown.prevent="selectSupplier(s)"
-					class="w-full text-start px-3 py-2 text-xs hover:bg-orange-50 transition-colors border-b border-gray-100 last:border-0"
+					class="w-full text-start px-3 py-2 text-xs hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
 				>
 					<span class="font-semibold text-gray-900">{{ s.supplier_name || s.name }}</span>
 					<span v-if="s.supplier_group" class="text-gray-400 ms-2">{{ s.supplier_group }}</span>
@@ -151,7 +151,7 @@
 					type="button"
 					v-if="search.trim().length >= 2"
 					@mousedown.prevent="openCreate"
-					class="w-full text-start px-3 py-2 text-xs text-orange-600 font-semibold hover:bg-orange-50 border-t border-gray-100 flex items-center gap-1"
+					class="w-full text-start px-3 py-2 text-xs text-blue-600 font-semibold hover:bg-blue-50 border-t border-gray-100 flex items-center gap-1"
 				>
 					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -164,14 +164,14 @@
 		<!-- Quick create supplier -->
 		<div
 			v-if="showCreate"
-			class="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-xl grid grid-cols-1 gap-2"
+			class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl grid grid-cols-1 gap-2"
 		>
 			<input
 				v-model="newName"
 				:placeholder="__('New supplier name')"
-				class="h-9 px-3 text-xs rounded-lg border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
+				class="h-9 px-3 text-xs rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
 			/>
-			<select v-model="newGroup" class="h-9 px-2 text-xs rounded-lg border border-orange-300 bg-white">
+			<select v-model="newGroup" class="h-9 px-2 text-xs rounded-lg border border-blue-300 bg-white">
 				<option value="">{{ __("Supplier Group") }}</option>
 				<option v-for="g in supplierGroups" :key="g.name" :value="g.name">{{ g.name }}</option>
 			</select>
@@ -180,14 +180,14 @@
 					type="button"
 					@click="createSupplier"
 					:disabled="!newName || !newGroup || creating"
-					class="flex-1 h-9 px-3 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
+					class="flex-1 h-9 px-3 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
 				>
 					{{ creating ? __("Creating...") : __("Create") }}
 				</button>
 				<button
 					type="button"
 					@click="cancelCreate"
-					class="h-9 px-3 text-xs font-semibold text-gray-600 bg-white border border-orange-200 rounded-lg"
+					class="h-9 px-3 text-xs font-semibold text-gray-600 bg-white border border-blue-200 rounded-lg"
 				>
 					{{ __("Cancel") }}
 				</button>

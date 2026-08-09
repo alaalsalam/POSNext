@@ -2,14 +2,24 @@
   <div class="absolute inset-0 z-[360] bg-black/45 flex items-center justify-center p-2 sm:p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[96vh] overflow-hidden flex flex-col">
       <!-- Title bar -->
-      <div class="border-b border-gray-100 px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <h3 class="text-lg font-bold text-gray-900">{{ __("تسجيل دفعة للمورد") }}</h3>
-        <button @click="$emit('close')" class="w-8 h-8 rounded-lg text-gray-400 hover:bg-gray-100 text-xl leading-none">×</button>
+      <div class="pos-management-header flex items-center justify-between flex-shrink-0">
+        <div class="flex min-w-0 items-center gap-3">
+          <div class="pos-management-brand-icon">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-gray-900">{{ __("تسجيل دفعة للمورد") }}</h3>
+            <p class="text-xs text-gray-500">{{ __("سداد من رصيد الصندوق وفق إعدادات نقطة البيع") }}</p>
+          </div>
+        </div>
+        <button @click="$emit('close')" class="pos-management-close text-xl leading-none" :aria-label="__('إغلاق')">×</button>
       </div>
 
       <!-- Loading -->
       <div v-if="loading" class="p-12 text-center">
-        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto"></div>
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
         <p class="mt-3 text-sm text-gray-500">{{ __("جاري تحميل بيانات الدفع...") }}</p>
       </div>
 
@@ -22,7 +32,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
 
           <!-- LEFT: method tiles + quick amounts + numpad -->
-          <div class="order-2 lg:order-1 flex flex-col gap-3">
+          <div class="pos-management-card order-2 lg:order-1 flex flex-col gap-3">
             <!-- Method tiles -->
             <div>
               <p class="text-xs font-semibold text-gray-500 mb-1.5">{{ __("طريقة الدفع") }}</p>
@@ -39,8 +49,8 @@
                     m.account_missing
                       ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-70'
                       : form.mode_of_payment === m.mode_of_payment
-                        ? 'border-orange-500 bg-orange-50 text-orange-700 shadow-sm'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50/50',
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/50',
                   ]"
                 >
                   <span class="text-sm">{{ methodIcon(m.mode_of_payment) }}</span>
@@ -62,7 +72,7 @@
                   type="button"
                   :data-testid="`quick-${qa.key}`"
                   @click="setAmount(qa.value)"
-                  class="h-10 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:border-orange-300 hover:bg-orange-50 transition-colors truncate px-1"
+                  class="h-10 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition-colors truncate px-1"
                 >
                   {{ qa.label }}
                 </button>
@@ -147,8 +157,8 @@
           </div>
 
           <!-- RIGHT: supplier summary + totals + remaining/paid tiles -->
-          <div class="order-1 lg:order-2 flex flex-col gap-3">
-            <div class="rounded-xl bg-gradient-to-r rtl:bg-gradient-to-l from-orange-50 to-amber-50 border border-orange-100 p-4">
+          <div class="pos-management-card order-1 lg:order-2 flex flex-col gap-3">
+            <div class="rounded-xl bg-gradient-to-r rtl:bg-gradient-to-l from-blue-50 to-gray-50 border border-blue-100 p-4">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="text-sm font-bold text-gray-900 truncate">{{ details.supplier_name || details.supplier }}</p>
@@ -176,19 +186,19 @@
                 data-testid="remaining-panel"
                 :class="[
                   'rounded-xl border p-4 text-center',
-                  isPaidInFull ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200',
+                  isPaidInFull ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200',
                 ]"
               >
-                <p :class="['text-[11px] font-semibold mb-0.5', isPaidInFull ? 'text-emerald-600' : 'text-amber-600']">
+                <p :class="['text-[11px] font-semibold mb-0.5', isPaidInFull ? 'text-green-600' : 'text-amber-600']">
                   {{ isPaidInFull ? __("مسدَّد بالكامل") : __("المتبقي") }}
                 </p>
-                <p :class="['text-lg font-black', isPaidInFull ? 'text-emerald-700' : 'text-amber-800']">
+                <p :class="['text-lg font-black', isPaidInFull ? 'text-green-700' : 'text-amber-800']">
                   {{ formatAmount(remaining) }}
                 </p>
               </div>
-              <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-                <p class="text-[11px] font-semibold text-emerald-600 mb-0.5">{{ __("مدفوع") }}</p>
-                <p class="text-lg font-black text-emerald-700">{{ formatAmount(amountValue) }}</p>
+              <div class="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
+                <p class="text-[11px] font-semibold text-green-600 mb-0.5">{{ __("مدفوع") }}</p>
+                <p class="text-lg font-black text-green-700">{{ formatAmount(amountValue) }}</p>
               </div>
             </div>
           </div>
@@ -197,13 +207,13 @@
 
       <!-- Footer: large primary + secondary draft -->
       <div v-if="!loading" class="border-t border-gray-100 p-4 flex flex-col sm:flex-row gap-2 flex-shrink-0">
-        <button @click="$emit('close')" class="sm:w-auto px-4 py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold order-3 sm:order-1">
+        <button @click="$emit('close')" class="pos-management-secondary sm:w-auto px-4 py-3 rounded-xl text-sm font-semibold order-3 sm:order-1">
           {{ __("إلغاء") }}
         </button>
         <button
           @click="save(false)"
           :disabled="saving || !canPay"
-          class="sm:w-auto px-4 py-3 rounded-xl bg-slate-700 text-white text-sm font-semibold disabled:opacity-50 order-2"
+          class="sm:w-auto px-4 py-3 rounded-xl bg-gray-700 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 order-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
           {{ __("حفظ كمسودة") }}
         </button>
@@ -211,7 +221,7 @@
           v-if="canSubmit"
           @click="save(true)"
           :disabled="saving || !canPay"
-          class="flex-1 px-4 py-3 rounded-xl bg-orange-600 text-white text-base font-bold hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2 order-1 sm:order-3"
+          class="pos-management-primary flex-1 px-4 py-3 rounded-xl text-base font-bold flex items-center justify-center gap-2 order-1 sm:order-3"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -425,9 +435,9 @@ onMounted(loadDefaults)
   @apply block text-xs font-semibold text-gray-700 mb-1;
 }
 .field {
-  @apply w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400;
+  @apply w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500;
 }
 .numkey {
-  @apply h-12 rounded-xl bg-white border border-gray-200 text-lg font-bold text-gray-800 hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation;
+  @apply h-12 rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-800 transition-colors hover:border-blue-200 hover:bg-blue-50 active:bg-blue-100 touch-manipulation;
 }
 </style>

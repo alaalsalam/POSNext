@@ -15,7 +15,7 @@
       <input v-model="supplier" :placeholder="__('رمز المورد')" class="h-9 px-3 text-xs border rounded-lg flex-1 min-w-36" />
       <input v-model="fromDate" type="date" class="h-9 px-2 text-xs border rounded-lg" />
       <input v-model="toDate" type="date" class="h-9 px-2 text-xs border rounded-lg" />
-      <button @click="load" class="h-9 px-4 rounded-lg bg-orange-600 text-white text-xs font-semibold">{{ __("تطبيق") }}</button>
+      <button @click="load" class="h-9 px-4 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700">{{ __("تطبيق") }}</button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">
@@ -29,7 +29,7 @@
           <div class="flex justify-between gap-3">
             <div>
               <div class="flex gap-2 items-center">
-                <a :href="`/app/payment-entry/${payment.name}`" target="_blank" class="text-xs font-bold text-orange-700 hover:underline">{{ payment.name }}</a>
+                <a :href="`/app/payment-entry/${payment.name}`" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-blue-700 hover:underline">{{ payment.name }}</a>
                 <span :class="statusClass(payment)" class="text-[10px] px-2 py-0.5 rounded-full font-bold">{{ statusLabel(payment) }}</span>
               </div>
               <p class="text-sm font-semibold text-gray-800 mt-1">{{ payment.party_name || payment.party }}</p>

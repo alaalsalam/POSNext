@@ -16,6 +16,9 @@ account for a party entry is derived server-side; the cash box defaults to the p
 but can be chosen. Gated by the enable_cash_management feature flag; cashier-available.
 """
 
+import json
+from hashlib import sha256
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, nowdate
@@ -24,6 +27,7 @@ from pos_next.api.feature_flags import get_feature_flags, is_feature_manager, re
 from pos_next.api.management_scope import (
 	assert_company_resource,
 	assert_doc_permission,
+	normalize_idempotency_key,
 	require_manager_feature,
 )
 
@@ -81,6 +85,46 @@ def _resolve_party_account(party_type, party, company):
 	if not account:
 		frappe.throw(_("No default account is configured for {0} {1}").format(_(party_type), party))
 	return account
+
+
+def _cash_request_fingerprint(request):
+	"""Bind a retry key to one—and only one—financial cash movement."""
+	payload = {
+		"entry_type": str(request.get("entry_type") or "").strip(),
+		"amount": f"{flt(request.get('amount')):.2f}",
+		"profile": str(request.get("profile") or "").strip(),
+		"company": str(request.get("company") or "").strip(),
+		"cash_account": str(request.get("cash_account") or "").strip(),
+		"to_account": str(request.get("to_account") or "").strip(),
+		"account": str(request.get("account") or "").strip(),
+		"expense_type": str(request.get("expense_type") or "").strip(),
+		"party_type": str(request.get("party_type") or "").strip(),
+		"party": str(request.get("party") or "").strip(),
+		"remarks": str(request.get("remarks") or "").strip(),
+	}
+	serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+	return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _cash_entry_result(journal, *, amount=None, idempotent_replay=False):
+	return {
+		"name": journal.name,
+		"entry_type": journal.posa_cash_entry_type,
+		"amount": flt(amount) if amount is not None else flt(journal.total_debit),
+		"remarks": journal.user_remark,
+		"posting_date": str(journal.posting_date),
+		"status": "Approved" if journal.docstatus == 1 else "Pending Approval",
+		"docstatus": journal.docstatus,
+		"idempotent_replay": idempotent_replay,
+	}
+
+
+def _assert_cash_request_fingerprint(journal, expected):
+	if journal.get("custom_posnext_request_fingerprint") != expected:
+		frappe.throw(
+			_("This idempotency key conflicts with a different cash entry request"),
+			frappe.ValidationError,
+		)
 
 
 def _current_shift(profile, required=True):
@@ -141,7 +185,13 @@ def get_cash_entry_accounts(entry_type, pos_profile=None):
 	cash_account = _default_cash_account(profile, company)
 	accounts = frappe.get_list(
 		"Account",
-		filters={"company": company, "is_group": 0, "disabled": 0, "name": ["!=", cash_account]},
+		filters={
+			"company": company,
+			"is_group": 0,
+			"disabled": 0,
+			"name": ["!=", cash_account],
+			"account_type": ["not in", ["Cash", "Bank"]],
+		},
 		fields=["name", "account_name", "account_type", "root_type"],
 		order_by="root_type, account_name",
 		limit=500,
@@ -176,6 +226,7 @@ def create_cash_entry(
 	party_type=None,
 	party=None,
 	remarks=None,
+	idempotency_key=None,
 ):
 	profile, company = _cash_context(pos_profile)
 	frappe.has_permission("Journal Entry", "create", throw=True)
@@ -187,6 +238,7 @@ def create_cash_entry(
 	remarks = (remarks or "").strip()
 	if entry_type in _NOTES_REQUIRED and not remarks:
 		frappe.throw(_("A note is required for this cash entry"))
+	key = normalize_idempotency_key(idempotency_key)
 
 	box = _resolve_cash_box(profile, company, cash_account)
 	party_row = None
@@ -213,6 +265,8 @@ def create_cash_entry(
 			party_row = (party_type, party)
 		else:
 			counter = assert_company_resource("Account", account, company)
+			if counter.account_type in ("Cash", "Bank"):
+				frappe.throw(_("Use a transfer to move money between cash or bank accounts"))
 			counter_account = counter.name
 		if counter_account == box:
 			frappe.throw(_("The account cannot be the drawer's cash box"))
@@ -223,6 +277,26 @@ def create_cash_entry(
 
 	shift = _current_shift(profile)
 	cost_center = frappe.db.get_value("Company", company, "cost_center")
+	fingerprint = _cash_request_fingerprint({
+		"entry_type": entry_type,
+		"amount": amount,
+		"profile": profile,
+		"company": company,
+		"cash_account": box,
+		"to_account": to_account,
+		"account": account,
+		"expense_type": expense_type,
+		"party_type": party_type,
+		"party": party,
+		"remarks": remarks,
+	})
+	existing = frappe.db.get_value("Journal Entry", {"custom_posnext_idempotency_key": key}, "name")
+	if existing:
+		journal = _get_cash_entry(existing, profile, company)
+		_assert_cash_request_fingerprint(journal, fingerprint)
+		if journal.docstatus == 2:
+			frappe.throw(_("A cancelled cash entry cannot be replayed"))
+		return _cash_entry_result(journal, idempotent_replay=True)
 
 	def _line(acct, debit, credit):
 		row = {"account": acct, "debit_in_account_currency": debit, "credit_in_account_currency": credit, "cost_center": cost_center}
@@ -231,40 +305,43 @@ def create_cash_entry(
 			row["party_type"], row["party"] = party_row
 		return row
 
-	journal = frappe.get_doc({
-		"doctype": "Journal Entry",
-		"voucher_type": "Cash Entry",
-		"company": company,
-		"posting_date": nowdate(),
-		"user_remark": remarks or _("POS cash entry"),
-		"posa_pos_opening_shift": shift,
-		"posa_cash_entry_type": entry_type,
-		"accounts": [_line(debit_account, amount, 0), _line(credit_account, 0, amount)],
-	})
-	journal.insert(ignore_permissions=False)
-
-	submitted = False
-	if _posting_mode(profile) == "Immediate":
-		frappe.has_permission("Journal Entry", "submit", throw=True)
-		journal.submit()
-		submitted = True
-
-	return {
-		"name": journal.name,
-		"entry_type": entry_type,
-		"amount": amount,
-		"remarks": remarks,
-		"posting_date": str(journal.posting_date),
-		"status": "Approved" if submitted else "Pending Approval",
-		"docstatus": journal.docstatus,
-	}
+	frappe.db.savepoint("posnext_cash_entry")
+	try:
+		journal = frappe.get_doc({
+			"doctype": "Journal Entry",
+			"voucher_type": "Cash Entry",
+			"company": company,
+			"posting_date": nowdate(),
+			"user_remark": remarks or _("POS cash entry"),
+			"posa_pos_opening_shift": shift,
+			"posa_cash_entry_type": entry_type,
+			"custom_posnext_idempotency_key": key,
+			"custom_posnext_request_fingerprint": fingerprint,
+			"accounts": [_line(debit_account, amount, 0), _line(credit_account, 0, amount)],
+		})
+		journal.insert(ignore_permissions=False)
+		if _posting_mode(profile) == "Immediate":
+			frappe.has_permission("Journal Entry", "submit", throw=True)
+			journal.submit()
+		return _cash_entry_result(journal, amount=amount)
+	except frappe.UniqueValidationError:
+		frappe.db.rollback(save_point="posnext_cash_entry")
+		existing = frappe.db.get_value("Journal Entry", {"custom_posnext_idempotency_key": key}, "name")
+		if existing:
+			journal = _get_cash_entry(existing, profile, company)
+			_assert_cash_request_fingerprint(journal, fingerprint)
+			return _cash_entry_result(journal, idempotent_replay=True)
+		raise
+	except Exception:
+		frappe.db.rollback(save_point="posnext_cash_entry")
+		raise
 
 
 def _get_cash_entry(name, profile, company, ptype="read"):
 	journal = assert_doc_permission("Journal Entry", name, ptype)
 	if journal.company != company or not journal.get("posa_cash_entry_type"):
 		frappe.throw(_("This is not a POS cash entry"), frappe.PermissionError)
-	if journal.get("posa_pos_opening_shift") and not frappe.db.exists(
+	if not journal.get("posa_pos_opening_shift") or not frappe.db.exists(
 		"POS Opening Shift", {"name": journal.posa_pos_opening_shift, "pos_profile": profile}
 	):
 		frappe.throw(_("This cash entry belongs to a different POS Profile"), frappe.PermissionError)

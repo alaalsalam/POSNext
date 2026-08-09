@@ -10,11 +10,11 @@
   get_cash_management_setup and derive the per-type form from there.
 -->
 <template>
-  <div class="absolute inset-0 z-[300] bg-white flex flex-col">
+  <div class="pos-management-screen absolute inset-0 z-[300] flex flex-col">
     <!-- Header -->
-    <div class="border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+    <div class="pos-management-header flex items-center justify-between flex-shrink-0">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
+        <div class="pos-management-brand-icon">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
@@ -30,7 +30,7 @@
           type="button"
           data-testid="manage-expense-types"
           @click="showExpenseTypeManager = true"
-          class="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100"
+          class="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -38,7 +38,7 @@
           </svg>
           {{ __("أنواع المصاريف") }}
         </button>
-        <button @click="$emit('close')" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+        <button @click="$emit('close')" class="pos-management-close" :aria-label="__('إغلاق')">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -50,7 +50,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 max-w-5xl mx-auto">
 
         <!-- LEFT: entry form -->
-        <div class="flex flex-col gap-3">
+          <div class="pos-management-card flex flex-col gap-3">
           <div v-if="errorMsg" class="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
             {{ errorMsg }}
           </div>
@@ -68,8 +68,8 @@
                 :class="[
                   'h-11 rounded-xl border-2 text-xs font-bold transition-all touch-manipulation',
                   entryType === t.value
-                    ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-sm'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-teal-300 hover:bg-teal-50/40',
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50/40',
                 ]"
               >
                 {{ t.label }}
@@ -133,7 +133,7 @@
                 type="button"
                 data-testid="empty-manage-expense-types"
                 @click="showExpenseTypeManager = true"
-                class="mt-2 h-9 px-4 rounded-lg bg-teal-600 text-white text-xs font-bold hover:bg-teal-700"
+                class="pos-management-primary mt-2 h-9 px-4 rounded-lg text-xs font-bold"
               >
                 {{ __("إدارة أنواع المصاريف") }}
               </button>
@@ -167,7 +167,7 @@
                 type="button"
                 data-testid="counter-party"
                 @click="counterMode = 'party'"
-                :class="['flex-1 h-9 rounded-lg text-xs font-bold border', counterMode === 'party' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-600']"
+                :class="['flex-1 h-9 rounded-lg text-xs font-bold border', counterMode === 'party' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600']"
               >
                 {{ entryType === 'Receipt' ? __("العميل") : __("الموظف") }}
               </button>
@@ -175,7 +175,7 @@
                 type="button"
                 data-testid="counter-account"
                 @click="switchToGeneralAccount"
-                :class="['flex-1 h-9 rounded-lg text-xs font-bold border', counterMode === 'account' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-600']"
+                :class="['flex-1 h-9 rounded-lg text-xs font-bold border', counterMode === 'account' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600']"
               >
                 {{ __("حساب عام") }}
               </button>
@@ -185,7 +185,7 @@
             <div v-if="counterMode === 'party'">
               <label class="label">
                 {{ entryType === 'Receipt' ? __("العميل") : __("الموظف") }}
-                <span class="text-[10px] text-gray-400 font-normal">({{ __("اختياري") }})</span>
+                <span class="text-red-500">*</span>
               </label>
               <input
                 v-model="partySearch"
@@ -196,7 +196,7 @@
                 @input="onPartySearch"
               />
               <select v-model="party" data-testid="party-select" :disabled="partiesLoading" class="field bg-white">
-                <option value="">{{ partiesLoading ? __("جاري التحميل...") : __("بدون طرف") }}</option>
+                <option value="">{{ partiesLoading ? __("جاري التحميل...") : __("اختر...") }}</option>
                 <option v-for="p in parties" :key="p.name" :value="p.name">
                   {{ p.party_name || p.name }}
                 </option>
@@ -273,7 +273,7 @@
             data-testid="cash-submit"
             @click="submit"
             :disabled="!canSubmit || submitting"
-            class="w-full py-3 rounded-xl bg-teal-600 text-white text-base font-bold hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            class="pos-management-primary w-full py-3 rounded-xl text-base font-bold flex items-center justify-center gap-2"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -283,7 +283,7 @@
         </div>
 
         <!-- RIGHT: recent entries + totals -->
-        <div class="flex flex-col gap-3">
+        <div class="pos-management-card flex flex-col gap-3">
           <!-- Totals strip -->
           <div class="grid grid-cols-3 gap-2 text-center">
             <div class="rounded-xl bg-green-50 border border-green-100 p-3">
@@ -345,7 +345,7 @@
                   :data-testid="`approve-${e.name}`"
                   @click="approveEntry(e.name)"
                   :disabled="actingOn === e.name"
-                  class="flex-1 h-8 rounded-lg bg-green-600 text-white text-xs font-bold hover:bg-green-700 disabled:opacity-50"
+                  class="flex-1 h-8 rounded-lg bg-green-600 text-white text-xs font-bold hover:bg-green-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   {{ __("اعتماد") }}
                 </button>
@@ -401,6 +401,11 @@ const ENTRY_TYPES = [
 const entryType = ref("Expense")
 const amountStr = ref("0")
 const remarks = ref("")
+const newIdempotencyKey = () =>
+	globalThis.crypto?.randomUUID?.() ||
+	`cash-${Date.now()}-${Math.random().toString(16).slice(2)}`
+// One durable retry key per entry attempt. It changes only after the server accepts the entry.
+const cashEntryIdempotencyKey = ref(newIdempotencyKey())
 
 // Setup (loaded once on open).
 const postingMode = ref("Immediate")
@@ -460,8 +465,8 @@ const canSubmit = computed(() => {
 	if (entryType.value === "Transfer")
 		return !!toAccount.value && !transferSameBox.value
 	if (entryType.value === "Receipt" || entryType.value === "Payment") {
-		// Party is optional; a general account (when chosen) is required by the server.
-		return counterMode.value === "party" ? true : !!account.value
+		// The voucher needs one counterparty: a specific party or a general non-cash account.
+		return counterMode.value === "party" ? !!party.value : !!account.value
 	}
 	return true
 })
@@ -622,6 +627,7 @@ function buildPayload() {
 		amount: amountValue.value,
 		cash_account: cashAccount.value,
 		remarks: remarks.value.trim() || null,
+		idempotency_key: cashEntryIdempotencyKey.value,
 		pos_profile: props.posProfile,
 	}
 	if (entryType.value === "Expense") {
@@ -659,6 +665,7 @@ async function submit() {
 		// Clear amount + note; keep type + box for consecutive entries.
 		amountStr.value = "0"
 		remarks.value = ""
+		cashEntryIdempotencyKey.value = newIdempotencyKey()
 		await loadEntries()
 	} catch (error) {
 		errorMsg.value = parseError(error).message
@@ -722,9 +729,9 @@ onBeforeUnmount(() => {
   @apply block text-xs font-semibold text-gray-700 mb-1;
 }
 .field {
-  @apply w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400;
+  @apply w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500;
 }
 .numkey {
-  @apply h-12 rounded-xl bg-white border border-gray-200 text-lg font-bold text-gray-800 hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation;
+  @apply h-12 rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-800 transition-colors hover:border-blue-200 hover:bg-blue-50 active:bg-blue-100 touch-manipulation;
 }
 </style>

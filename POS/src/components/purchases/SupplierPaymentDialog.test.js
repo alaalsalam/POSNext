@@ -83,8 +83,8 @@ describe("SupplierPaymentDialog", () => {
 		expect(wrapper.find("select").exists()).toBe(false)
 		expect(wrapper.find('[data-testid="pay-method-نقد"]').exists()).toBe(true)
 		expect(wrapper.find('[data-testid="pay-method-جيب"]').exists()).toBe(true)
-		// The default tile (نقد) is pre-selected (orange border class).
-		expect(wrapper.find('[data-testid="pay-method-نقد"]').classes()).toContain("border-orange-500")
+	// The default tile (نقد) is pre-selected with the shared POS primary colour.
+	expect(wrapper.find('[data-testid="pay-method-نقد"]').classes()).toContain("border-blue-500")
 	})
 
 	it("disables (not hides) a tile whose settings account is missing", async () => {

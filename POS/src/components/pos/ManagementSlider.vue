@@ -9,7 +9,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'promotions'
-					? 'bg-green-100 text-green-600'
+					? 'bg-blue-100 text-blue-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('Promotions')"
@@ -28,7 +28,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'products'
-					? 'bg-emerald-100 text-emerald-600'
+					? 'bg-blue-100 text-blue-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('Products')"
@@ -47,7 +47,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'invoices'
-					? 'bg-indigo-100 text-indigo-600'
+					? 'bg-blue-100 text-blue-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('Invoice Management')"
@@ -69,7 +69,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				purchaseModeActive
-					? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-300'
+					? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="purchaseModeActive ? __('Exit purchase mode') : __('Activate purchase mode')"
@@ -89,7 +89,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'reports'
-					? 'bg-emerald-100 text-emerald-600'
+					? 'bg-blue-100 text-blue-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('التقارير')"
@@ -110,7 +110,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'cash'
-					? 'bg-teal-100 text-teal-600'
+					? 'bg-blue-100 text-blue-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('إدارة الصندوق')"
@@ -131,7 +131,7 @@
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
 				activeMenu === 'expense_types'
-					? 'bg-purple-100 text-purple-600'
+					? 'bg-blue-100 text-blue-600'
 					: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
 			]"
 			:title="__('أنواع المصاريف')"

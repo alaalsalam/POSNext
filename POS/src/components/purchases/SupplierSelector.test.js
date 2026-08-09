@@ -63,7 +63,7 @@ describe("SupplierSelector", () => {
 		expect(input.classes()).toContain("border-0");
 		// The always-visible create (+) affordance is present before any interaction.
 		expect(wrapper.find('[data-testid="supplier-create"]').exists()).toBe(true);
-		// The avatar icon (orange gradient) is present in the card shell.
+		// The avatar icon uses the shared blue POS gradient in the card shell.
 		expect(card.querySelector(".bg-gradient-to-br")).toBeTruthy();
 	});
 

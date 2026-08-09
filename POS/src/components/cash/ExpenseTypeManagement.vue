@@ -2,14 +2,15 @@
   ExpenseTypeManagement — manager-only CRUD for POS Expense Types (Cash Management v2, Screen 2).
   Lets a manager define expense types (and the account each posts to) from the POS so cashiers can
   record expenses without touching Desk or the full chart of accounts. Nested overlay opened from
-  CashManagement (the header link + the Expense empty-state). Same design language (teal, rounded-xl).
+  CashManagement (the header link + the Expense empty-state). Uses the shared POS management
+  surface so it feels like a first-class part of the sales workspace.
 -->
 <template>
-  <div class="absolute inset-0 z-[310] bg-white flex flex-col">
+  <div class="pos-management-screen absolute inset-0 z-[310] flex flex-col">
     <!-- Header -->
-    <div class="border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+    <div class="pos-management-header flex items-center justify-between flex-shrink-0">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
+        <div class="pos-management-brand-icon">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
           </svg>
@@ -19,7 +20,7 @@
           <p class="text-xs text-gray-500">{{ __("تعريف أنواع المصاريف والحساب المرتبط بكل نوع") }}</p>
         </div>
       </div>
-      <button @click="$emit('close')" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+      <button @click="$emit('close')" class="pos-management-close" :aria-label="__('إغلاق')">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -30,7 +31,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 max-w-5xl mx-auto">
 
         <!-- LEFT: add / edit form -->
-        <div class="flex flex-col gap-3">
+        <div class="pos-management-card flex flex-col gap-3">
           <div v-if="errorMsg" class="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
             {{ errorMsg }}
           </div>
@@ -61,7 +62,7 @@
           </div>
 
           <label class="flex items-center gap-2 cursor-pointer">
-            <input v-model="form.enabled" data-testid="enabled-checkbox" type="checkbox" class="h-5 w-5 rounded border-gray-300 text-teal-600" />
+            <input v-model="form.enabled" data-testid="enabled-checkbox" type="checkbox" class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
             <span class="text-sm text-gray-700">{{ __("مُفعّل") }}</span>
           </label>
 
@@ -71,7 +72,7 @@
               data-testid="save-expense-type"
               @click="save"
               :disabled="!canSave || saving"
-              class="flex-1 py-3 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 disabled:opacity-50"
+              class="pos-management-primary flex-1 py-3 rounded-xl text-sm font-bold"
             >
               {{ saving ? __("جاري الحفظ...") : editing ? __("حفظ التعديل") : __("إضافة") }}
             </button>
@@ -80,7 +81,7 @@
               type="button"
               data-testid="cancel-edit"
               @click="resetForm"
-              class="py-3 px-4 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-200"
+              class="pos-management-secondary py-3 px-4 rounded-xl text-sm font-bold"
             >
               {{ __("إلغاء") }}
             </button>
@@ -88,7 +89,7 @@
         </div>
 
         <!-- RIGHT: existing types -->
-        <div class="flex flex-col gap-3">
+        <div class="pos-management-card flex flex-col gap-3">
           <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("أنواع المصاريف") }}</h3>
 
           <div v-if="listLoading" class="flex flex-col gap-2">
@@ -117,7 +118,8 @@
                 type="button"
                 :data-testid="`edit-${t.name}`"
                 @click="startEdit(t)"
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100"
+                class="pos-management-icon-button"
+                :aria-label="__('تعديل')"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -128,7 +130,8 @@
                 :data-testid="`delete-${t.name}`"
                 @click="remove(t)"
                 :disabled="deletingName === t.name"
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-50 disabled:opacity-50"
+                class="w-9 h-9 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                :aria-label="__('حذف')"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -274,6 +277,6 @@ onMounted(async () => {
   @apply block text-xs font-semibold text-gray-700 mb-1;
 }
 .field {
-  @apply w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400;
+  @apply w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500;
 }
 </style>

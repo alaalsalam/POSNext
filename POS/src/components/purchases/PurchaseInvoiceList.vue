@@ -17,9 +17,9 @@
         <p class="text-[10px] text-gray-500">{{ __("إجمالي المستحق") }}</p>
         <p class="text-xs font-bold text-red-600">{{ formatAmount(summary.total_outstanding) }}</p>
       </div>
-      <div class="rounded-lg bg-orange-50 p-2">
+      <div class="rounded-lg bg-blue-50 p-2">
         <p class="text-[10px] text-gray-500">{{ __("غير مدفوعة") }}</p>
-        <p class="text-xs font-bold text-orange-700">{{ summary.unpaid_count }}</p>
+        <p class="text-xs font-bold text-blue-700">{{ summary.unpaid_count }}</p>
       </div>
       <div class="rounded-lg bg-blue-50 p-2">
         <p class="text-[10px] text-gray-500">{{ __("مدفوعة جزئيًا") }}</p>
@@ -34,12 +34,12 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input v-model="search" @input="debouncedLoad" :placeholder="__('بحث...')"
-          class="w-full h-8 pe-8 px-3 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+          class="w-full h-8 pe-8 px-3 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
       <input type="date" v-model="fromDate" @change="load" :title="__('من تاريخ')"
-        class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+        class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" />
       <input type="date" v-model="toDate" @change="load" :title="__('إلى تاريخ')"
-        class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+        class="h-8 px-2 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" />
     </div>
 
     <!-- Content -->
@@ -56,8 +56,8 @@
 
       <!-- Empty (only when nothing is visible AND the server is exhausted) -->
       <div v-else-if="!visibleInvoices.length && !hasMore" class="flex flex-col items-center justify-center py-16 text-center">
-        <div class="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mb-3">
-          <svg class="w-7 h-7 text-orange-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mb-3">
+          <svg class="w-7 h-7 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
@@ -69,7 +69,7 @@
         <div
           v-for="inv in visibleInvoices" :key="inv.name"
           @click="$emit('open-invoice', inv)"
-          class="bg-white rounded-xl border border-gray-100 p-3 cursor-pointer hover:border-orange-200 hover:shadow-sm transition-all"
+          class="bg-white rounded-xl border border-gray-100 p-3 cursor-pointer hover:border-blue-200 hover:shadow-sm transition-all"
         >
           <div class="flex items-start justify-between gap-2">
             <div class="flex-1 min-w-0">
@@ -92,7 +92,7 @@
               <button
                 v-if="canCreatePayment && inv.docstatus === 1 && inv.outstanding_amount > 0"
                 @click.stop="$emit('pay-invoice', inv)"
-                class="mt-2 px-3 py-1.5 text-[11px] font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg"
+                class="mt-2 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
               >
                 {{ __("تسجيل دفعة") }}
               </button>
@@ -103,7 +103,7 @@
         <!-- Load more — reachable on every tab so outstanding invoices beyond the
              first page are never hidden behind an empty state. -->
         <button v-if="hasMore" @click="loadMore" :disabled="loadingMore"
-          class="w-full py-2.5 text-xs text-orange-600 font-semibold rounded-xl border border-orange-200 hover:bg-orange-50 transition-colors disabled:opacity-50">
+          class="w-full py-2.5 text-xs text-blue-600 font-semibold rounded-xl border border-blue-200 hover:bg-blue-50 transition-colors disabled:opacity-50">
           {{ loadingMore ? __("جاري التحميل...") : __("تحميل المزيد ({0} متبقية)", [total - invoices.length]) }}
         </button>
       </div>
@@ -231,7 +231,7 @@ function statusClass(inv) {
 	if (s === "Paid") return "bg-green-100 text-green-700"
 	if (s === "Partly Paid") return "bg-blue-100 text-blue-700"
 	if (s === "Overdue") return "bg-red-100 text-red-700"
-	return "bg-orange-100 text-orange-700"
+	return "bg-blue-100 text-blue-700"
 }
 
 function formatDate(d) {

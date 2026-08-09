@@ -57,21 +57,21 @@
                 @focus="supplierSearch = form.supplier_name || form.supplier; showSupplierDropdown = true"
                 :placeholder="__('ابحث عن مورد...')"
                 :disabled="isSubmitted"
-                class="w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all disabled:bg-gray-50"
+                class="w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:bg-gray-50"
                 :class="form.supplier ? 'border-green-300 bg-green-50/30' : 'border-gray-200'"
               />
               <div v-if="showSupplierDropdown && supplierOptions.length" class="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
                 <button
                   v-for="s in supplierOptions" :key="s.name"
                   @mousedown.prevent="selectSupplier(s)"
-                  class="w-full text-start px-3 py-2 text-sm hover:bg-orange-50 transition-colors"
+                  class="w-full text-start px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
                 >
                   <span class="font-semibold">{{ s.supplier_name }}</span>
                   <span class="text-xs text-gray-400 ms-2">{{ s.supplier_group }}</span>
                 </button>
                 <button
                   @mousedown.prevent="showCreateSupplier = true; showSupplierDropdown = false"
-                  class="w-full text-start px-3 py-2 text-xs text-orange-600 font-semibold hover:bg-orange-50 border-t border-gray-100 flex items-center gap-1"
+                  class="w-full text-start px-3 py-2 text-xs text-blue-600 font-semibold hover:bg-blue-50 border-t border-gray-100 flex items-center gap-1"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                   {{ __("إنشاء مورد جديد: {0}", [supplierSearch]) }}
@@ -79,13 +79,13 @@
               </div>
             </div>
             <!-- Quick create supplier -->
-            <div v-if="showCreateSupplier" class="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
-              <input v-model="newSupplierName" :placeholder="__('اسم المورد الجديد')" class="flex-1 h-8 px-3 text-xs rounded-lg border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <select v-model="newSupplierGroup" class="h-8 px-2 text-xs rounded-lg border border-orange-300 bg-white">
+            <div v-if="showCreateSupplier" class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
+              <input v-model="newSupplierName" :placeholder="__('اسم المورد الجديد')" class="flex-1 h-8 px-3 text-xs rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <select v-model="newSupplierGroup" class="h-8 px-2 text-xs rounded-lg border border-blue-300 bg-white">
                 <option value="">{{ __("Supplier Group") }}</option>
                 <option v-for="group in supplierGroups" :key="group.name" :value="group.name">{{ group.name }}</option>
               </select>
-              <button @click="createSupplier" :disabled="!newSupplierName || !newSupplierGroup || creatingSupplier" class="h-8 px-3 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
+              <button @click="createSupplier" :disabled="!newSupplierName || !newSupplierGroup || creatingSupplier" class="h-8 px-3 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
                 {{ creatingSupplier ? __("...") : __("إنشاء") }}
               </button>
               <button @click="showCreateSupplier = false" class="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
@@ -97,18 +97,18 @@
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("رقم فاتورة المورد") }}</label>
               <input v-model="form.bill_no" :disabled="isSubmitted" :placeholder="__('اختياري')"
-                class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50" />
+                class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("تاريخ الفاتورة") }} <span class="text-red-500">*</span></label>
               <input type="date" v-model="form.posting_date" :disabled="isSubmitted"
-                class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50" />
+                class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
             </div>
           </div>
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("تاريخ الاستحقاق") }}</label>
             <input type="date" v-model="form.due_date" :disabled="isSubmitted"
-              class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50" />
+              class="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
           </div>
         </div>
       </div>
@@ -118,7 +118,7 @@
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("الأصناف") }}</h3>
           <button v-if="!isSubmitted" @click="addLine"
-            class="flex items-center gap-1 text-xs text-orange-600 font-semibold hover:text-orange-700 transition-colors">
+            class="flex items-center gap-1 text-xs text-blue-600 font-semibold hover:text-blue-700 transition-colors">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             {{ __("إضافة صنف") }}
           </button>
@@ -141,12 +141,12 @@
                     @focus="line._showDrop = true"
                     :disabled="isSubmitted"
                     :placeholder="__('ابحث عن صنف...')"
-                    class="w-full h-9 px-3 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100"
+                    class="w-full h-9 px-3 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                     :class="line.item_code ? 'border-green-300' : ''"
                   />
                   <div v-if="line._showDrop && line._options?.length" class="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
                     <button v-for="it in line._options" :key="it.item_code" @mousedown.prevent="selectItem(idx, it)"
-                      class="w-full text-start px-3 py-2 text-xs hover:bg-orange-50 transition-colors">
+                      class="w-full text-start px-3 py-2 text-xs hover:bg-blue-50 transition-colors">
                       <span class="font-semibold">{{ it.item_name }}</span>
                       <span class="text-gray-400 ms-1">({{ it.item_code }})</span>
                     </button>
@@ -158,20 +158,20 @@
                 <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("الكمية") }}</label>
                 <input v-model.number="line.qty" type="number" min="0.001" step="0.001" :disabled="isSubmitted"
                   @change="calcLine(idx)"
-                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 text-center disabled:bg-gray-100" />
+                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center disabled:bg-gray-100" />
               </div>
               <!-- UOM -->
               <div class="col-span-3">
                 <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("الوحدة") }}</label>
                 <input v-model="line.uom" :disabled="isSubmitted"
-                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100" />
+                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
               </div>
               <!-- Rate -->
               <div class="col-span-4">
                 <label class="block text-[10px] font-semibold text-gray-500 mb-1">{{ __("سعر الشراء") }}</label>
                 <input v-model.number="line.rate" type="number" min="0" step="0.01" :disabled="isSubmitted"
                   @change="calcLine(idx)"
-                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 text-end disabled:bg-gray-100" />
+                  class="w-full h-9 px-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-end disabled:bg-gray-100" />
               </div>
               <!-- Amount -->
               <div class="col-span-2 text-end">
@@ -248,7 +248,7 @@
             </select>
           </div>
           <label class="col-span-2 flex items-center gap-2 min-h-10 text-xs font-semibold text-gray-700">
-            <input v-model="form.update_stock" type="checkbox" :disabled="isSubmitted" class="w-5 h-5 accent-orange-600" />
+            <input v-model="form.update_stock" type="checkbox" :disabled="isSubmitted" class="w-5 h-5 accent-blue-600" />
             {{ __("Update Stock") }}
           </label>
           <div v-if="form.update_stock" class="col-span-2">
@@ -261,7 +261,7 @@
           <div class="col-span-2">
             <label class="block text-xs font-semibold text-gray-700 mb-1">{{ __("ملاحظات") }}</label>
             <textarea v-model="form.remarks" rows="2" :disabled="isSubmitted" :placeholder="__('ملاحظات اختيارية...')"
-              class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none disabled:bg-gray-50" />
+              class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:bg-gray-50" />
           </div>
         </div>
       </div>
@@ -278,7 +278,7 @@
           {{ saving ? __("جاري الحفظ...") : __("حفظ مسودة") }}
         </button>
         <button v-if="props.canSubmit" data-testid="purchase-submit" @click="confirmSubmit" :disabled="saving || submitting || !formCanSubmit"
-          class="px-4 py-2 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50">
+          class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50">
           {{ __("اعتماد الفاتورة") }}
         </button>
       </div>
@@ -299,11 +299,11 @@
         </p>
         <div class="bg-gray-50 rounded-xl p-3 mb-4 text-xs space-y-1">
           <div class="flex justify-between"><span class="text-gray-500">{{ __("المورد") }}</span><span class="font-semibold">{{ form.supplier_name || form.supplier }}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">{{ __("الإجمالي") }}</span><span class="font-bold text-orange-700">{{ formatAmt(totals.grand) }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">{{ __("الإجمالي") }}</span><span class="font-bold text-blue-700">{{ formatAmt(totals.grand) }}</span></div>
         </div>
         <div class="flex gap-3">
           <button @click="showConfirm = false" class="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">{{ __("إلغاء") }}</button>
-          <button data-testid="purchase-confirm-submit" @click="doSubmit" :disabled="submitting" class="flex-1 py-2.5 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors">
+          <button data-testid="purchase-confirm-submit" @click="doSubmit" :disabled="submitting" class="flex-1 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {{ submitting ? __("جاري الاعتماد...") : __("تأكيد الاعتماد") }}
           </button>
         </div>

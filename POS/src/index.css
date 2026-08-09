@@ -137,6 +137,54 @@ button.active\:scale-95:active,
 	animation: dialog-content-out 150ms ease-in;
 }
 
+/*
+ * POS management surfaces
+ *
+ * Cash, purchases, and configuration are all part of the same POS workspace.
+ * These primitives deliberately use the established sales blue rather than each feature
+ * inventing its own primary colour. Green/red/amber remain reserved for financial state.
+ */
+.pos-management-screen {
+	@apply bg-gray-50 text-gray-900;
+}
+
+.pos-management-header {
+	@apply border-b border-gray-200 bg-white px-4 py-3;
+}
+
+.pos-management-brand-icon {
+	@apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm;
+}
+
+.pos-management-close,
+.pos-management-icon-button {
+	@apply flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500;
+}
+
+.pos-management-card {
+	@apply rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4;
+}
+
+.pos-management-section-title {
+	@apply mb-2 text-xs font-bold uppercase tracking-wide text-gray-500;
+}
+
+.pos-management-field {
+	@apply w-full rounded-lg border border-gray-200 bg-white px-3 text-sm transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.pos-management-primary {
+	@apply bg-blue-600 text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.pos-management-secondary {
+	@apply bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500;
+}
+
+.pos-management-numpad-key {
+	@apply h-12 rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-800 transition-colors hover:border-blue-200 hover:bg-blue-50 active:bg-blue-100;
+}
+
 @keyframes dialog-overlay-in {
 	from {
 		opacity: 0;

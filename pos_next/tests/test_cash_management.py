@@ -100,7 +100,13 @@ class TestCreateCashEntryValidation(TestCase):
 	"""Input validation happens before any ledger work."""
 
 	def _call(self, **kwargs):
-		params = dict(entry_type="Receipt", amount=10, pos_profile="POS-TEST", remarks="note")
+		params = dict(
+			entry_type="Receipt",
+			amount=10,
+			pos_profile="POS-TEST",
+			remarks="note",
+			idempotency_key="cash-entry-test-0001",
+		)
 		params.update(kwargs)
 		with (
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
@@ -154,12 +160,34 @@ class TestCreateCashEntryValidation(TestCase):
 			with self.assertRaises(frappe.ValidationError):
 				self._call(entry_type="Receipt", account="Cash Box - TC")
 
+	def test_general_receipt_cannot_disguise_a_cash_transfer(self):
+		with patch.object(
+			cm,
+			"assert_company_resource",
+			return_value=frappe._dict(name="Bank Box - TC", account_type="Bank"),
+		):
+			with self.assertRaises(frappe.ValidationError):
+				self._call(entry_type="Receipt", account="Bank Box - TC")
+
+	def test_rejects_an_invalid_or_missing_retry_key(self):
+		with self.assertRaises(frappe.ValidationError):
+			self._call(idempotency_key="short")
+
+	def test_retry_key_fingerprint_rejects_a_different_cash_request(self):
+		journal = frappe._dict(custom_posnext_request_fingerprint="a" * 64)
+		with (
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.ValidationError),
+		):
+			cm._assert_cash_request_fingerprint(journal, "b" * 64)
+
 
 class TestCreateCashEntryPosting(TestCase):
 	"""The debit/credit accounts and party routing are assembled correctly per type.
 	Posting mode is forced to After Approval so the entry stays a draft (no submit)."""
 
 	def _create(self, party_account="Debtors - TC", **kwargs):
+		kwargs.setdefault("idempotency_key", "cash-entry-test-0001")
 		captured = {}
 		journal = MagicMock()
 		journal.name = "ACC-JV-TEST-0001"
@@ -169,10 +197,14 @@ class TestCreateCashEntryPosting(TestCase):
 		def get_doc(payload):
 			captured.update(payload)
 			journal.accounts = payload["accounts"]
+			journal.posa_cash_entry_type = payload["posa_cash_entry_type"]
+			journal.user_remark = payload["user_remark"]
 			return journal
 
 		database = MagicMock()
-		database.get_value.return_value = "Main - TC"  # cost center
+		database.get_value.side_effect = lambda doctype, *_args, **_kwargs: (
+			None if doctype == "Journal Entry" else "Main - TC"
+		)  # No replay exists; Company returns the cost center.
 
 		with (
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
@@ -180,6 +212,7 @@ class TestCreateCashEntryPosting(TestCase):
 			patch.object(cm, "_resolve_cash_box", return_value="Cash Box - TC"),
 			patch.object(cm, "_current_shift", return_value="SHIFT-1"),
 			patch.object(cm, "_posting_mode", return_value="After Approval"),
+			patch.object(cm, "nowdate", return_value="2026-08-08"),
 			patch.object(cm, "_resolve_expense_account", return_value="Fuel Expense - TC"),
 			patch.object(cm, "_resolve_party_account", return_value=party_account),
 			patch.object(cm, "assert_doc_permission", return_value=None),
@@ -248,19 +281,25 @@ class TestCreateCashEntryPosting(TestCase):
 		journal.docstatus = 1
 		journal.posting_date = "2026-08-08"
 		database = MagicMock()
-		database.get_value.return_value = "Main - TC"
+		database.get_value.side_effect = lambda doctype, *_args, **_kwargs: (
+			None if doctype == "Journal Entry" else "Main - TC"
+		)
+		journal.posa_cash_entry_type = "Expense"
+		journal.user_remark = "fuel"
 		with (
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "has_permission", return_value=True),
 			patch.object(cm, "_resolve_cash_box", return_value="Cash Box - TC"),
 			patch.object(cm, "_current_shift", return_value="SHIFT-1"),
 			patch.object(cm, "_posting_mode", return_value="Immediate"),
+			patch.object(cm, "nowdate", return_value="2026-08-08"),
 			patch.object(cm, "_resolve_expense_account", return_value="Fuel Expense - TC"),
 			patch.dict(cm.frappe.__dict__, {"db": database}),
 			patch.object(cm.frappe, "get_doc", return_value=journal),
 		):
 			result = cm.create_cash_entry(
-				entry_type="Expense", amount=40, pos_profile="POS-TEST", expense_type="EXP-1", remarks="fuel"
+				entry_type="Expense", amount=40, pos_profile="POS-TEST", expense_type="EXP-1", remarks="fuel",
+				idempotency_key="cash-entry-test-0001",
 			)
 		journal.submit.assert_called_once()
 		self.assertEqual(result["status"], "Approved")
@@ -321,6 +360,19 @@ class TestCashEntryManagerGating(TestCase):
 			result = cm.approve_cash_entry("ACC-JV-1", pos_profile="POS-TEST")
 		draft.submit.assert_called_once()
 		self.assertEqual(result["status"], "Approved")
+
+	def test_cash_entry_without_a_shift_cannot_be_accessed_by_name(self):
+		journal = frappe._dict(
+			company="Test Company",
+			posa_cash_entry_type="Expense",
+			posa_pos_opening_shift=None,
+		)
+		with (
+			patch.object(cm, "assert_doc_permission", return_value=journal),
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.PermissionError),
+		):
+			cm._get_cash_entry("ACC-JV-1", "POS-TEST", "Test Company")
 
 
 class TestCashManagementFeatureGating(TestCase):

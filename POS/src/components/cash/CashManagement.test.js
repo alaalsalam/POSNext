@@ -216,6 +216,17 @@ describe("CashManagement", () => {
 		})
 	})
 
+	it("requires either a party or a general account for a Receipt", async () => {
+		const wrapper = mountPanel()
+		await flushPromises()
+		await wrapper.find('[data-testid="type-Receipt"]').trigger("click")
+		await flushPromises()
+		await typeAmount(wrapper, ["1", "2", "5"])
+		expect(
+			wrapper.find('[data-testid="cash-submit"]').attributes("disabled"),
+		).toBeDefined()
+	})
+
 	it("Payment (Employee) requires a note and sends party_type=Employee", async () => {
 		const wrapper = mountPanel()
 		await flushPromises()
@@ -415,5 +426,23 @@ describe("CashManagement", () => {
 		).toHaveLength(1)
 		release({ name: "CE-NEW", status: "Approved" })
 		await flushPromises()
+	})
+
+	it("sends a durable retry key and renews it after the cash entry is accepted", async () => {
+		const wrapper = mountPanel()
+		await flushPromises()
+		await typeAmount(wrapper, ["5", "0"])
+		await wrapper.find('[data-testid="expense-type-select"]').setValue("EXP-ELEC")
+		await wrapper.find('[data-testid="remarks"]').setValue("Water")
+		await wrapper.find('[data-testid="cash-submit"]').trigger("click")
+		await flushPromises()
+		const firstKey = createPayload().idempotency_key
+		expect(firstKey).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,139}$/)
+		await typeAmount(wrapper, ["5", "0"])
+		await wrapper.find('[data-testid="remarks"]').setValue("Water")
+		await wrapper.find('[data-testid="cash-submit"]').trigger("click")
+		await flushPromises()
+		const creates = call.mock.calls.filter(([method]) => method.endsWith("create_cash_entry"))
+		expect(creates[1][1].idempotency_key).not.toBe(firstKey)
 	})
 })

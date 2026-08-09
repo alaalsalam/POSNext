@@ -289,7 +289,7 @@
 					>
 						<button
 							@click="handleManagementMenuClick('promotions')"
-							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-green-50 text-green-700 border border-green-100 text-xs font-semibold flex items-center gap-2 active:bg-green-100"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -298,7 +298,7 @@
 						</button>
 						<button
 							@click="handleManagementMenuClick('products')"
-							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-semibold flex items-center gap-2 active:bg-emerald-100"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -307,7 +307,7 @@
 						</button>
 						<button
 							@click="handleManagementMenuClick('invoices')"
-							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-semibold flex items-center gap-2 active:bg-indigo-100"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -328,7 +328,7 @@
 							v-if="canManagePurchases"
 							data-testid="mobile-purchase-invoices-button"
 							@click="handleManagementMenuClick('purchase_invoices')"
-							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-100 text-xs font-semibold flex items-center gap-2 active:bg-orange-100"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5" />
@@ -338,7 +338,7 @@
 						<button
 							v-if="canViewReports"
 							@click="handleManagementMenuClick('reports')"
-							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-semibold flex items-center gap-2 active:bg-emerald-100"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V9m6 10V5m6 14v-7m4 7H2" />
@@ -349,7 +349,7 @@
 							v-if="canManageCash"
 							data-testid="mobile-cash-button"
 							@click="handleManagementMenuClick('cash')"
-							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 text-xs font-semibold flex items-center gap-2 active:bg-teal-100"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -360,7 +360,7 @@
 							v-if="canManageExpenseTypes"
 							data-testid="mobile-expense-types-button"
 							@click="handleManagementMenuClick('expense_types')"
-							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-100 text-xs font-semibold flex items-center gap-2 active:bg-purple-100"
+							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 8V3a2 2 0 012-2z" />

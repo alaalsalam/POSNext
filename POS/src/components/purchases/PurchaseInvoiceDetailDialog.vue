@@ -1,7 +1,7 @@
 <!--
   Read-only purchase invoice review view. Mirrors the sales InvoiceDetailDialog's
   layout language (header card, clean sections, formatCurrency, RTL, loading state)
-  with an orange purchase accent. Editing lives in PurchaseInvoiceForm and is only
+  with the shared POS blue accent. Editing lives in PurchaseInvoiceForm and is only
   reachable from the «تعديل» action on a draft — reviewing is never the raw form.
 -->
 <template>
@@ -15,7 +15,7 @@
 
       <!-- Loading -->
       <div v-if="loading" class="p-10 text-center">
-        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto"></div>
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
         <p class="mt-3 text-sm text-gray-500">{{ __("جاري تحميل بيانات الفاتورة...") }}</p>
       </div>
 
@@ -30,7 +30,7 @@
       <template v-else>
         <div class="flex-1 p-4 flex flex-col gap-4">
           <!-- Header card -->
-          <div class="bg-gradient-to-r rtl:bg-gradient-to-l from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-100">
+          <div class="bg-gradient-to-r rtl:bg-gradient-to-l from-blue-50 to-gray-50 rounded-xl p-4 border border-blue-100">
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-2 flex-wrap">
@@ -53,7 +53,7 @@
               </div>
               <div class="text-start sm:text-end flex-shrink-0">
                 <p class="text-[11px] text-gray-500 mb-0.5">{{ __("الإجمالي الكلي") }}</p>
-                <p class="text-xl font-bold text-orange-700">{{ fmt(invoice.grand_total) }}</p>
+                <p class="text-xl font-bold text-blue-700">{{ fmt(invoice.grand_total) }}</p>
               </div>
             </div>
           </div>
@@ -64,9 +64,9 @@
               <p class="text-[10px] text-gray-500">{{ __("الإجمالي") }}</p>
               <p class="text-sm font-bold text-gray-900">{{ fmt(invoice.grand_total) }}</p>
             </div>
-            <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
-              <p class="text-[10px] text-emerald-600">{{ __("المدفوع") }}</p>
-              <p class="text-sm font-bold text-emerald-700">{{ fmt(paidAmount) }}</p>
+            <div class="rounded-xl bg-green-50 border border-green-100 p-3">
+              <p class="text-[10px] text-green-600">{{ __("المدفوع") }}</p>
+              <p class="text-sm font-bold text-green-700">{{ fmt(paidAmount) }}</p>
             </div>
             <div :class="['rounded-xl border p-3', outstanding > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100']">
               <p :class="['text-[10px]', outstanding > 0 ? 'text-red-500' : 'text-gray-500']">{{ __("المتبقي") }}</p>
@@ -127,7 +127,7 @@
             </div>
             <div class="pt-2 border-t border-gray-300 flex justify-between">
               <span class="font-semibold text-gray-900">{{ __("الإجمالي الكلي") }}</span>
-              <span class="font-bold text-lg text-orange-700">{{ fmt(invoice.grand_total) }}</span>
+              <span class="font-bold text-lg text-blue-700">{{ fmt(invoice.grand_total) }}</span>
             </div>
           </div>
         </div>
@@ -151,7 +151,7 @@
             v-if="isDraft && canWrite"
             data-testid="detail-edit"
             @click="$emit('edit-invoice', invoice)"
-            class="px-4 py-2.5 rounded-xl bg-slate-700 text-white text-sm font-semibold"
+            class="px-4 py-2.5 rounded-xl bg-gray-700 text-white text-sm font-semibold hover:bg-gray-800"
           >
             {{ __("تعديل") }}
           </button>
@@ -159,7 +159,7 @@
             v-if="isSubmitted && outstanding > 0 && canPay"
             data-testid="detail-pay"
             @click="$emit('pay-invoice', invoice)"
-            class="px-4 py-2.5 rounded-xl bg-orange-600 text-white text-sm font-semibold hover:bg-orange-700"
+            class="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
           >
             {{ __("تسجيل دفعة") }}
           </button>
@@ -206,9 +206,9 @@ const statusClass = computed(() => {
 	if (!invoice.value) return "bg-gray-100 text-gray-600"
 	if (invoice.value.docstatus === 0) return "bg-gray-100 text-gray-600"
 	if (invoice.value.docstatus === 2) return "bg-red-100 text-red-600"
-	if (outstanding.value <= 0.005) return "bg-emerald-100 text-emerald-700"
+	if (outstanding.value <= 0.005) return "bg-green-100 text-green-700"
 	if (outstanding.value < grandTotal.value - 0.005) return "bg-blue-100 text-blue-700"
-	return "bg-orange-100 text-orange-700"
+	return "bg-blue-100 text-blue-700"
 })
 
 function fmt(v) {
