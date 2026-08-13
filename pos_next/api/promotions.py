@@ -123,10 +123,12 @@ def get_promotions(pos_profile=None, company=None, include_disabled=False):
 	# Items/groups/brands counts — three bulk queries covering all apply_on variants
 	item_count_map = {}
 	if scheme_names:
+		# Promotional Scheme reuses Pricing Rule's child doctypes for its apply_on rows
+		# (fields items/item_groups/brands) — there is no "Promotional Scheme Item" doctype.
 		for child_dt, parent_field, apply_on_val in (
-			("Promotional Scheme Item", "parent", "Item Code"),
-			("Promotional Scheme Item Group", "parent", "Item Group"),
-			("Promotional Scheme Brand", "parent", "Brand"),
+			("Pricing Rule Item Code", "parent", "Item Code"),
+			("Pricing Rule Item Group", "parent", "Item Group"),
+			("Pricing Rule Brand", "parent", "Brand"),
 		):
 			# Only query if at least one scheme uses this apply_on
 			relevant = [s.name for s in schemes if s.apply_on == apply_on_val]
