@@ -63,7 +63,7 @@ export const usePOSShiftStore = defineStore("posShift", () => {
 
 	function updateCurrentTime() {
 		const now = new Date();
-		currentTime.value = now.toLocaleTimeString(DEFAULT_LOCALE, { hour12: false });
+		currentTime.value = now.toLocaleTimeString(DEFAULT_LOCALE, { hour12: true });
 	}
 
 	function startTimers() {
