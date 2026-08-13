@@ -37,6 +37,7 @@ from frappe.utils import add_days, flt, nowdate
 
 import pos_next  # noqa: F401 — ensure app hooks load.
 from pos_next.api.invoices import apply_offers, submit_invoice, update_invoice
+from pos_next.api.promotions import get_promotions
 
 ITEM_A = "_PNXT_TEST_ITEM_A"  # Standard Selling: 50
 ITEM_B = "_PNXT_TEST_ITEM_B"  # Standard Selling: 80
@@ -982,6 +983,46 @@ class TestPromotions(FrappeTestCase):
 		self.assertNotIn(rule, resp.get("applied_pricing_rules") or [])
 		self.assertEqual(flt(resp.get("additional_discount_percentage") or 0), 0)
 		self.assertEqual(flt(resp.get("discount_amount") or 0), 0)
+
+	# -------------------------------------------------------------------
+	# Management-list API (get_promotions) regression
+	# -------------------------------------------------------------------
+
+	def test_get_promotions_lists_schemes_with_items(self):
+		"""Regression: get_promotions counts a Promotional Scheme's apply_on rows via
+		Pricing Rule's child doctypes. It used to query the non-existent
+		"Promotional Scheme Item" doctype, so any scheme with apply_on Item Code/Group/Brand
+		made the promotions list crash with DoesNotExistError."""
+		scheme = frappe.get_doc(
+			{
+				"doctype": "Promotional Scheme",
+				"name": "_PNXT_TEST_GETPROMO",
+				"apply_on": "Item Code",
+				"selling": 1,
+				"company": self.ctx.company,
+				"items": [{"item_code": ITEM_A}],
+				"price_discount_slabs": [
+					{
+						"rule_description": "_PNXT_TEST_ 10% off",
+						"rate_or_discount": "Discount Percentage",
+						"discount_percentage": 10,
+						"min_qty": 1,
+					}
+				],
+			}
+		)
+		scheme.insert(ignore_permissions=True)
+		try:
+			result = get_promotions(company=self.ctx.company, include_disabled=True)
+			row = next((r for r in result if r.get("name") == scheme.name), None)
+			self.assertIsNotNone(row, "created scheme missing from get_promotions")
+			self.assertEqual(row["source"], "Promotional Scheme")
+			# The apply_on item is counted (the query path that used to raise).
+			self.assertGreaterEqual(row["items_count"], 1)
+		finally:
+			# Deleting the scheme cascades to its generated Pricing Rules; the suite commits
+			# in tearDown, so clean up explicitly rather than relying on rollback.
+			frappe.delete_doc("Promotional Scheme", scheme.name, force=True, ignore_permissions=True)
 
 
 def run_all():
