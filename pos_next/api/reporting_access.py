@@ -8,25 +8,16 @@ from frappe import _
 
 from pos_next.api.feature_flags import get_feature_flags, require_feature
 
-REPORT_MANAGER_ROLES = {
-	"System Manager",
-	"Sales Manager",
-	"POS Manager",
-	"Accounts Manager",
-	"Stock Manager",
-	"Item Manager",
-}
-
 
 def is_report_manager(user=None):
-	roles = set(frappe.get_roles(user or frappe.session.user))
-	return bool(roles.intersection(REPORT_MANAGER_ROLES))
+	"""Native report permission is the only report-access authority."""
+	return bool(frappe.has_permission("Sales Invoice", "report", user=user))
 
 
 def assert_report_manager(reference_doctype="Sales Invoice"):
-	"""Require a manager role and normal DocType read permission."""
-	if not is_report_manager() or not frappe.has_permission(reference_doctype, "read"):
-		frappe.throw(_("Only an authorized manager can view POS reports"), frappe.PermissionError)
+	"""Require native report and read permission for the report's source DocType."""
+	if not frappe.has_permission(reference_doctype, "read") or not frappe.has_permission(reference_doctype, "report"):
+		frappe.throw(_("You do not have permission to view this POS report"), frappe.PermissionError)
 
 
 def authorize_report(filters=None, reference_doctype="Sales Invoice"):

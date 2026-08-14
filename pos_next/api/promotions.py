@@ -29,7 +29,7 @@ def check_promotion_permissions(action="read"):
 def check_coupon_permissions(action="read"):
 	"""
 	Check if user has permissions for POS Coupon operations.
-	POSNext Cashier can read; POS Manager can do everything.
+	POS Cashier can read; POS Manager can do everything.
 
 	Args:
 		action: "read", "write", "create", or "delete"

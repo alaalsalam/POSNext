@@ -572,7 +572,7 @@ unchanged on `digitpos` at `49c70f5` after implementation.
 
 - Added independent `POS Settings` flags for catalog, purchases, supplier payments,
   and in-POS reports. All default to off; Supplier Payments requires Purchases.
-- Removed `POSNext Cashier` write permission from `POS Settings`. The generic settings
+- Removed `POS Cashier` write permission from `POS Settings`. The generic settings
   mutation API and profile warehouse mutation are manager-only. Non-Administrator
   access requires explicit POS Profile assignment plus POS Profile and Company user
   permission.

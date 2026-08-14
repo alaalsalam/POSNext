@@ -7,9 +7,7 @@ from pos_next.api.feature_flags import (
 	FEATURE_DEFAULTS,
 	_get_active_pos_profile,
 	get_feature_flags,
-	is_feature_manager,
 )
-from pos_next.api.reporting_access import is_report_manager
 
 
 def _resolve_ui_pos_profile(pos_profile=None):
@@ -47,8 +45,6 @@ def get_pos_permissions(pos_profile=None):
 	def can(doctype, ptype):
 		return bool(frappe.has_permission(doctype, ptype))
 
-	can_manage_workflows = is_feature_manager()
-
 	return {
 		# ── Promotion management (POS Manager only) ──
 		"can_read_promotions": can("Promotional Scheme", "read"),
@@ -68,33 +64,36 @@ def get_pos_permissions(pos_profile=None):
 		"can_create_customers": can("Customer", "create"),
 		"can_write_customers": can("Customer", "write"),
 		# ── Item/catalog management ──
-		"can_create_items": bool(can_manage_workflows and feature_flags["enable_catalog_management"] and can("Item", "create")),
-		"can_write_items": bool(can_manage_workflows and feature_flags["enable_catalog_management"] and can("Item", "write")),
+		"can_create_items": bool(feature_flags["enable_catalog_management"] and can("Item", "create")),
+		"can_write_items": bool(feature_flags["enable_catalog_management"] and can("Item", "write")),
 		# ── POS Settings ──
 		"can_write_pos_settings": can("POS Settings", "write"),
-		"can_manage_feature_flags": is_feature_manager() and can("POS Settings", "write"),
-		# ── Role shortcuts ──
-		"is_pos_manager": "POS Manager" in user_roles or "System Manager" in user_roles,
-		"is_cashier": "POSNext Cashier" in user_roles,
+		"can_manage_feature_flags": can("POS Settings", "write"),
+		# Logical UI labels derived from native permissions, not role names.
+		"is_pos_manager": can("POS Settings", "write"),
+		"is_cashier": bool(can("POS Opening Shift", "create") and not can("POS Settings", "write")),
 		# ── Purchase management ──
-		"can_read_purchases": bool(can_manage_workflows and feature_flags["enable_purchases"] and can("Purchase Invoice", "read")),
-		"can_create_purchases": bool(can_manage_workflows and feature_flags["enable_purchases"] and can("Purchase Invoice", "create")),
-		"can_write_purchases": bool(can_manage_workflows and feature_flags["enable_purchases"] and can("Purchase Invoice", "write")),
-		"can_submit_purchases": bool(can_manage_workflows and feature_flags["enable_purchases"] and can("Purchase Invoice", "submit")),
-		"can_cancel_purchases": bool(can_manage_workflows and feature_flags["enable_purchases"] and can("Purchase Invoice", "cancel")),
+		"can_read_purchases": bool(feature_flags["enable_purchases"] and can("Purchase Invoice", "read")),
+		"can_create_purchases": bool(feature_flags["enable_purchases"] and can("Purchase Invoice", "create")),
+		"can_write_purchases": bool(feature_flags["enable_purchases"] and can("Purchase Invoice", "write")),
+		"can_submit_purchases": bool(feature_flags["enable_purchases"] and can("Purchase Invoice", "submit")),
+		"can_cancel_purchases": bool(feature_flags["enable_purchases"] and can("Purchase Invoice", "cancel")),
 		"can_read_suppliers": can("Supplier", "read"),
 		"can_create_suppliers": can("Supplier", "create"),
 		# ── Supplier payments ──
-		"can_read_payment_entries": bool(can_manage_workflows and feature_flags["enable_supplier_payments"] and can("Payment Entry", "read")),
-		"can_create_payment_entries": bool(can_manage_workflows and feature_flags["enable_supplier_payments"] and can("Payment Entry", "create")),
-		"can_write_payment_entries": bool(can_manage_workflows and feature_flags["enable_supplier_payments"] and can("Payment Entry", "write")),
-		"can_submit_payment_entries": bool(can_manage_workflows and feature_flags["enable_supplier_payments"] and can("Payment Entry", "submit")),
-		"can_cancel_payment_entries": bool(can_manage_workflows and feature_flags["enable_supplier_payments"] and can("Payment Entry", "cancel")),
+		"can_read_payment_entries": bool(feature_flags["enable_supplier_payments"] and can("Payment Entry", "read")),
+		"can_create_payment_entries": bool(feature_flags["enable_supplier_payments"] and can("Payment Entry", "create")),
+		"can_write_payment_entries": bool(feature_flags["enable_supplier_payments"] and can("Payment Entry", "write")),
+		"can_submit_payment_entries": bool(feature_flags["enable_supplier_payments"] and can("Payment Entry", "submit")),
+		"can_cancel_payment_entries": bool(feature_flags["enable_supplier_payments"] and can("Payment Entry", "cancel")),
+		# ── Cash / expenses ──
+		"can_manage_cash": bool(feature_flags["enable_cash_management"] and can("Journal Entry", "create") and can("Journal Entry", "read")),
+		"can_manage_expense_types": bool(feature_flags["enable_expense_types"] and can("POS Expense Type", "write")),
 		# ── Reports ──
 		"can_view_reports": bool(
 			feature_flags["enable_pos_reports"]
-			and is_report_manager()
 			and can("Sales Invoice", "read")
+			and can("Sales Invoice", "report")
 		),
 		"feature_flags": feature_flags,
 		"user_roles": user_roles,

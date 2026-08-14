@@ -119,7 +119,7 @@ def run_acceptance():
 	supplier = purchases.create_supplier(f"{prefix}-SUPPLIER", supplier_group, "Company", profile.name)
 	defaults = purchases.get_new_purchase_invoice_defaults(profile.name)
 	manager = create_qa_user(f"manager-{stamp}@posnext.qa", "POS Manager", profile, profile.company)
-	cashier = create_qa_user(f"cashier-{stamp}@posnext.qa", "POSNext Cashier", profile, profile.company)
+	cashier = create_qa_user(f"cashier-{stamp}@posnext.qa", "POS Cashier", profile, profile.company)
 	profile.save(ignore_permissions=False)
 	foreign_profile = frappe.db.get_value("POS Profile", {"name": ["!=", profile.name], "company": ["!=", profile.company]}, "name")
 	check(foreign_profile, "No foreign-company POS Profile exists for isolation acceptance")

@@ -1495,19 +1495,17 @@ const supplierPaymentInvoice = ref(null);
 const showReportsPanel = ref(false);
 const canViewReports = ref(false);
 
-// Cash management — cashier-available, gated purely by the enable_cash_management flag.
+// Cash management — both the profile feature and native Journal Entry permission are required.
 const showCashPanel = ref(false);
-const canManageCash = computed(() => posSettingsStore.enableCashManagement);
+const canManageCash = ref(false);
 // If a manager disables the flag mid-shift, close the panel so it can't linger.
 watch(canManageCash, (allowed) => {
 	if (!allowed) showCashPanel.value = false;
 });
 
-// Expense-type management — its own screen, gated by enable_expense_types + manager.
+// Expense-type management — gated by its feature and native POS Expense Type permission.
 const showExpenseTypesPanel = ref(false);
-const canManageExpenseTypes = computed(
-	() => posSettingsStore.enableExpenseTypes && canManageFeatureFlags.value
-);
+const canManageExpenseTypes = ref(false);
 watch(canManageExpenseTypes, (allowed) => {
 	if (!allowed) showExpenseTypesPanel.value = false;
 });
@@ -1882,6 +1880,8 @@ async function checkCatalogPermission() {
 		canCancelPurchases.value = result?.can_cancel_purchases || false;
 		canViewReports.value = result?.can_view_reports || false;
 		canManageFeatureFlags.value = result?.can_manage_feature_flags || false;
+		canManageCash.value = result?.can_manage_cash || false;
+		canManageExpenseTypes.value = result?.can_manage_expense_types || false;
 		canCreateSupplierPayment.value = result?.can_create_payment_entries || false;
 		canReadSupplierPayments.value = result?.can_read_payment_entries || false;
 		canSubmitSupplierPayment.value = result?.can_submit_payment_entries || false;
@@ -1899,6 +1899,8 @@ async function checkCatalogPermission() {
 		canSubmitSupplierPayment.value = false;
 		canCancelSupplierPayment.value = false;
 		canManageFeatureFlags.value = false;
+		canManageCash.value = false;
+		canManageExpenseTypes.value = false;
 	}
 }
 

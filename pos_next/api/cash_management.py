@@ -23,12 +23,12 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, nowdate
 
-from pos_next.api.feature_flags import get_feature_flags, is_feature_manager, require_feature
+from pos_next.api.feature_flags import get_feature_flags, require_feature
 from pos_next.api.management_scope import (
 	assert_company_resource,
 	assert_doc_permission,
 	normalize_idempotency_key,
-	require_manager_feature,
+	require_feature_permission,
 )
 
 CASH_ENTRY_TYPES = ("Expense", "Receipt", "Payment", "Transfer")
@@ -165,8 +165,8 @@ def get_cash_management_setup(pos_profile=None):
 	)
 	return {
 		"posting_mode": _posting_mode(profile),
-		"is_manager": bool(is_feature_manager()),
-		"can_manage_expense_types": bool(is_feature_manager()) and bool(expense_types_enabled),
+		"is_manager": bool(frappe.has_permission("Journal Entry", "cancel")),
+		"can_manage_expense_types": bool(frappe.has_permission("POS Expense Type", "write")) and bool(expense_types_enabled),
 		"default_cash_account": _default_cash_account(profile, company),
 		"cash_boxes": boxes,
 		"expense_types": expense_types,
@@ -352,9 +352,9 @@ def _get_cash_entry(name, profile, company, ptype="read"):
 def approve_cash_entry(name, pos_profile=None):
 	"""Post a pending (draft) cash entry to the ledger. Manager only."""
 	profile, company = _cash_context(pos_profile)
-	if not is_feature_manager():
-		frappe.throw(_("Only a POS manager can approve cash entries"), frappe.PermissionError)
-	frappe.has_permission("Journal Entry", "submit", throw=True)
+	# Approval/rejection is distinguished by the native cancel permission.  The
+	# cashier and cash-management roles do not receive it; a POS Manager does.
+	frappe.has_permission("Journal Entry", "cancel", throw=True)
 	journal = _get_cash_entry(name, profile, company, "submit")
 	if journal.docstatus != 0:
 		frappe.throw(_("Only pending cash entries can be approved"))
@@ -366,8 +366,6 @@ def approve_cash_entry(name, pos_profile=None):
 def reject_cash_entry(name, pos_profile=None):
 	"""Discard a pending (draft) cash entry. Manager only."""
 	profile, company = _cash_context(pos_profile)
-	if not is_feature_manager():
-		frappe.throw(_("Only a POS manager can reject cash entries"), frappe.PermissionError)
 	frappe.has_permission("Journal Entry", "delete", throw=True)
 	journal = _get_cash_entry(name, profile, company, "delete")
 	if journal.docstatus != 0:
@@ -407,7 +405,7 @@ def get_cash_entries(pos_profile=None, limit=50):
 		"paid_total": round(paid, 2),
 		"net_total": round(received - paid, 2),
 		"pending_count": pending,
-		"is_manager": bool(is_feature_manager()),
+		"is_manager": bool(frappe.has_permission("Journal Entry", "cancel")),
 	}
 
 
@@ -421,7 +419,7 @@ def _assert_cash_manager(pos_profile):
 	"""Expense-type management is an INDEPENDENT capability: it needs its own enable_expense_types
 	flag plus a manager role — not the cash_management flag. A business can pre-configure expense
 	types without giving cashiers the drawer panel, or run the drawer without exposing type editing."""
-	return require_manager_feature("expense_types", pos_profile=pos_profile)
+	return require_feature_permission("expense_types", "POS Expense Type", "write", pos_profile=pos_profile)
 
 
 @frappe.whitelist()

@@ -19,7 +19,7 @@ class TestManagementScope(TestCase):
 		with (
 			patch.object(permissions, "get_feature_flags", return_value=flags),
 			patch.object(permissions, "is_feature_manager", return_value=False),
-			patch.object(permissions.frappe, "get_roles", return_value=["POSNext Cashier"]),
+			patch.object(permissions.frappe, "get_roles", return_value=["POS Cashier"]),
 			patch.object(permissions.frappe, "has_permission", return_value=True),
 		):
 			result = permissions.get_pos_permissions("POS-A")

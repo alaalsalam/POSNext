@@ -17,14 +17,14 @@ ROLE_PERMISSIONS = {
 			"amend": 1, "report": 1, "print": 1, "export": 1,
 		},
 		{
-			"role": "POSNext Cashier",
+			"role": "POS Cashier",
 			"read": 1, "create": 1, "submit": 1, "print": 1,
 		},
 	],
 	# Cashier needs to look up an Employee for a "payment to employee" (صرف لموظف) voucher.
 	# Customer read already exists (sales); scoped to the cashier's company by the Company UP.
 	"Employee": [
-		{"role": "POSNext Cashier", "read": 1},
+		{"role": "POS Cashier", "read": 1},
 	],
 }
 

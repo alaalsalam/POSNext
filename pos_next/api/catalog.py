@@ -4,11 +4,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 
-from pos_next.api.management_scope import assert_doc_permission, require_manager_feature
+from pos_next.api.management_scope import assert_doc_permission, require_feature_permission
 
 
 def _context(pos_profile=None):
-	return require_manager_feature("catalog", pos_profile=pos_profile)
+	return require_feature_permission("catalog", "Item", "read", pos_profile=pos_profile)
 
 
 def _allowed_item_groups(pos_profile):

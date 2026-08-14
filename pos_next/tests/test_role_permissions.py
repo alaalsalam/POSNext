@@ -1,7 +1,7 @@
 # Copyright (c) 2026, POS Next and contributors
 # For license information, please see license.txt
 
-"""Proves the app's permission model is app-owned: the POSNext Cashier / POS Manager
+"""Proves the app's permission model is app-owned: the POS Cashier / POS Manager
 roles grant the correct two-tier access on their own, WITHOUT any ERPNext role
 (Sales User, Stock User, Accounts User, …) attached. Guards the shipped grants in
 patches/v2_0_0/ship_pos_role_permissions.py against regression."""
@@ -64,8 +64,8 @@ class TestAppOwnedRolePermissions(FrappeTestCase):
 
 		ship_pos_role_permissions.execute()
 		ship_cash_management_permissions.execute()
-		_make_user(CASHIER, ["POSNext Cashier"])
-		_make_user(MANAGER, ["POSNext Cashier", "POS Manager"])
+		_make_user(CASHIER, ["POS Cashier"])
+		_make_user(MANAGER, ["POS Cashier", "POS Manager"])
 
 	@classmethod
 	def tearDownClass(cls):
@@ -78,7 +78,7 @@ class TestAppOwnedRolePermissions(FrappeTestCase):
 		frappe.set_user(user)
 		try:
 			# No ERPNext role should be present — only the app roles (+ auto Desk User).
-			roles = set(frappe.get_roles()) - {"All", "Guest", "Desk User", "POSNext Cashier", "POS Manager"}
+			roles = set(frappe.get_roles()) - {"All", "Guest", "Desk User", "POS Cashier", "POS Manager"}
 			self.assertEqual(roles, set(), f"{user} unexpectedly has non-app roles: {roles}")
 			for doctype, ptype, exp_cashier, exp_manager in CONTRACT:
 				expected = exp_cashier if index == 0 else exp_manager

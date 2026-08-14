@@ -27,7 +27,7 @@ class TestReportingAccess(FrappeTestCase):
 						module.execute({"pos_profile": "Profile A"})
 
 	@patch.object(reporting_access.frappe, "has_permission", return_value=True)
-	@patch.object(reporting_access.frappe, "get_roles", return_value=["POSNext Cashier"])
+	@patch.object(reporting_access.frappe, "get_roles", return_value=["POS Cashier"])
 	def test_cashier_cannot_open_reports_even_with_doctype_read(self, _roles, _permission):
 		with self.assertRaises(frappe.PermissionError):
 			reporting_access.assert_report_manager()

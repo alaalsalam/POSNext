@@ -21,7 +21,7 @@ controls for capabilities that do not yet have a complete policy.
   bootstrapped into the POS session, but all mutation is manager-only.
 - Only `System Manager`, `Sales Manager`, or `POS Manager` users with `POS Settings`
   write permission can save administrative settings or change the profile warehouse.
-- `POSNext Cashier` has no `POS Settings` write permission.
+- `POS Cashier` has no `POS Settings` write permission.
 - Profile assignment is mandatory for non-Administrator users. The shared access
   helper also evaluates document-level POS Profile and Company user permissions.
 - Frontend visibility is only a convenience. `require_feature()` guards every

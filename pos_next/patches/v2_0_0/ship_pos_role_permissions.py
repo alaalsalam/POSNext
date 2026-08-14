@@ -1,4 +1,4 @@
-# App-owned permission grants for POS Next's roles (POSNext Cashier / POS Manager)
+# App-owned permission grants for POS Next's roles (POS Cashier / POS Manager)
 # on the core ERPNext doctypes the POS relies on. Shipped so a fresh install has a
 # working, self-documenting permission model without manual setup — instead of the
 # grants living only as ad-hoc site data.
@@ -26,7 +26,7 @@ ROLE_PERMISSIONS = {
    "select": 1
   },
   {
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "read": 1,
    "report": 1,
    "select": 1
@@ -48,7 +48,7 @@ ROLE_PERMISSIONS = {
    "share": 1
   },
   {
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "read": 1,
    "write": 1,
    "create": 1,
@@ -87,7 +87,7 @@ ROLE_PERMISSIONS = {
    "email": 1
   },
   {
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "read": 1,
    "write": 1,
    "create": 1,
@@ -109,7 +109,7 @@ ROLE_PERMISSIONS = {
    "share": 1
   },
   {
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "read": 1
   }
  ],
@@ -121,7 +121,7 @@ ROLE_PERMISSIONS = {
    "report": 1
   },
   {
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "read": 1,
    "export": 1
   }
@@ -139,7 +139,7 @@ ROLE_PERMISSIONS = {
    "select": 1
   },
   {
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "read": 1,
    "write": 1,
    "create": 1,
@@ -173,7 +173,7 @@ ROLE_PERMISSIONS = {
    "select": 1
   },
   {
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "read": 1,
    "report": 1,
    "select": 1

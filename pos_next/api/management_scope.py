@@ -6,20 +6,33 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
-from pos_next.api.feature_flags import is_feature_manager, require_feature
+from pos_next.api.feature_flags import require_feature
 
 IDEMPOTENCY_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,139}$")
 
 
-def require_manager_feature(feature, pos_profile=None, company=None):
-	"""Require a profile flag and an authorized management role."""
+def require_feature_permission(feature, doctype, ptype="read", pos_profile=None, company=None):
+	"""Require a profile feature and its native Frappe DocType permission.
+
+	This is deliberately permission-based rather than role-based.  The role
+	assigned in Frappe determines the permission; POS does not maintain a second
+	list of privileged role names.
+	"""
 	profile = require_feature(feature, pos_profile=pos_profile, company=company)
-	if not is_feature_manager():
-		frappe.throw(_("Only an authorized POS manager can use this feature"), frappe.PermissionError)
+	frappe.has_permission(doctype, ptype, throw=True)
 	profile_company = frappe.db.get_value("POS Profile", profile, "company")
 	if not frappe.has_permission("Company", "read", doc=profile_company):
 		frappe.throw(_("You do not have access to this company"), frappe.PermissionError)
 	return profile, profile_company
+
+
+def require_manager_feature(feature, pos_profile=None, company=None):
+	"""Backward-compatible settings-management guard.
+
+	Only POS Settings write permission controls configuration.  Feature modules
+	should call :func:`require_feature_permission` with their own DocType.
+	"""
+	return require_feature_permission(feature, "POS Settings", "write", pos_profile, company)
 
 
 def assert_doc_permission(doctype, name, ptype="read"):

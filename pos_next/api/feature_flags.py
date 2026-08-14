@@ -21,9 +21,6 @@ FEATURE_DEPENDENCIES = {
 }
 
 FEATURE_DEFAULTS = {fieldname: 0 for fieldname in FEATURE_FLAGS.values()}
-FEATURE_MANAGER_ROLES = {"System Manager", "Sales Manager", "POS Manager"}
-
-
 def get_feature_field(feature):
 	"""Resolve a public feature key or fieldname to a supported POS Settings field."""
 	fieldname = FEATURE_FLAGS.get(feature, feature)
@@ -33,9 +30,13 @@ def get_feature_field(feature):
 
 
 def is_feature_manager(user=None):
-	"""Return whether the user may control experimental management features."""
-	roles = set(frappe.get_roles(user or frappe.session.user))
-	return bool(roles.intersection(FEATURE_MANAGER_ROLES))
+	"""Whether the user may change POS feature configuration.
+
+	The native POS Settings DocType permission is the source of truth.  We do
+	not infer authority from a role name, so administrators can adjust access in
+	Role Permission Manager without a code change.
+	"""
+	return bool(frappe.has_permission("POS Settings", "write", user=user))
 
 
 def assert_feature_manager():

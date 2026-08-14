@@ -13,7 +13,7 @@ from pos_next.api.management_scope import (
 	assert_doc_permission,
 	lock_document,
 	normalize_idempotency_key,
-	require_manager_feature,
+	require_feature_permission,
 )
 
 AMOUNT_TOLERANCE = 0.005
@@ -42,7 +42,9 @@ DATE_FIELDS = {"bill_date", "due_date", "posting_date", "reference_date"}
 
 
 def _context(feature, pos_profile=None, company=None):
-	return require_manager_feature(feature, pos_profile=pos_profile, company=company)
+	return require_feature_permission(
+		feature, "Purchase Invoice", "read", pos_profile=pos_profile, company=company
+	)
 
 
 def _parse_data(data):

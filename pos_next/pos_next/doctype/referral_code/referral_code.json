@@ -300,7 +300,7 @@
    "print": 0,
    "read": 1,
    "report": 1,
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "select": 0,
    "share": 0,
    "write": 0

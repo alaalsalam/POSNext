@@ -277,7 +277,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Permissions & Roles**
   - Added new roles and permissions for system and sales managers
   - Correct POS Settings permissions with create for managers
-  - Moved POSNext Cashier permissions from fixtures to DocType definitions
+  - Moved POS Cashier permissions from fixtures to DocType definitions
 
 - **Payment Improvements**
   - Added exact amount mode for payment processing
@@ -344,8 +344,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.13.0] - 2026-01-07
 
 ### Added
-- **POSNext Cashier Role & Permissions**
-  - Created dedicated POSNext Cashier role for POS operations
+- **POS Cashier Role & Permissions**
+  - Created dedicated POS Cashier role for POS operations
   - Added custom permissions for Customer, Bin, Item, and Warehouse doctypes
   - Proper role-based access control for POS users
 

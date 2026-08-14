@@ -103,7 +103,7 @@
   {
    "create": 1,
    "read": 1,
-   "role": "POSNext Cashier",
+   "role": "POS Cashier",
    "write": 1
   }
  ],

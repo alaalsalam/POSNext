@@ -76,7 +76,7 @@ class TestWarehouseUserPermission(FrappeTestCase):
 		frappe.db.set_single_value("System Settings", "apply_strict_user_permissions", 1)
 		frappe.clear_cache()
 
-		_make_user(MANAGER, ["POSNext Cashier", "POS Manager"])
+		_make_user(MANAGER, ["POS Cashier", "POS Manager"])
 		_add_user_permission(MANAGER, "Company", cls.company)
 		_add_user_permission(MANAGER, "Warehouse", cls.warehouse.name)
 

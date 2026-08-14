@@ -10,7 +10,7 @@ Company, reference DocType, and User Permission checks remain authoritative.
 
 Report viewers need a manager role (`System Manager`, `Sales Manager`, `POS Manager`,
 `Accounts Manager`, `Stock Manager`, or `Item Manager`) and read permission for the
-report's reference DocType. `POSNext Cashier` and `POS User` alone cannot view reports.
+report's reference DocType. `POS Cashier` and `POS User` alone cannot view reports.
 
 ## Accounting model
 
