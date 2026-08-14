@@ -5,6 +5,7 @@
 	>
 		<!-- Promotions -->
 		<button
+			v-if="canManagePromotions"
 			@click="handleMenuClick('promotions')"
 			:class="[
 				'w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group',
@@ -205,6 +206,7 @@ import { FeatherIcon } from "frappe-ui";
 import { ref } from "vue";
 
 const props = defineProps({
+	canManagePromotions: { type: Boolean, default: false },
 	canManageCatalog: { type: Boolean, default: false },
 	canManagePurchases: { type: Boolean, default: false },
 	canViewReports: { type: Boolean, default: false },

@@ -269,6 +269,7 @@
 				<ManagementSlider
 					@menu-clicked="handleManagementMenuClick"
 					:can-manage-catalog="canManageCatalog"
+					:can-manage-promotions="canManagePromotions"
 					:can-manage-purchases="canManagePurchases"
 					:can-view-reports="canViewReports"
 					:can-manage-settings="canManageFeatureFlags"
@@ -288,6 +289,7 @@
 						data-testid="mobile-management-actions"
 					>
 						<button
+							v-if="canManagePromotions"
 							@click="handleManagementMenuClick('promotions')"
 							class="flex-none min-h-10 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-2 active:bg-blue-100"
 						>
@@ -1474,6 +1476,7 @@ function refreshPurchaseInvoicesView() {
 // Catalog Management panel
 const showCatalogManagement = ref(false);
 const canManageCatalog = ref(false);
+const canManagePromotions = ref(false);
 const canManageFeatureFlags = ref(false);
 
 // Purchases panel
@@ -1873,6 +1876,7 @@ async function checkCatalogPermission() {
 	try {
 		const result = await refreshPOSPermissions(shiftStore.profileName);
 		canManageCatalog.value = result?.can_create_items || result?.can_write_items || false;
+		canManagePromotions.value = result?.can_create_promotions || result?.can_write_promotions || result?.can_delete_promotions || false;
 		canManagePurchases.value = result?.can_read_purchases || false;
 		canCreatePurchases.value = result?.can_create_purchases || false;
 		canWritePurchases.value = result?.can_write_purchases || false;
@@ -1888,6 +1892,7 @@ async function checkCatalogPermission() {
 		canCancelSupplierPayment.value = result?.can_cancel_payment_entries || false;
 	} catch {
 		canManageCatalog.value = false;
+		canManagePromotions.value = false;
 		canManagePurchases.value = false;
 		canCreatePurchases.value = false;
 		canWritePurchases.value = false;
@@ -3390,7 +3395,7 @@ function restoreBodyStyles() {
 // Management and Promotion handlers
 function handleManagementMenuClick(menuItem) {
 	if (menuItem === "promotions") {
-		showPromotionManagement.value = true;
+		if (canManagePromotions.value) showPromotionManagement.value = true;
 	} else if (menuItem === "settings") {
 		if (canManageFeatureFlags.value) showPOSSettings.value = true;
 	} else if (menuItem === "invoices") {

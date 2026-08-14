@@ -47,7 +47,6 @@ ROLE_PERMISSIONS = {
 		"Customer": {"read": 1, "write": 1, "create": 1, "select": 1},
 		"Item": {"read": 1, "select": 1},
 		"Warehouse": {"read": 1, "select": 1},
-		"Journal Entry": {"read": 1, "create": 1, "submit": 1, "print": 1},
 		"Employee": {"read": 1},
 		"POS Expense Type": {"read": 1},
 	},

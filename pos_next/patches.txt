@@ -14,3 +14,4 @@ pos_next.patches.v2_0_0.ship_cash_management_permissions
 pos_next.patches.v2_1_0.native_pos_roles
 pos_next.patches.v2_1_0.fix_cashier_role_assignments
 pos_next.patches.v2_1_0.fix_role_profile_cashier_assignments
+pos_next.patches.v2_1_0.restrict_cashier_to_sales
