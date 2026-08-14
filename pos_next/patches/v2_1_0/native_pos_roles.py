@@ -47,6 +47,19 @@ ROLE_PERMISSIONS = {
 		"Customer": {"read": 1, "write": 1, "create": 1, "select": 1},
 		"Item": {"read": 1, "select": 1},
 		"Warehouse": {"read": 1, "select": 1},
+		# Read-only financial master data is required by ERPNext when a cashier
+		# submits a sales invoice and selects a payment method.  It does not grant
+		# access to accounting transactions or cash management.
+		"Account": {"read": 1},
+		"Company": {"read": 1},
+		"Cost Center": {"read": 1},
+		"Currency": {"read": 1},
+		"Mode of Payment": {"read": 1},
+		"Price List": {"read": 1},
+		"Sales Taxes and Charges Template": {"read": 1},
+		"POS Coupon": {"read": 1},
+		"Promotional Scheme": {"read": 1},
+		"Pricing Rule": {"read": 1},
 		"Employee": {"read": 1},
 		"POS Expense Type": {"read": 1},
 	},
