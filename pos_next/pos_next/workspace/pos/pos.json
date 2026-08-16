@@ -26,7 +26,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Sales Invoice",
+   "label": "فواتير المبيعات",
    "link_count": 0,
    "link_to": "Sales Invoice",
    "link_type": "DocType",
@@ -36,7 +36,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Customer",
+   "label": "العملاء",
    "link_count": 0,
    "link_to": "Customer",
    "link_type": "DocType",
@@ -46,7 +46,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Payment Entry",
+   "label": "سندات الدفع",
    "link_count": 0,
    "link_to": "Payment Entry",
    "link_type": "DocType",
@@ -56,7 +56,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Profile",
+   "label": "ملفات نقطة البيع",
    "link_count": 0,
    "link_to": "POS Profile",
    "link_type": "DocType",
@@ -75,7 +75,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Item",
+   "label": "الأصناف",
    "link_count": 0,
    "link_to": "Item",
    "link_type": "DocType",
@@ -85,7 +85,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Warehouse",
+   "label": "المستودعات",
    "link_count": 0,
    "link_to": "Warehouse",
    "link_type": "DocType",
@@ -95,7 +95,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Stock Entry",
+   "label": "حركات المخزون",
    "link_count": 0,
    "link_to": "Stock Entry",
    "link_type": "DocType",
@@ -124,7 +124,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "Sales vs Shifts Report",
+   "label": "تقرير المبيعات والورديات",
    "link_count": 0,
    "link_to": "Sales vs Shifts Report",
    "link_type": "Report",
@@ -134,7 +134,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "Cashier Performance Report",
+   "label": "تقرير أداء الكاشير",
    "link_count": 0,
    "link_to": "Cashier Performance Report",
    "link_type": "Report",
@@ -144,7 +144,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "Payments and Cash Control Report",
+   "label": "تقرير المدفوعات والرقابة النقدية",
    "link_count": 0,
    "link_to": "Payments and Cash Control Report",
    "link_type": "Report",
@@ -154,7 +154,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "Inventory Impact and Fast Movers Report",
+   "label": "تقرير حركة المخزون والأصناف السريعة",
    "link_count": 0,
    "link_to": "Inventory Impact and Fast Movers Report",
    "link_type": "Report",
@@ -164,7 +164,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "Offline Sync and System Health Report",
+   "label": "تقرير المزامنة وصحة النظام",
    "link_count": 0,
    "link_to": "Offline Sync and System Health Report",
    "link_type": "Report",
@@ -183,7 +183,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Settings",
+   "label": "إعدادات نقطة البيع",
    "link_count": 0,
    "link_to": "POS Settings",
    "link_type": "DocType",
@@ -193,7 +193,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Branding Settings",
+   "label": "هوية نقطة البيع",
    "link_count": 0,
    "link_to": "POS Branding Settings",
    "link_type": "DocType",
@@ -203,7 +203,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Opening Shift",
+   "label": "فتح وردية",
    "link_count": 0,
    "link_to": "POS Opening Shift",
    "link_type": "DocType",
@@ -213,7 +213,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Closing Shift",
+   "label": "إغلاق وردية",
    "link_count": 0,
    "link_to": "POS Closing Shift",
    "link_type": "DocType",

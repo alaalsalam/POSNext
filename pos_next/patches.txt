@@ -23,3 +23,4 @@ pos_next.patches.v2_1_0.add_pos_inventory_controller
 pos_next.patches.v2_1_0.add_inventory_workspace_link
 pos_next.patches.v2_1_0.add_inventory_price_fields
 pos_next.patches.v2_1_0.backfill_demo_company_ownership
+pos_next.patches.v2_1_0.refresh_pos_workspace_labels
