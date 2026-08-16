@@ -4,6 +4,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "general_tab",
   "pos_profile",
   "company",
   "settings_title",
@@ -17,6 +18,7 @@
   "column_break_wallet",
   "auto_create_wallet",
   "loyalty_to_wallet",
+  "sales_tab",
   "section_break_general",
   "allow_user_to_edit_additional_discount",
   "allow_user_to_edit_item_discount",
@@ -56,19 +58,13 @@
   "allow_customer_purchase_order",
   "allow_duplicate_customer_names",
   "fetch_coupon",
+  "operations_tab",
   "section_break_printing",
   "allow_print_last_invoice",
   "silent_print",
   "section_break_delivery",
   "use_delivery_charges",
   "auto_set_delivery_charges",
-  "section_break_advanced",
-  "use_limit_search",
-  "search_limit",
-  "column_break_advanced",
-  "allow_submissions_in_background_job",
-  "allow_delete_offline_invoice",
-  "allow_change_posting_date",
   "section_break_misc",
   "input_qty",
   "allow_negative_stock",
@@ -82,6 +78,14 @@
   "posa_default_purchase_tax_template",
   "posa_default_expense_account",
   "posa_purchase_price_source",
+  "administration_tab",
+  "section_break_advanced",
+  "use_limit_search",
+  "search_limit",
+  "column_break_advanced",
+  "allow_submissions_in_background_job",
+  "allow_delete_offline_invoice",
+  "allow_change_posting_date",
   "section_break_security",
   "enable_session_lock",
   "session_lock_timeout",
@@ -99,6 +103,12 @@
  ],
  "fields": [
   {
+   "fieldname": "general_tab",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
+  {
+   "description": "Choose the POS Profile these settings apply to.",
    "fieldname": "pos_profile",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -108,6 +118,7 @@
    "unique": 1
   },
   {
+   "description": "Filled automatically from the selected POS Profile.",
    "fetch_from": "pos_profile.company",
    "fieldname": "company",
    "fieldtype": "Link",
@@ -117,6 +128,7 @@
    "read_only": 1
   },
   {
+   "description": "Generated from the POS Profile and company to make this configuration easy to identify.",
    "fieldname": "settings_title",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -133,7 +145,7 @@
   {
    "fieldname": "section_break_localization",
    "fieldtype": "Section Break",
-   "label": "اللغة والتوطين"
+   "label": "Language & Localization"
   },
   {
    "description": "Select languages available in the POS language switcher. If empty, defaults to English and Arabic.",
@@ -145,7 +157,7 @@
   {
    "fieldname": "section_break_wallet",
    "fieldtype": "Section Break",
-   "label": "المحفظة والولاء"
+   "label": "Loyalty & Wallet"
   },
   {
    "default": "0",
@@ -195,9 +207,14 @@
    "read_only_depends_on": "enable_loyalty_program"
   },
   {
+   "fieldname": "sales_tab",
+   "fieldtype": "Tab Break",
+   "label": "Sales & Customers"
+  },
+  {
    "fieldname": "section_break_general",
    "fieldtype": "Section Break",
-   "label": "سياسات البيع والدفع"
+   "label": "Sales & Payment Policies"
   },
   {
    "default": "0",
@@ -286,7 +303,7 @@
    "collapsible": 1,
    "fieldname": "section_break_display",
    "fieldtype": "Section Break",
-   "label": "واجهة البيع"
+   "label": "Selling Interface"
   },
   {
    "default": "0",
@@ -345,7 +362,7 @@
    "collapsible": 1,
    "fieldname": "section_break_operations",
    "fieldtype": "Section Break",
-   "label": "الطلبات والمرتجعات"
+   "label": "Orders & Returns"
   },
   {
    "default": "0",
@@ -389,6 +406,7 @@
   },
   {
    "default": "0",
+   "description": "Allow returns for batch-tracked products even when the original batch is unavailable.",
    "fieldname": "allow_free_batch_return",
    "fieldtype": "Check",
    "label": "Allow Free Batch Return"
@@ -412,7 +430,7 @@
    "collapsible": 1,
    "fieldname": "section_break_pricing",
    "fieldtype": "Section Break",
-   "label": "التسعير والضرائب"
+   "label": "Pricing & Taxes"
   },
   {
    "default": "2",
@@ -433,7 +451,7 @@
    "collapsible": 1,
    "fieldname": "section_break_customer",
    "fieldtype": "Section Break",
-   "label": "العملاء"
+   "label": "Customer Options"
   },
   {
    "default": "0",
@@ -457,10 +475,15 @@
    "label": "Auto Fetch Coupon Gifts"
   },
   {
+   "fieldname": "operations_tab",
+   "fieldtype": "Tab Break",
+   "label": "Operations & Cash"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_break_printing",
    "fieldtype": "Section Break",
-   "label": "الطباعة"
+   "label": "Printing"
   },
   {
    "default": "0",
@@ -480,7 +503,7 @@
    "collapsible": 1,
    "fieldname": "section_break_delivery",
    "fieldtype": "Section Break",
-   "label": "التوصيل"
+   "label": "Delivery"
   },
   {
    "default": "0",
@@ -497,10 +520,15 @@
    "label": "Auto Set Delivery Charges"
   },
   {
+   "fieldname": "administration_tab",
+   "fieldtype": "Tab Break",
+   "label": "Administration"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_break_advanced",
    "fieldtype": "Section Break",
-   "label": "إعدادات متقدمة"
+   "label": "Advanced Controls"
   },
   {
    "default": "0",
@@ -545,7 +573,7 @@
    "collapsible": 1,
    "fieldname": "section_break_misc",
    "fieldtype": "Section Break",
-   "label": "المخزون والنقدية"
+   "label": "Inventory & Cash"
   },
   {
    "default": "0",
@@ -565,7 +593,7 @@
    "collapsible": 1,
    "fieldname": "section_break_cash_variance",
    "fieldtype": "Section Break",
-   "label": "فروقات الصندوق"
+   "label": "Cash Variances"
   },
   {
    "description": "Account credited when a shift closes with more cash counted than expected (surplus). Shared across all cashiers on this POS Profile.",
@@ -585,7 +613,7 @@
    "collapsible": 1,
    "fieldname": "section_break_purchase_defaults",
    "fieldtype": "Section Break",
-   "label": "إعدادات المشتريات"
+   "label": "Purchase Defaults"
   },
   {
    "description": "Supplier pre-selected when the POS main screen is switched to Purchase mode (mirrors the sales default customer). The cashier can still change it.",
@@ -631,7 +659,7 @@
    "collapsible": 1,
    "fieldname": "section_break_security",
    "fieldtype": "Section Break",
-   "label": "الأمان والجلسة"
+   "label": "Security & Session"
   },
   {
    "default": "0",
@@ -652,7 +680,7 @@
    "description": "Manager-controlled capabilities. Changes are recorded in the document version history.",
    "fieldname": "section_break_feature_flags",
    "fieldtype": "Section Break",
-   "label": "تفعيل وحدات الإدارة"
+   "label": "Management Features"
   },
   {
    "default": "0",
@@ -713,9 +741,10 @@
   {
    "fieldname": "barcode_tab",
    "fieldtype": "Tab Break",
-   "label": "الباركود"
+   "label": "Barcodes"
   },
   {
+   "description": "Define barcode formats and scanning rules used by this POS.",
    "fieldname": "barcode_rules",
    "fieldtype": "Table",
    "label": "Barcode Rules",
