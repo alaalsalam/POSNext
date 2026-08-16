@@ -176,6 +176,11 @@ def create_opening_shift(pos_profile, company, balance_details):
 	new_pos_opening.insert(ignore_permissions=True)
 	new_pos_opening.submit()
 
+	# Keep Frappe's native Company default aligned with the verified POS Profile.
+	# Standard forms then prefill the same company, while User Permissions still
+	# prevent selecting a company that has not been assigned to this user.
+	frappe.defaults.set_user_default("Company", company)
+
 	data = {}
 	data["pos_opening_shift"] = new_pos_opening.as_dict()
 	data["pos_profile"] = frappe.get_doc("POS Profile", pos_profile)

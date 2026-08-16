@@ -62,16 +62,30 @@ def _parse_list_parameter(value, param_name="parameter"):
 
 
 def check_user_company():
-	"""Check if the authenticated user has a company linked to them."""
-	user = frappe.session.user
+	"""Return the user's active company from Frappe's native defaults.
 
-	permission = frappe.db.get_value(
-		"User Permission", {"user": user, "allow": "Company"}, ["for_value"], as_dict=True
+	``frappe.defaults.get_user_default`` validates a Company default against the
+	user's Company User Permissions.  It is therefore safe to use as the shared
+	company context for POS defaults instead of picking an arbitrary permission
+	row when a user belongs to more than one company.
+	"""
+	company = frappe.defaults.get_user_default("Company")
+	if company and frappe.db.exists("Company", company):
+		return {"has_company": True, "company": company}
+
+	# Older users can have Company User Permissions without a matching Default
+	# Value yet. Prefer the permission marked default, otherwise choose a stable
+	# assigned company; opening a POS shift will persist that verified company as
+	# the native user default for subsequent requests.
+	permission = frappe.get_all(
+		"User Permission",
+		filters={"user": frappe.session.user, "allow": "Company"},
+		fields=["for_value"],
+		order_by="is_default desc, creation asc",
+		limit=1,
 	)
-
-	if permission:
-		company_name = frappe.db.get_value("Company", permission.for_value, "company_name")
-		return {"has_company": True, "company": company_name or ""}
+	if permission and frappe.db.exists("Company", permission[0].for_value):
+		return {"has_company": True, "company": permission[0].for_value}
 
 	return {"has_company": False, "company": ""}
 
