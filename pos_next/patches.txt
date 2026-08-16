@@ -17,3 +17,4 @@ pos_next.patches.v2_1_0.fix_role_profile_cashier_assignments
 pos_next.patches.v2_1_0.restrict_cashier_to_sales
 pos_next.patches.v2_1_0.grant_cashier_sales_dependencies
 pos_next.patches.v2_1_0.add_multi_company_master_fields
+pos_next.patches.v2_1_0.extend_multi_company_master_fields

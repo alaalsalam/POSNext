@@ -15,6 +15,7 @@ from pos_next.api.management_scope import (
 	normalize_idempotency_key,
 	require_feature_permission,
 )
+from pos_next.api.company_scope import OWNERSHIP_FIELD, is_multi_company_site
 
 AMOUNT_TOLERANCE = 0.005
 PURCHASE_FIELDS = {
@@ -301,9 +302,11 @@ def _validate_payment_amount(amount, outstanding):
 
 @frappe.whitelist()
 def get_suppliers(search="", limit=30, pos_profile=None):
-	_context("purchases", pos_profile)
+	_profile, company = _context("purchases", pos_profile)
 	frappe.has_permission("Supplier", "read", throw=True)
 	filters = {"disabled": 0}
+	if is_multi_company_site() and frappe.db.has_column("Supplier", OWNERSHIP_FIELD):
+		filters[OWNERSHIP_FIELD] = company
 	if search:
 		filters["supplier_name"] = ["like", f"%{search}%"]
 	return frappe.get_list("Supplier", filters=filters, fields=["name", "supplier_name", "supplier_group", "supplier_type"], order_by="supplier_name", limit=min(cint(limit), 100))
@@ -311,14 +314,17 @@ def get_suppliers(search="", limit=30, pos_profile=None):
 
 @frappe.whitelist()
 def get_supplier_groups(pos_profile=None):
-	_context("purchases", pos_profile)
+	_profile, company = _context("purchases", pos_profile)
 	frappe.has_permission("Supplier Group", "read", throw=True)
-	return frappe.get_list("Supplier Group", filters={"is_group": 0}, fields=["name"], order_by="name", limit=200)
+	filters = {"is_group": 0}
+	if is_multi_company_site() and frappe.db.has_column("Supplier Group", OWNERSHIP_FIELD):
+		filters[OWNERSHIP_FIELD] = company
+	return frappe.get_list("Supplier Group", filters=filters, fields=["name"], order_by="name", limit=200)
 
 
 @frappe.whitelist()
 def create_supplier(supplier_name, supplier_group, supplier_type="Company", pos_profile=None):
-	_context("purchases", pos_profile)
+	_profile, company = _context("purchases", pos_profile)
 	frappe.has_permission("Supplier", "create", throw=True)
 	supplier_name = (supplier_name or "").strip()
 	if not supplier_name:
@@ -332,7 +338,10 @@ def create_supplier(supplier_name, supplier_group, supplier_type="Company", pos_
 	if existing:
 		doc = assert_doc_permission("Supplier", existing)
 		return {"name": doc.name, "supplier_name": doc.supplier_name, "created": False}
-	doc = frappe.get_doc({"doctype": "Supplier", "supplier_name": supplier_name, "supplier_group": supplier_group, "supplier_type": supplier_type}).insert(ignore_permissions=False)
+	data = {"doctype": "Supplier", "supplier_name": supplier_name, "supplier_group": supplier_group, "supplier_type": supplier_type}
+	if is_multi_company_site() and frappe.db.has_column("Supplier", OWNERSHIP_FIELD):
+		data[OWNERSHIP_FIELD] = company
+	doc = frappe.get_doc(data).insert(ignore_permissions=False)
 	return {"name": doc.name, "supplier_name": doc.supplier_name, "created": True}
 
 

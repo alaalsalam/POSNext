@@ -147,7 +147,11 @@ override_doctype_class = {"Sales Invoice": "pos_next.overrides.sales_invoice.Cus
 permission_query_conditions = {
 	"Item": "pos_next.api.company_scope.company_query_condition",
 	"Item Group": "pos_next.api.company_scope.company_query_condition",
+	"Brand": "pos_next.api.company_scope.company_query_condition",
 	"Customer": "pos_next.api.company_scope.company_query_condition",
+	"Customer Group": "pos_next.api.company_scope.company_query_condition",
+	"Supplier": "pos_next.api.company_scope.company_query_condition",
+	"Supplier Group": "pos_next.api.company_scope.company_query_condition",
 }
 
 # Document Events
@@ -167,6 +171,15 @@ doc_events = {
 	},
 	"Item": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
 	"Item Group": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
+	"Brand": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
+	"Customer Group": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
+	"Supplier": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
+	"Supplier Group": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
+	"User": {
+		"validate": "pos_next.api.company_scope.prepare_user_company",
+		"after_insert": "pos_next.api.company_scope.sync_user_company_permission",
+		"on_update": "pos_next.api.company_scope.sync_user_company_permission",
+	},
 	"Sales Invoice": {
 		"validate": [
 			"pos_next.api.sales_invoice_hooks.validate",
