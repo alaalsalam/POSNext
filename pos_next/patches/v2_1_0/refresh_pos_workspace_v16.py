@@ -3,6 +3,7 @@
 import json
 
 import frappe
+from frappe.desk.doctype.desktop_icon.desktop_icon import add_workspace_to_desktop, clear_desktop_icons_cache
 
 
 def execute():
@@ -30,4 +31,15 @@ def execute():
 	workspace.set("links", source["links"])
 	workspace.set("shortcuts", source["shortcuts"])
 	workspace.save(ignore_permissions=True)
+
+	# Replace the old, manually-created desktop entry with a direct entry point
+	# to the canonical POS workspace on Frappe v16's apps screen.
+	frappe.delete_doc_if_exists("Desktop Icon", "POS Awesome", force=True)
+	frappe.delete_doc_if_exists("Workspace Sidebar", "POS Awesome", force=True)
+	add_workspace_to_desktop("POS")
+	pos_icon = frappe.get_doc("Desktop Icon", "POS")
+	pos_icon.icon = "sell"
+	pos_icon.bg_color = "blue"
+	pos_icon.save(ignore_permissions=True)
+	clear_desktop_icons_cache()
 	frappe.clear_cache()
