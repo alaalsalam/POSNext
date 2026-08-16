@@ -216,7 +216,10 @@ doc_events = {
 		],
 		"after_insert": "pos_next.realtime_events.emit_invoice_created_event",
 	},
-	"POS Profile": {"on_update": "pos_next.realtime_events.emit_pos_profile_updated_event"},
+	"POS Profile": {
+		"after_insert": "pos_next.api.pos_defaults.ensure_pos_profile_defaults",
+		"on_update": "pos_next.realtime_events.emit_pos_profile_updated_event",
+	},
 	"Promotional Scheme": {
 		"validate": "pos_next.overrides.pricing_rule.enforce_min_max_pricing_config",
 		"on_update": "pos_next.overrides.pricing_rule.sync_pos_only_to_pricing_rules",

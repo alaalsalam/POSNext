@@ -65,7 +65,10 @@ def enforce_company_ownership(doc, method=None):
 	"""Assign the active company on create and block cross-company edits."""
 	if not is_multi_company_site() or doc.doctype not in OWNED_DOCTYPES or not frappe.db.has_column(doc.doctype, OWNERSHIP_FIELD):
 		return
-	company = active_company()
+	# Internal POS provisioning may create a company-owned master while an
+	# administrator is setting up another company.  This request-local flag is
+	# only set by trusted server-side setup code; it is never read from input.
+	company = getattr(frappe.flags, "pos_next_setup_company", None) or active_company()
 	if not company:
 		frappe.throw(_("Select an allowed company before creating or editing POS master data."), frappe.PermissionError)
 	if doc.get(OWNERSHIP_FIELD) and doc.get(OWNERSHIP_FIELD) != company:
