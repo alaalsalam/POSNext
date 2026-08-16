@@ -112,6 +112,7 @@ class TestCreateCashEntryValidation(TestCase):
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "has_permission", return_value=True),
 			patch.object(cm, "_resolve_cash_box", return_value="Cash Box - TC"),
+			patch.object(cm, "_default_cash_account", return_value="Cash Box - TC"),
 			patch.object(cm.frappe, "throw", side_effect=_throw),
 		):
 			return cm.create_cash_entry(**params)
@@ -210,6 +211,7 @@ class TestCreateCashEntryPosting(TestCase):
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "has_permission", return_value=True),
 			patch.object(cm, "_resolve_cash_box", return_value="Cash Box - TC"),
+			patch.object(cm, "_default_cash_account", return_value="Cash Box - TC"),
 			patch.object(cm, "_current_shift", return_value="SHIFT-1"),
 			patch.object(cm, "_posting_mode", return_value="After Approval"),
 			patch.object(cm, "nowdate", return_value="2026-08-08"),
@@ -290,6 +292,7 @@ class TestCreateCashEntryPosting(TestCase):
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "has_permission", return_value=True),
 			patch.object(cm, "_resolve_cash_box", return_value="Cash Box - TC"),
+			patch.object(cm, "_default_cash_account", return_value="Cash Box - TC"),
 			patch.object(cm, "_current_shift", return_value="SHIFT-1"),
 			patch.object(cm, "_posting_mode", return_value="Immediate"),
 			patch.object(cm, "nowdate", return_value="2026-08-08"),
@@ -311,34 +314,31 @@ class TestCashEntryManagerGating(TestCase):
 	def test_approve_denied_to_non_manager_before_submit(self):
 		with (
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=False),
-			patch.object(cm.frappe, "has_permission") as permission,
+			patch.object(cm.frappe, "has_permission", side_effect=frappe.PermissionError) as permission,
 			patch.object(cm.frappe, "throw", side_effect=_throw),
 			patch.object(cm, "_get_cash_entry") as get_entry,
 			self.assertRaises(frappe.PermissionError),
 		):
 			cm.approve_cash_entry("ACC-JV-1", pos_profile="POS-TEST")
-		permission.assert_not_called()
+		permission.assert_called_once_with("Journal Entry", "cancel", throw=True)
 		get_entry.assert_not_called()
 
 	def test_reject_denied_to_non_manager_before_delete(self):
 		with (
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=False),
-			patch.object(cm.frappe, "has_permission") as permission,
+			patch.object(cm.frappe, "has_permission", side_effect=frappe.PermissionError) as permission,
 			patch.object(cm.frappe, "throw", side_effect=_throw),
 			patch.object(cm, "_get_cash_entry") as get_entry,
 			self.assertRaises(frappe.PermissionError),
 		):
 			cm.reject_cash_entry("ACC-JV-1", pos_profile="POS-TEST")
-		permission.assert_not_called()
+		permission.assert_called_once_with("Journal Entry", "delete", throw=True)
 		get_entry.assert_not_called()
 
 	def test_approve_rejects_an_already_posted_entry(self):
 		posted = frappe._dict(name="ACC-JV-1", docstatus=1)
 		with (
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=True),
 			patch.object(cm.frappe, "has_permission", return_value=True),
 			patch.object(cm, "_get_cash_entry", return_value=posted),
 			patch.object(cm.frappe, "throw", side_effect=_throw),
@@ -352,7 +352,6 @@ class TestCashEntryManagerGating(TestCase):
 		draft.docstatus = 0
 		with (
 			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
-			patch.object(cm, "is_feature_manager", return_value=True),
 			patch.object(cm.frappe, "has_permission", return_value=True),
 			patch.object(cm, "_get_cash_entry", return_value=draft),
 		):
@@ -415,14 +414,12 @@ class TestCashManagementFeatureGating(TestCase):
 
 
 class TestExpenseTypeManagement(TestCase):
-	"""Expense-type CRUD is an independent capability: it requires the enable_expense_types flag
-	AND a manager (both enforced by require_manager_feature), and can never cross companies."""
+	"""Expense-type CRUD is feature- and native-permission-gated and cannot cross companies."""
 
 	def test_list_rejected_when_flag_off_or_not_manager(self):
-		# require_manager_feature raises when the enable_expense_types flag is off OR the user is
-		# not a manager — either way the endpoint must exit before touching permissions or the DB.
+		# Feature or native permission failure must exit before any later work.
 		with (
-			patch.object(cm, "require_manager_feature", side_effect=frappe.PermissionError),
+			patch.object(cm, "_assert_cash_manager", side_effect=frappe.PermissionError),
 			patch.object(cm.frappe, "has_permission") as permission,
 			self.assertRaises(frappe.PermissionError),
 		):
@@ -431,7 +428,7 @@ class TestExpenseTypeManagement(TestCase):
 
 	def test_save_rejected_when_flag_off_or_not_manager(self):
 		with (
-			patch.object(cm, "require_manager_feature", side_effect=frappe.PermissionError),
+			patch.object(cm, "_assert_cash_manager", side_effect=frappe.PermissionError),
 			patch.object(cm.frappe, "get_doc") as get_doc,
 			self.assertRaises(frappe.PermissionError),
 		):
@@ -440,7 +437,7 @@ class TestExpenseTypeManagement(TestCase):
 
 	def test_delete_rejected_when_flag_off_or_not_manager(self):
 		with (
-			patch.object(cm, "require_manager_feature", side_effect=frappe.PermissionError),
+			patch.object(cm, "_assert_cash_manager", side_effect=frappe.PermissionError),
 			patch.object(cm.frappe, "delete_doc") as delete_doc,
 			self.assertRaises(frappe.PermissionError),
 		):
@@ -449,7 +446,7 @@ class TestExpenseTypeManagement(TestCase):
 
 	def test_save_requires_a_name_and_account(self):
 		with (
-			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "_assert_cash_manager", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "throw", side_effect=_throw),
 		):
 			with self.assertRaises(frappe.ValidationError):
@@ -461,7 +458,7 @@ class TestExpenseTypeManagement(TestCase):
 		database = MagicMock()
 		database.get_value.return_value = "Other Company"  # existing type's company
 		with (
-			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "_assert_cash_manager", return_value=("POS-TEST", "Test Company")),
 			patch.dict(cm.frappe.__dict__, {"db": database}),
 			patch.object(cm.frappe, "get_doc") as get_doc,
 			patch.object(cm.frappe, "throw", side_effect=_throw),
@@ -483,7 +480,7 @@ class TestExpenseTypeManagement(TestCase):
 			return doc
 
 		with (
-			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "_assert_cash_manager", return_value=("POS-TEST", "Test Company")),
 			patch.object(cm.frappe, "get_doc", side_effect=get_doc),
 		):
 			result = cm.save_expense_type("Fuel", "Fuel Expense - TC", pos_profile="POS-TEST", enabled=1)
@@ -495,7 +492,7 @@ class TestExpenseTypeManagement(TestCase):
 		database = MagicMock()
 		database.get_value.return_value = "Other Company"
 		with (
-			patch.object(cm, "require_manager_feature", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "_assert_cash_manager", return_value=("POS-TEST", "Test Company")),
 			patch.dict(cm.frappe.__dict__, {"db": database}),
 			patch.object(cm.frappe, "delete_doc") as delete_doc,
 			patch.object(cm.frappe, "throw", side_effect=_throw),
@@ -503,3 +500,31 @@ class TestExpenseTypeManagement(TestCase):
 		):
 			cm.delete_expense_type("EXP-9", pos_profile="POS-TEST")
 		delete_doc.assert_not_called()
+
+
+class TestCashEntrySummary(TestCase):
+	def test_summary_uses_drawer_ledger_effect_and_marks_every_entry(self):
+		rows = [
+			frappe._dict(name="ACC-JV-1", docstatus=1, posa_cash_entry_type="Receipt"),
+			frappe._dict(name="ACC-JV-2", docstatus=1, posa_cash_entry_type="Transfer"),
+			frappe._dict(name="ACC-JV-3", docstatus=0, posa_cash_entry_type="Expense"),
+		]
+		ledger_rows = [
+			frappe._dict(debit_in_account_currency=120, credit_in_account_currency=0),
+			frappe._dict(debit_in_account_currency=0, credit_in_account_currency=50),
+		]
+		with (
+			patch.object(cm, "_cash_context", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm, "_current_shift", return_value="SHIFT-1"),
+			patch.object(cm, "_default_cash_account", return_value="Cash - TC"),
+			patch.object(cm.frappe, "has_permission", return_value=True),
+			patch.object(cm.frappe, "get_list", return_value=rows),
+			patch.object(cm.frappe, "get_all", return_value=ledger_rows),
+		):
+			result = cm.get_cash_entries(pos_profile="POS-TEST")
+
+		self.assertEqual([row.status for row in result["entries"]], ["Approved", "Approved", "Pending Approval"])
+		self.assertEqual(result["received_total"], 120)
+		self.assertEqual(result["paid_total"], 50)
+		self.assertEqual(result["net_total"], 70)
+		self.assertEqual(result["pending_count"], 1)

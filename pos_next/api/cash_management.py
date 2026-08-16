@@ -404,15 +404,31 @@ def get_cash_entries(pos_profile=None, limit=50):
 	)
 	for row in rows:
 		row["status"] = "Approved" if row.docstatus == 1 else "Pending Approval"
-	posted = [r for r in rows if r.docstatus == 1]
-	received = sum(flt(r.total_debit) for r in posted if r.posa_cash_entry_type == "Receipt")
-	paid = sum(flt(r.total_debit) for r in posted if r.posa_cash_entry_type in ("Expense", "Payment"))
-	pending = sum(1 for r in rows if r.docstatus == 0)
+
+	# Use the actual drawer account rows rather than voucher type. A transfer can
+	# move money either into or out of the drawer; treating it as neutral makes
+	# the on-screen cash summary disagree with the closing-shift calculation.
+	posted_names = [row.name for row in rows if row.docstatus == 1]
+	drawer_account = _default_cash_account(profile, company)
+	drawer_movements = []
+	if drawer_account and posted_names:
+		drawer_movements = [
+			flt(row.debit_in_account_currency) - flt(row.credit_in_account_currency)
+			for row in frappe.get_all(
+				"Journal Entry Account",
+				filters={"parent": ["in", posted_names], "account": drawer_account},
+				fields=["debit_in_account_currency", "credit_in_account_currency"],
+			)
+		]
+
+	received = sum(amount for amount in drawer_movements if amount > 0)
+	paid = abs(sum(amount for amount in drawer_movements if amount < 0))
+	pending = sum(1 for row in rows if row.docstatus == 0)
 	return {
 		"entries": rows,
 		"received_total": round(received, 2),
 		"paid_total": round(paid, 2),
-		"net_total": round(received - paid, 2),
+		"net_total": round(sum(drawer_movements), 2),
 		"pending_count": pending,
 		"is_manager": bool(frappe.has_permission("Journal Entry", "cancel")),
 	}
