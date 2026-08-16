@@ -1837,12 +1837,11 @@ def get_item_groups(pos_profile):
 			.orderby(POSItemGroup.item_group)
 			.run(pluck="item_group")
 		)
-		if is_multi_company_site() and frappe.db.has_column("Item Group", OWNERSHIP_FIELD):
-			configured_groups = [
-				name
-				for name in configured_groups
-				if frappe.db.get_value("Item Group", name, OWNERSHIP_FIELD) == profile_company
-			]
+		# POS Profile Item Groups are the explicit, profile-scoped catalog
+		# configuration.  Do not hide a configured group merely because a legacy
+		# demo master has not yet received its company marker.  The actual item
+		# query remains company-scoped below, so this only keeps the valid profile
+		# navigation visible while preserving data isolation.
 
 		if not configured_groups:
 			query = frappe.qb.from_(ItemGroup).select(ItemGroup.name.as_("item_group")).where(ItemGroup.is_group == 0)

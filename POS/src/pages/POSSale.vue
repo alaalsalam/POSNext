@@ -250,15 +250,6 @@
 				</template>
 			</POSHeader>
 
-			<!-- Live Shift Stats Bar -->
-			<ShiftStatsBar
-				v-if="shiftStore.hasOpenShift"
-				ref="statsBarRef"
-				:has-open-shift="shiftStore.hasOpenShift"
-				:current-shift-name="shiftStore.currentShift?.name"
-				:currency="shiftStore.profileCurrency"
-			/>
-
 			<!-- Main Content: Responsive Layout -->
 			<div
 				v-if="shiftStore.hasOpenShift"
@@ -1312,7 +1303,6 @@ import POSReportDashboard from "@/components/reports/POSReportDashboard.vue";
 import CashManagement from "@/components/cash/CashManagement.vue";
 import ExpenseTypeManagement from "@/components/cash/ExpenseTypeManagement.vue";
 import POSHeader from "@/components/pos/POSHeader.vue";
-import ShiftStatsBar from "@/components/pos/ShiftStatsBar.vue";
 import BatchSerialDialog from "@/components/sale/BatchSerialDialog.vue";
 import CouponDialog from "@/components/sale/CouponDialog.vue";
 import CreateCustomerDialog from "@/components/sale/CreateCustomerDialog.vue";
@@ -1423,7 +1413,6 @@ const itemsSelectorRef = ref(null);
 const offersDialogRef = ref(null);
 const containerRef = ref(null);
 const dividerRef = ref(null);
-const statsBarRef = ref(null);
 const pendingPaymentAfterCustomer = ref(false);
 const logoutAfterClose = ref(false);
 const editCustomer = ref(null); // Customer being edited (null for create mode)
@@ -2597,8 +2586,6 @@ async function handlePaymentCompleted(paymentData) {
 			cartStore.clearCart();
 			// Reset cart hash after successful payment
 			previousCartHash = "";
-			// Refresh live shift stats
-			statsBarRef.value?.refresh();
 
 			// Delete draft after successful save
 			if (draftIdToDelete) {
@@ -2671,8 +2658,6 @@ async function handlePaymentCompleted(paymentData) {
 				cartStore.clearCart();
 				// Reset cart hash after successful payment
 				previousCartHash = "";
-				// Refresh live shift stats
-				statsBarRef.value?.refresh();
 
 				// Delete draft after successful submission
 				if (draftIdToDelete) {
