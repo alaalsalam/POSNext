@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import get_datetime, nowdate, nowtime
 
+from pos_next.api.feature_flags import resolve_pos_profile
 from pos_next.api.utilities import get_wallet_payment_modes
 
 
@@ -130,6 +131,26 @@ def create_opening_shift(pos_profile, company, balance_details):
 			_("يوجد لديك وردية مفتوحة بالفعل ({0}) — أغلقها أولاً ثم افتح وردية جديدة.").format(shift_name),
 			title=_("وردية مفتوحة موجودة"),
 		)
+
+	# Never trust the profile or company received from the browser.  Native Frappe
+	# Company User Permissions and the POS Profile User assignment are the single
+	# source of truth for a cashier's company boundary.
+	pos_profile = resolve_pos_profile(pos_profile=pos_profile, company=company)
+	company = frappe.db.get_value("POS Profile", pos_profile, "company")
+
+	# Opening-balance payment methods must be configured on the selected profile;
+	# otherwise a crafted request could place balances from a different company.
+	allowed_modes = set(
+		frappe.get_all(
+			"POS Payment Method",
+			filters={"parent": pos_profile, "parenttype": "POS Profile"},
+			pluck="mode_of_payment",
+		)
+	)
+	for detail in balance_details or []:
+		mode = detail.get("mode_of_payment")
+		if mode not in allowed_modes:
+			frappe.throw(_("Payment method {0} is not configured for this POS Profile").format(mode), frappe.PermissionError)
 
 	new_pos_opening = frappe.get_doc(
 		{
