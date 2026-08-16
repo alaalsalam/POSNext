@@ -19,6 +19,11 @@ OWNED_DOCTYPES = (
 	"Supplier Group",
 )
 USER_COMPANY_FIELD = "custom_pos_company"
+SHARED_STRUCTURAL_ROOTS = {
+	"Item Group": "All Item Groups",
+	"Customer Group": "All Customer Groups",
+	"Supplier Group": "All Supplier Groups",
+}
 
 
 def is_multi_company_site():
@@ -48,7 +53,12 @@ def company_query_condition(user, doctype):
 	company = active_company(user)
 	if not company:
 		return "1=0"
-	return f"`tab{doctype}`.`{OWNERSHIP_FIELD}` = {frappe.db.escape(company)}"
+	condition = f"`tab{doctype}`.`{OWNERSHIP_FIELD}` = {frappe.db.escape(company)}"
+	# ERPNext needs these root nodes to create a company-owned child group. They
+	# carry no commercial data and are the sole shared structural exception.
+	if root := SHARED_STRUCTURAL_ROOTS.get(doctype):
+		condition = f"({condition} OR `tab{doctype}`.`name` = {frappe.db.escape(root)})"
+	return condition
 
 
 def enforce_company_ownership(doc, method=None):
@@ -69,8 +79,22 @@ def assert_company_ownership(doctype, name):
 		return
 	company = active_company()
 	owner = frappe.db.get_value(doctype, name, OWNERSHIP_FIELD)
+	if name == SHARED_STRUCTURAL_ROOTS.get(doctype):
+		return
 	if not company or not owner or owner != company:
 		frappe.throw(_("This record is not available for the active company."), frappe.PermissionError)
+
+
+def has_company_document_permission(doc, user=None, permission_type=None):
+	"""Document-level guard for direct URLs and APIs that bypass list filters."""
+	if not is_multi_company_site() or doc.doctype not in OWNED_DOCTYPES:
+		return None
+	if doc.is_new():
+		return None  # validate assigns the owner and requires an active company.
+	if doc.name == SHARED_STRUCTURAL_ROOTS.get(doc.doctype):
+		return True
+	company = active_company(user)
+	return bool(company and doc.get(OWNERSHIP_FIELD) == company)
 
 
 def prepare_user_company(doc, method=None):
@@ -96,6 +120,12 @@ def sync_user_company_permission(doc, method=None):
 		return
 	permission = frappe.db.get_value(
 		"User Permission", {"user": doc.name, "allow": "Company", "for_value": company}, "name"
+	)
+	# Exactly one native Company User Permission is the default.  Keeping old
+	# permissions is intentional: an administrator may grant a user extra
+	# companies later, but the selected POS Company remains deterministic.
+	frappe.db.set_value(
+		"User Permission", {"user": doc.name, "allow": "Company"}, "is_default", 0, update_modified=False
 	)
 	if permission:
 		frappe.db.set_value("User Permission", permission, "is_default", 1, update_modified=False)

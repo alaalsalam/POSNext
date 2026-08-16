@@ -55,6 +55,7 @@ web_include_css = [
 # include js in doctype views
 doctype_js = {
 	"Customer": "public/js/customer.js",
+	"User": "public/js/user.js",
 	"Pricing Rule": "public/js/pricing_rule.js",
 	"Promotional Scheme": "public/js/promotional_scheme.js",
 }
@@ -152,6 +153,16 @@ permission_query_conditions = {
 	"Customer Group": "pos_next.api.company_scope.company_query_condition",
 	"Supplier": "pos_next.api.company_scope.company_query_condition",
 	"Supplier Group": "pos_next.api.company_scope.company_query_condition",
+}
+
+has_permission = {
+	"Item": "pos_next.api.company_scope.has_company_document_permission",
+	"Item Group": "pos_next.api.company_scope.has_company_document_permission",
+	"Brand": "pos_next.api.company_scope.has_company_document_permission",
+	"Customer": "pos_next.api.company_scope.has_company_document_permission",
+	"Customer Group": "pos_next.api.company_scope.has_company_document_permission",
+	"Supplier": "pos_next.api.company_scope.has_company_document_permission",
+	"Supplier Group": "pos_next.api.company_scope.has_company_document_permission",
 }
 
 # Document Events
