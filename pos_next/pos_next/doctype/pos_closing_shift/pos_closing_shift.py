@@ -651,17 +651,18 @@ def make_closing_shift_from_opening(opening_shift):
 	from pos_next.api.cash_management import _default_cash_account
 
 	drawer_account = _default_cash_account(opening_shift.get("pos_profile"), closing_shift.company)
-	cash_je_names = frappe.get_all(
+	cash_entries = frappe.get_all(
 		"Journal Entry",
 		filters={
 			"posa_pos_opening_shift": opening_shift.get("name"),
 			"docstatus": 1,
 			"posa_cash_entry_type": ["in", ["Expense", "Receipt", "Payment", "Transfer"]],
 		},
-		pluck="name",
+		fields=["name", "posa_cash_entry_type", "total_debit"],
 	)
+	cash_je_names = [entry.name for entry in cash_entries]
+	drawer_net = 0.0
 	if drawer_account and cash_je_names:
-		drawer_net = 0.0
 		for row in frappe.get_all(
 			"Journal Entry Account",
 			filters={"parent": ["in", cash_je_names], "account": drawer_account},
@@ -708,6 +709,10 @@ def make_closing_shift_from_opening(opening_shift):
 					"posa_cash_entry_type": ["in", ["Expense", "Receipt", "Payment", "Transfer"]],
 				},
 			),
+			"cash_movement_summary": {
+				"posted_count": len(cash_entries),
+				"drawer_adjustment": drawer_net,
+			},
 		}
 	)
 
@@ -730,6 +735,19 @@ def submit_closing_shift(closing_shift):
 		)
 		if existing:
 			return existing
+		pending = frappe.db.count(
+			"Journal Entry",
+			{
+				"posa_pos_opening_shift": opening_shift_name,
+				"docstatus": 0,
+				"posa_cash_entry_type": ["in", ["Expense", "Receipt", "Payment", "Transfer"]],
+			},
+		)
+		if pending:
+			frappe.throw(
+				_("Approve or reject all pending cash entries before closing this shift ({0} pending).").format(pending),
+				frappe.ValidationError,
+			)
 
 	closing_shift_doc = frappe.get_doc(closing_shift)
 	closing_shift_doc.flags.ignore_permissions = True

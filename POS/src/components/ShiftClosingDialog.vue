@@ -29,11 +29,15 @@
 					<p class="text-xs text-amber-800">{{ __("Open over 1 minute — close the shift or cancel.") }}</p>
 				</div>
 
-				<!-- Pending (unapproved) cash entries are NOT in the expected cash yet — warn so the
-				     drawer is not mistaken for short until a manager approves them. -->
+				<!-- Pending entries are a hard stop: a closing reconciles only posted movements. -->
 				<div v-if="closingData.pending_cash_entries > 0" class="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
 					<FeatherIcon name="alert-triangle" class="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-					<p class="text-xs text-amber-800">{{ __("{0} cash entries await manager approval — not counted in the expected cash yet, so the drawer may look short until approved.", [closingData.pending_cash_entries]) }}</p>
+					<p class="text-xs text-amber-800">{{ __("{0} cash entries await manager approval. Approve or reject them before closing this shift.", [closingData.pending_cash_entries]) }}</p>
+				</div>
+
+				<div v-if="closingData.cash_movement_summary?.posted_count" class="flex items-center justify-between gap-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+					<span class="text-xs text-blue-800">{{ __("Posted cash movements included in expected drawer cash") }}</span>
+					<span class="text-xs font-semibold text-blue-800 tabular-nums">{{ formatSignedCurrency(closingData.cash_movement_summary.drawer_adjustment) }}</span>
 				</div>
 
 				<!-- ── HEADER STRIP ── -->
@@ -458,7 +462,7 @@
 				</Button>
 				<div class="flex items-center gap-2.5 flex-wrap justify-end">
 					<p v-if="!canSubmit && closingData && !showSuccessReport" class="text-xs text-amber-600 font-medium">
-						{{ hasUnconfirmedVariance ? __("Confirm variance first") : __("Enter all amounts first") }}
+						{{ closingData.pending_cash_entries > 0 ? __("Approve or reject pending cash entries first") : hasUnconfirmedVariance ? __("Confirm variance first") : __("Enter all amounts first") }}
 					</p>
 					<p v-if="showSuccessReport" class="text-xs text-green-600 font-semibold">{{ __("✓ Shift closed") }}</p>
 					<p v-if="eodPrintFailed" class="text-xs text-amber-600">{{ __("Print is optional — you can finish without printing.") }}</p>
@@ -635,7 +639,12 @@ const hasUnconfirmedVariance = computed(
 	() => allRequiredAmountsEntered.value && Math.abs(getTotalDifference.value) >= 0.005 && !varianceConfirmed.value
 );
 
-const canSubmit = computed(() => allRequiredAmountsEntered.value && !hasUnconfirmedVariance.value);
+const canSubmit = computed(() => allRequiredAmountsEntered.value && !hasUnconfirmedVariance.value && !(closingData.value?.pending_cash_entries > 0));
+
+function formatSignedCurrency(value) {
+	const amount = Number.parseFloat(value) || 0;
+	return `${amount > 0 ? "+" : ""}${formatCurrency(amount)}`;
+}
 
 // ── Submit ────────────────────────────────────────────────
 async function submitClosing() {

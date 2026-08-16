@@ -241,6 +241,9 @@ def create_cash_entry(
 	key = normalize_idempotency_key(idempotency_key)
 
 	box = _resolve_cash_box(profile, company, cash_account)
+	drawer_account = _default_cash_account(profile, company)
+	if not drawer_account:
+		frappe.throw(_("No cash account is configured for this POS Profile's company. Set the cash Mode of Payment account in Settings."))
 	party_row = None
 
 	if entry_type == "Transfer":
@@ -249,11 +252,17 @@ def create_cash_entry(
 			frappe.throw(_("The destination must be a Cash or Bank account"))
 		if destination.name == box:
 			frappe.throw(_("The source and destination cash boxes must differ"))
+		if box != drawer_account and destination.name != drawer_account:
+			frappe.throw(_("A POS transfer must move money into or out of this shift's cash drawer"))
 		debit_account, credit_account = destination.name, box  # Dr to-box / Cr from-box
 	elif entry_type == "Expense":
+		if box != drawer_account:
+			frappe.throw(_("Expenses, receipts, and payments must use this shift's cash drawer"))
 		expense_account = _resolve_expense_account(expense_type, company)
 		debit_account, credit_account = expense_account, box  # Dr expense / Cr cash
 	else:
+		if box != drawer_account:
+			frappe.throw(_("Expenses, receipts, and payments must use this shift's cash drawer"))
 		# Receipt / Payment — party (derives its account) OR a general account.
 		if party_type or party:
 			if party_type not in _PARTY_TYPES[entry_type]:
