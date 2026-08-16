@@ -16,6 +16,14 @@ from pos_next.api.feature_flags import (
 
 
 class POSSettings(Document):
+	def before_validate(self):
+		"""Keep the human-facing settings title tied to the POS company."""
+		if not self.pos_profile:
+			return
+		self.company = frappe.db.get_value("POS Profile", self.pos_profile, "company")
+		if self.company:
+			self.settings_title = _("POS Settings · {0}").format(self.company)
+
 	def validate(self):
 		"""Validate POS Settings"""
 		assert_feature_manager()
