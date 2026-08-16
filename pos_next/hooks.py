@@ -173,7 +173,10 @@ has_permission = {
 
 doc_events = {
 	"Customer": {
-		"validate": "pos_next.api.company_scope.enforce_company_ownership",
+		"validate": [
+			"pos_next.api.party_contacts.sync_pos_mobile_no",
+			"pos_next.api.company_scope.enforce_company_ownership",
+		],
 		"after_insert": [
 			"pos_next.api.customers.auto_assign_loyalty_program",
 			"pos_next.realtime_events.emit_customer_event",
@@ -186,7 +189,12 @@ doc_events = {
 	"Item Group": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
 	"Brand": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
 	"Customer Group": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
-	"Supplier": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
+	"Supplier": {
+		"validate": [
+			"pos_next.api.party_contacts.sync_pos_mobile_no",
+			"pos_next.api.company_scope.enforce_company_ownership",
+		]
+	},
 	"Supplier Group": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
 	"User": {
 		"validate": "pos_next.api.company_scope.prepare_user_company",

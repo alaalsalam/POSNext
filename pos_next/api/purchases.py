@@ -323,12 +323,15 @@ def get_supplier_groups(pos_profile=None):
 
 
 @frappe.whitelist()
-def create_supplier(supplier_name, supplier_group, supplier_type="Company", pos_profile=None):
+def create_supplier(supplier_name, supplier_group, supplier_type="Company", pos_profile=None, mobile_no=None):
 	_profile, company = _context("purchases", pos_profile)
 	frappe.has_permission("Supplier", "create", throw=True)
 	supplier_name = (supplier_name or "").strip()
 	if not supplier_name:
 		frappe.throw(_("Supplier name is required"))
+	from pos_next.api.party_contacts import require_mobile_no
+
+	require_mobile_no(mobile_no, "Supplier")
 	group = assert_doc_permission("Supplier Group", supplier_group)
 	if group.is_group:
 		frappe.throw(_("Supplier Group must be a leaf group"))
@@ -338,7 +341,14 @@ def create_supplier(supplier_name, supplier_group, supplier_type="Company", pos_
 	if existing:
 		doc = assert_doc_permission("Supplier", existing)
 		return {"name": doc.name, "supplier_name": doc.supplier_name, "created": False}
-	data = {"doctype": "Supplier", "supplier_name": supplier_name, "supplier_group": supplier_group, "supplier_type": supplier_type}
+	data = {
+		"doctype": "Supplier",
+		"supplier_name": supplier_name,
+		"supplier_group": supplier_group,
+		"supplier_type": supplier_type,
+		"mobile_no": mobile_no.strip(),
+		"custom_pos_mobile_no": mobile_no.strip(),
+	}
 	if is_multi_company_site() and frappe.db.has_column("Supplier", OWNERSHIP_FIELD):
 		data[OWNERSHIP_FIELD] = company
 	doc = frappe.get_doc(data).insert(ignore_permissions=False)

@@ -8,6 +8,7 @@ from frappe import _
 
 from pos_next.api.company_scope import OWNERSHIP_FIELD, assert_company_ownership, is_multi_company_site
 from pos_next.api.feature_flags import resolve_pos_profile
+from pos_next.api.party_contacts import require_mobile_no
 
 
 @frappe.whitelist()
@@ -101,7 +102,7 @@ def create_customer(
 
 	Args:
 	    customer_name (str): Customer name (required)
-	    mobile_no (str): Mobile number (optional)
+	    mobile_no (str): Mobile number (required)
 	    email_id (str): Email address (optional, deprecated - kept for compatibility)
 	    customer_group (str): Customer group (default: from Selling Settings)
 	    territory (str): Territory (default: from Selling Settings)
@@ -123,6 +124,7 @@ def create_customer(
 
 	if not customer_name:
 		frappe.throw(_("Customer name is required"))
+	require_mobile_no(mobile_no, "Customer")
 	if is_multi_company_site() and not pos_profile:
 		frappe.throw(_("A POS Profile is required in multiple-company mode."), frappe.PermissionError)
 
@@ -158,6 +160,7 @@ def create_customer(
 			"customer_group": resolved_customer_group,
 			"territory": resolved_territory,
 			"mobile_no": mobile_no or "",
+			"custom_pos_mobile_no": mobile_no or "",
 			"tax_id": tax_id or "",
 			"custom_commercial_registration": custom_commercial_registration or "",
 			"loyalty_program": loyalty_program,

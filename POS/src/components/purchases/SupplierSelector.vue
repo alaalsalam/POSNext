@@ -171,6 +171,13 @@
 				:placeholder="__('New supplier name')"
 				class="h-9 px-3 text-xs rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
 			/>
+			<input
+				v-model="newMobileNo"
+				type="tel"
+				autocomplete="tel"
+				:placeholder="__('Mobile Number')"
+				class="h-9 px-3 text-xs rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+			/>
 			<select v-model="newGroup" class="h-9 px-2 text-xs rounded-lg border border-blue-300 bg-white">
 				<option value="">{{ __("Supplier Group") }}</option>
 				<option v-for="g in supplierGroups" :key="g.name" :value="g.name">{{ g.name }}</option>
@@ -179,7 +186,7 @@
 				<button
 					type="button"
 					@click="createSupplier"
-					:disabled="!newName || !newGroup || creating"
+					:disabled="!newName || !newMobileNo || !newGroup || creating"
 					class="flex-1 h-9 px-3 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
 				>
 					{{ creating ? __("Creating...") : __("Create") }}
@@ -223,6 +230,7 @@ const showDropdown = ref(false);
 const showCreate = ref(false);
 const searching = ref(false); // "Change" pressed on a selected supplier → show the picker
 const newName = ref("");
+const newMobileNo = ref("");
 const newGroup = ref("");
 const supplierGroups = ref([]);
 const creating = ref(false);
@@ -312,16 +320,18 @@ function openCreate() {
 function cancelCreate() {
 	showCreate.value = false;
 	newName.value = "";
+	newMobileNo.value = "";
 	// If nothing is selected, keep the picker visible; otherwise return to the card.
 	if (props.modelValue) searching.value = false;
 }
 
 async function createSupplier() {
-	if (!newName.value || !newGroup.value) return;
+	if (!newName.value || !newMobileNo.value || !newGroup.value) return;
 	creating.value = true;
 	try {
 		const res = await call("pos_next.api.purchases.create_supplier", {
 			supplier_name: newName.value,
+			mobile_no: newMobileNo.value,
 			supplier_group: newGroup.value,
 			supplier_type: "Company",
 			pos_profile: props.posProfile,
@@ -330,6 +340,7 @@ async function createSupplier() {
 			selectSupplier(res);
 			showCreate.value = false;
 			newName.value = "";
+			newMobileNo.value = "";
 		}
 	} catch (error) {
 		showError(error?.message || __("Failed to create supplier"));

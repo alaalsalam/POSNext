@@ -83,7 +83,10 @@ def _default_customer(profile):
 		if is_multi_company_site() and frappe.db.has_column("Customer", OWNERSHIP_FIELD):
 			customer.set(OWNERSHIP_FIELD, company)
 		with _company_setup_context(company):
-			customer.insert(ignore_permissions=True)
+			# A walk-in customer is a system default, not a real contact.  It is
+			# intentionally exempt from the required mobile number used for real
+			# customer records and WhatsApp delivery.
+			customer.insert(ignore_permissions=True, ignore_mandatory=True)
 		customer_name = customer.name
 	elif is_multi_company_site() and frappe.db.has_column("Customer", OWNERSHIP_FIELD):
 		# A POS Profile's walk-in customer is part of its company boundary, even

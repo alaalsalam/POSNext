@@ -79,13 +79,14 @@
               </div>
             </div>
             <!-- Quick create supplier -->
-            <div v-if="showCreateSupplier" class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
+            <div v-if="showCreateSupplier" class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto_auto] items-center gap-2">
               <input v-model="newSupplierName" :placeholder="__('اسم المورد الجديد')" class="flex-1 h-8 px-3 text-xs rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input v-model="newSupplierMobileNo" type="tel" autocomplete="tel" :placeholder="__('Mobile Number')" class="flex-1 h-8 px-3 text-xs rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <select v-model="newSupplierGroup" class="h-8 px-2 text-xs rounded-lg border border-blue-300 bg-white">
                 <option value="">{{ __("Supplier Group") }}</option>
                 <option v-for="group in supplierGroups" :key="group.name" :value="group.name">{{ group.name }}</option>
               </select>
-              <button @click="createSupplier" :disabled="!newSupplierName || !newSupplierGroup || creatingSupplier" class="h-8 px-3 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              <button @click="createSupplier" :disabled="!newSupplierName || !newSupplierMobileNo || !newSupplierGroup || creatingSupplier" class="h-8 px-3 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
                 {{ creatingSupplier ? __("...") : __("إنشاء") }}
               </button>
               <button @click="showCreateSupplier = false" class="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
@@ -370,6 +371,7 @@ const supplierOptions = ref([])
 const showSupplierDropdown = ref(false)
 const showCreateSupplier = ref(false)
 const newSupplierName = ref("")
+const newSupplierMobileNo = ref("")
 const newSupplierGroup = ref("")
 const supplierGroups = ref([])
 const warehouses = ref([])
@@ -411,11 +413,12 @@ function selectSupplier(s) {
 }
 
 async function createSupplier() {
-	if (!newSupplierName.value) return
+	if (!newSupplierName.value || !newSupplierMobileNo.value) return
 	creatingSupplier.value = true
 	try {
 		const result = await call("pos_next.api.purchases.create_supplier", {
 			supplier_name: newSupplierName.value,
+			mobile_no: newSupplierMobileNo.value,
 			supplier_group: newSupplierGroup.value,
 			supplier_type: "Company",
 			pos_profile: props.posProfile,
@@ -424,6 +427,7 @@ async function createSupplier() {
 			selectSupplier(result)
 			showCreateSupplier.value = false
 			newSupplierName.value = ""
+			newSupplierMobileNo.value = ""
 		}
 	} catch (error) {
 		errorMsg.value = error?.message || __("فشل إنشاء المورد")
