@@ -48,3 +48,13 @@ def enforce_company_ownership(doc, method=None):
 	if doc.get(OWNERSHIP_FIELD) and doc.get(OWNERSHIP_FIELD) != company:
 		frappe.throw(_("This record belongs to a different company."), frappe.PermissionError)
 	doc.set(OWNERSHIP_FIELD, company)
+
+
+def assert_company_ownership(doctype, name):
+	"""Reject direct reads of a POS master belonging to another company."""
+	if not is_multi_company_site() or doctype not in OWNED_DOCTYPES or not frappe.db.has_column(doctype, OWNERSHIP_FIELD):
+		return
+	company = active_company()
+	owner = frappe.db.get_value(doctype, name, OWNERSHIP_FIELD)
+	if not company or not owner or owner != company:
+		frappe.throw(_("This record is not available for the active company."), frappe.PermissionError)

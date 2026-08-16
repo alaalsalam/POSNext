@@ -556,10 +556,9 @@ def delete_promotion(scheme_name):
 
 @frappe.whitelist()
 def get_item_groups(company=None):
-	"""Get all item groups."""
-	# Item Group is a global doctype, not company-specific
-	# Return all item groups (both parent groups and leaf nodes)
-	return frappe.get_all("Item Group", fields=["name", "parent_item_group", "is_group"], order_by="name")
+	"""Get item groups visible to the active company."""
+	# get_list honours the POS company permission query; get_all intentionally does not.
+	return frappe.get_list("Item Group", fields=["name", "parent_item_group", "is_group"], order_by="name", limit_page_length=0)
 
 
 @frappe.whitelist()

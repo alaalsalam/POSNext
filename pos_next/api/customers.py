@@ -6,7 +6,7 @@ Handles customer search, creation, and management for POS operations
 import frappe
 from frappe import _
 
-from pos_next.api.company_scope import OWNERSHIP_FIELD, is_multi_company_site
+from pos_next.api.company_scope import OWNERSHIP_FIELD, assert_company_ownership, is_multi_company_site
 from pos_next.api.feature_flags import resolve_pos_profile
 
 
@@ -31,6 +31,8 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 
 		filters = {}
 		or_filters = []
+		if is_multi_company_site() and not pos_profile:
+			frappe.throw(_("A POS Profile is required in multiple-company mode."), frappe.PermissionError)
 
 		# Filter by POS Profile customer group if specified
 		if pos_profile:
@@ -121,6 +123,8 @@ def create_customer(
 
 	if not customer_name:
 		frappe.throw(_("Customer name is required"))
+	if is_multi_company_site() and not pos_profile:
+		frappe.throw(_("A POS Profile is required in multiple-company mode."), frappe.PermissionError)
 
 	if pos_profile:
 		pos_profile = resolve_pos_profile(pos_profile=pos_profile, company=company)
@@ -293,4 +297,5 @@ def get_customer_details(customer):
 	if not customer:
 		frappe.throw(_("Customer is required"))
 
+	assert_company_ownership("Customer", customer)
 	return frappe.get_cached_doc("Customer", customer).as_dict()
