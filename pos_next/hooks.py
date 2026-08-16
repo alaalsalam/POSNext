@@ -192,6 +192,10 @@ doc_events = {
 		"after_insert": "pos_next.api.company_scope.sync_user_company_permission",
 		"on_update": "pos_next.api.company_scope.sync_user_company_permission",
 	},
+	"Stock Reconciliation": {
+		"before_submit": "pos_next.api.inventory.validate_stock_reconciliation_context",
+		"on_submit": "pos_next.api.inventory.sync_reconciliation_prices",
+	},
 	"Sales Invoice": {
 		"validate": [
 			"pos_next.api.sales_invoice_hooks.validate",

@@ -100,6 +100,7 @@ ROLE_PERMISSIONS = {
 		"Item": {"read": 1}, "Warehouse": {"read": 1}, "Company": {"read": 1},
 		"UOM": {"read": 1}, "Batch": {"read": 1}, "Serial No": {"read": 1},
 		"Account": {"read": 1}, "Cost Center": {"read": 1},
+		"Item Price": {"read": 1, "write": 1, "create": 1},
 	},
 }
 
