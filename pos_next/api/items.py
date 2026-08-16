@@ -1818,7 +1818,9 @@ def get_item_details(item_code, pos_profile, customer=None, qty=1, uom=None):
 @frappe.whitelist()
 def get_item_groups(pos_profile):
 	"""Get item groups configured in POS Profile with hierarchy info for filtering."""
-	cache_key = f"pos_item_groups:{pos_profile}"
+	pos_profile = resolve_pos_profile(pos_profile=pos_profile)
+	profile_company = frappe.db.get_value("POS Profile", pos_profile, "company")
+	cache_key = f"pos_item_groups:{pos_profile}:{profile_company if is_multi_company_site() else 'single'}"
 	cached = frappe.cache().get_value(cache_key)
 	if cached:
 		return cached
@@ -1835,16 +1837,18 @@ def get_item_groups(pos_profile):
 			.orderby(POSItemGroup.item_group)
 			.run(pluck="item_group")
 		)
+		if is_multi_company_site() and frappe.db.has_column("Item Group", OWNERSHIP_FIELD):
+			configured_groups = [
+				name
+				for name in configured_groups
+				if frappe.db.get_value("Item Group", name, OWNERSHIP_FIELD) == profile_company
+			]
 
 		if not configured_groups:
-			result = (
-				frappe.qb.from_(ItemGroup)
-				.select(ItemGroup.name.as_("item_group"))
-				.where(ItemGroup.is_group == 0)
-				.orderby(ItemGroup.name)
-				.limit(50)
-				.run(as_dict=True)
-			)
+			query = frappe.qb.from_(ItemGroup).select(ItemGroup.name.as_("item_group")).where(ItemGroup.is_group == 0)
+			if is_multi_company_site() and frappe.db.has_column("Item Group", OWNERSHIP_FIELD):
+				query = query.where(ItemGroup.custom_pos_company == profile_company)
+			result = query.orderby(ItemGroup.name).limit(50).run(as_dict=True)
 			frappe.cache().set_value(cache_key, result, expires_in_sec=300)
 			return result
 
