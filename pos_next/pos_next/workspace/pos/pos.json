@@ -1,7 +1,7 @@
 {
  "app": "pos_next",
  "charts": [],
- "content": "[{\"id\":\"pos_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>\u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064a\u0639</b></span><div class=\\\"text-muted\\\">\u0627\u0644\u0648\u0635\u0648\u0644 \u0627\u0644\u0633\u0631\u064a\u0639 \u0644\u0644\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u064a\u0648\u0645\u064a \u0648\u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0634\u0641\u062a\u0627\u062a \u0648\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631</div>\",\"col\":12}},{\"id\":\"pos_start\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"\u0628\u062f\u0621 \u0627\u0644\u0628\u064a\u0639\",\"col\":4}},{\"id\":\"pos_open\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"\u0641\u062a\u062d \u0634\u0641\u062a\",\"col\":4}},{\"id\":\"pos_close\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"\u0625\u063a\u0644\u0627\u0642 \u0634\u0641\u062a\",\"col\":4}},{\"id\":\"sales_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>\u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a \u0648\u0627\u0644\u0639\u0645\u0644\u0627\u0621</b></span>\",\"col\":12}},{\"id\":\"sales_card\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a \u0648\u0627\u0644\u0639\u0645\u0644\u0627\u0621\",\"col\":4}},{\"id\":\"inventory_card\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0623\u0635\u0646\u0627\u0641 \u0648\u0627\u0644\u0645\u062e\u0632\u0648\u0646\",\"col\":4}},{\"id\":\"finance_card\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0646\u0642\u062f\u064a\u0629 \u0648\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631\",\"col\":4}},{\"id\":\"setup_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a \u0648\u0627\u0644\u0639\u0631\u0648\u0636</b></span>\",\"col\":12}},{\"id\":\"setup_card\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0625\u0639\u062f\u0627\u062f\u0627\u062a POS\",\"col\":4}},{\"id\":\"offers_card\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0639\u0631\u0648\u0636 \u0648\u0627\u0644\u0643\u0648\u0628\u0648\u0646\u0627\u062a\",\"col\":4}}]",
+ "content": "[{\"id\":\"pos_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>POS</b></span><div class=\\\"text-muted\\\">Daily selling, shift control, inventory, and operational reporting.</div>\",\"col\":12}},{\"id\":\"pos_start\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Start Selling\",\"col\":4}},{\"id\":\"pos_open\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Open Shift\",\"col\":4}},{\"id\":\"pos_close\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Close Shift\",\"col\":4}},{\"id\":\"operations_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Operations & Control</b></span>\",\"col\":12}},{\"id\":\"sales_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Sales & Customers\",\"col\":4}},{\"id\":\"inventory_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Catalog & Inventory\",\"col\":4}},{\"id\":\"finance_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Cash & Reports\",\"col\":4}},{\"id\":\"setup_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Setup & Promotions</b></span>\",\"col\":12}},{\"id\":\"setup_card\",\"type\":\"card\",\"data\":{\"card_name\":\"POS Setup\",\"col\":4}},{\"id\":\"offers_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Offers & Coupons\",\"col\":4}}]",
  "creation": "2026-08-06 15:37:40.296905",
  "custom_blocks": [],
  "docstatus": 0,
@@ -9,16 +9,15 @@
  "hide_custom": 0,
  "icon": "sell",
  "idx": 0,
- "indicator_color": "green",
+ "indicator_color": "blue",
  "is_hidden": 0,
- "label": "نقطة البيع",
- "link_type": null,
+ "label": "POS",
  "links": [
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "\u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a \u0648\u0627\u0644\u0639\u0645\u0644\u0627\u0621",
-   "link_count": 4,
+   "label": "Sales & Customers",
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -26,7 +25,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "فواتير المبيعات",
+   "label": "Sales Invoices",
    "link_count": 0,
    "link_to": "Sales Invoice",
    "link_type": "DocType",
@@ -36,7 +35,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "العملاء",
+   "label": "Customers",
    "link_count": 0,
    "link_to": "Customer",
    "link_type": "DocType",
@@ -46,7 +45,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "سندات الدفع",
+   "label": "Payment Entries",
    "link_count": 0,
    "link_to": "Payment Entry",
    "link_type": "DocType",
@@ -56,7 +55,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "ملفات نقطة البيع",
+   "label": "POS Profiles",
    "link_count": 0,
    "link_to": "POS Profile",
    "link_type": "DocType",
@@ -66,8 +65,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "\u0627\u0644\u0623\u0635\u0646\u0627\u0641 \u0648\u0627\u0644\u0645\u062e\u0632\u0648\u0646",
-   "link_count": 4,
+   "label": "Catalog & Inventory",
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -75,7 +74,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "الأصناف",
+   "label": "Items",
    "link_count": 0,
    "link_to": "Item",
    "link_type": "DocType",
@@ -85,7 +84,17 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "المستودعات",
+   "label": "Item Groups",
+   "link_count": 0,
+   "link_to": "Item Group",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Warehouses",
    "link_count": 0,
    "link_to": "Warehouse",
    "link_type": "DocType",
@@ -95,7 +104,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "حركات المخزون",
+   "label": "Stock Entries",
    "link_count": 0,
    "link_to": "Stock Entry",
    "link_type": "DocType",
@@ -105,7 +114,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "جرد وتسوية المخزون",
+   "label": "Stock Count & Reconciliation",
    "link_count": 0,
    "link_to": "Stock Reconciliation",
    "link_type": "DocType",
@@ -115,7 +124,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "\u0627\u0644\u0646\u0642\u062f\u064a\u0629 \u0648\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631",
+   "label": "Cash & Reports",
    "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
@@ -124,7 +133,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "تقرير المبيعات والورديات",
+   "label": "Sales vs Shifts",
    "link_count": 0,
    "link_to": "Sales vs Shifts Report",
    "link_type": "Report",
@@ -134,7 +143,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "تقرير أداء الكاشير",
+   "label": "Cashier Performance",
    "link_count": 0,
    "link_to": "Cashier Performance Report",
    "link_type": "Report",
@@ -144,7 +153,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "تقرير المدفوعات والرقابة النقدية",
+   "label": "Payments & Cash Control",
    "link_count": 0,
    "link_to": "Payments and Cash Control Report",
    "link_type": "Report",
@@ -154,7 +163,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "تقرير حركة المخزون والأصناف السريعة",
+   "label": "Inventory & Fast Movers",
    "link_count": 0,
    "link_to": "Inventory Impact and Fast Movers Report",
    "link_type": "Report",
@@ -164,7 +173,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "تقرير المزامنة وصحة النظام",
+   "label": "Offline Sync & System Health",
    "link_count": 0,
    "link_to": "Offline Sync and System Health Report",
    "link_type": "Report",
@@ -174,7 +183,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "\u0625\u0639\u062f\u0627\u062f\u0627\u062a POS",
+   "label": "POS Setup",
    "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
@@ -183,7 +192,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "إعدادات نقطة البيع",
+   "label": "POS Settings",
    "link_count": 0,
    "link_to": "POS Settings",
    "link_type": "DocType",
@@ -193,7 +202,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "هوية نقطة البيع",
+   "label": "POS Branding",
    "link_count": 0,
    "link_to": "POS Branding Settings",
    "link_type": "DocType",
@@ -203,7 +212,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "فتح وردية",
+   "label": "Open Shifts",
    "link_count": 0,
    "link_to": "POS Opening Shift",
    "link_type": "DocType",
@@ -213,7 +222,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "إغلاق وردية",
+   "label": "Closed Shifts",
    "link_count": 0,
    "link_to": "POS Closing Shift",
    "link_type": "DocType",
@@ -223,7 +232,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "\u0627\u0644\u0639\u0631\u0648\u0636 \u0648\u0627\u0644\u0643\u0648\u0628\u0648\u0646\u0627\u062a",
+   "label": "Offers & Coupons",
    "link_count": 2,
    "link_type": "DocType",
    "onboard": 0,
@@ -232,7 +241,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Offer",
+   "label": "POS Offers",
    "link_count": 0,
    "link_to": "POS Offer",
    "link_type": "DocType",
@@ -242,7 +251,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Coupon",
+   "label": "POS Coupons",
    "link_count": 0,
    "link_to": "POS Coupon",
    "link_type": "DocType",
@@ -250,7 +259,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-06 15:37:40.296905",
+ "modified": "2026-08-16 22:15:10.170855",
  "modified_by": "Administrator",
  "module": "POS Next",
  "name": "POS",
@@ -265,14 +274,14 @@
   {
    "color": "Green",
    "doc_view": "",
-   "label": "\u0628\u062f\u0621 \u0627\u0644\u0628\u064a\u0639",
+   "label": "Start Selling",
    "type": "URL",
    "url": "/pos/"
   },
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "\u0641\u062a\u062d \u0634\u0641\u062a",
+   "label": "Open Shift",
    "link_to": "POS Opening Shift",
    "stats_filter": "[]",
    "type": "DocType"
@@ -280,7 +289,7 @@
   {
    "color": "Orange",
    "doc_view": "List",
-   "label": "\u0625\u063a\u0644\u0627\u0642 \u0634\u0641\u062a",
+   "label": "Close Shift",
    "link_to": "POS Closing Shift",
    "stats_filter": "[]",
    "type": "DocType"
@@ -288,7 +297,7 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "\u0627\u0644\u0641\u0648\u0627\u062a\u064a\u0631",
+   "label": "Sales Invoices",
    "link_to": "Sales Invoice",
    "stats_filter": "[]",
    "type": "DocType"
@@ -296,7 +305,7 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "\u0627\u0644\u0623\u0635\u0646\u0627\u0641",
+   "label": "Items",
    "link_to": "Item",
    "stats_filter": "[]",
    "type": "DocType"
@@ -304,7 +313,7 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "\u0627\u0644\u0639\u0645\u0644\u0627\u0621",
+   "label": "Customers",
    "link_to": "Customer",
    "stats_filter": "[]",
    "type": "DocType"
@@ -320,7 +329,7 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "POS Profile",
+   "label": "POS Profiles",
    "link_to": "POS Profile",
    "stats_filter": "[]",
    "type": "DocType"
@@ -328,7 +337,7 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "\u0627\u0644\u0639\u0631\u0648\u0636",
+   "label": "POS Offers",
    "link_to": "POS Offer",
    "stats_filter": "[]",
    "type": "DocType"
@@ -336,12 +345,12 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "\u0627\u0644\u0643\u0648\u0628\u0648\u0646\u0627\u062a",
+   "label": "POS Coupons",
    "link_to": "POS Coupon",
    "stats_filter": "[]",
    "type": "DocType"
   }
  ],
- "title": "نقطة البيع",
+ "title": "POS",
  "type": "Workspace"
 }
