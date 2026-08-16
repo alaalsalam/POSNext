@@ -20,6 +20,10 @@ DESK_REPORTS = (
 	"Inventory Impact and Fast Movers Report",
 	"Offline Sync and System Health Report",
 )
+FINANCIAL_REPORTS = (
+	"Gross Profit", "Profit and Loss Statement", "Sales Analytics", "Balance Sheet", "Cash Flow",
+	"Trial Balance", "General Ledger", "Stock Balance", "Stock Ledger", "Accounts Receivable", "Accounts Payable",
+)
 
 
 def _date_range(period, from_date=None, to_date=None):
@@ -97,7 +101,8 @@ def get_report_filters():
 			{"key": "this_month", "label": _("This Month")},
 			{"key": "custom", "label": _("Custom Range")},
 		],
-		"desk_reports": [{"name": name, "label": _(name)} for name in DESK_REPORTS],
+		"desk_reports": [{"name": name, "label": _(name)} for name in DESK_REPORTS]
+		+ ([{"name": name, "label": _(name)} for name in FINANCIAL_REPORTS] if "POS Financial Reports" in frappe.get_roles() else []),
 	}
 
 
