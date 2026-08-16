@@ -61,6 +61,7 @@ def _parse_list_parameter(value, param_name="parameter"):
 	return value
 
 
+@frappe.whitelist()
 def check_user_company():
 	"""Return the user's active company from Frappe's native defaults.
 
