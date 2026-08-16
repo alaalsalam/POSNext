@@ -19,3 +19,5 @@ pos_next.patches.v2_1_0.grant_cashier_sales_dependencies
 pos_next.patches.v2_1_0.add_multi_company_master_fields
 pos_next.patches.v2_1_0.extend_multi_company_master_fields
 pos_next.patches.v2_1_0.refresh_pos_workspace_and_settings_titles
+pos_next.patches.v2_1_0.add_pos_inventory_controller
+pos_next.patches.v2_1_0.add_inventory_workspace_link

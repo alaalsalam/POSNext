@@ -20,6 +20,7 @@ ROLE_NAMES = (
 	"POS Cash Management",
 	"POS Reports",
 	"POS Catalog Manager",
+	"POS Inventory Controller",
 )
 
 # Native DocType permissions are the single source of truth.  The frontend and
@@ -38,6 +39,7 @@ ROLE_PERMISSIONS = {
 		"Customer": {"read": 1, "write": 1, "create": 1, "report": 1},
 		"Supplier": {"read": 1, "write": 1, "create": 1, "report": 1},
 		"POS Expense Type": {"read": 1, "write": 1, "create": 1, "delete": 1},
+		"Stock Reconciliation": {"read": 1, "write": 1, "create": 1, "submit": 1, "cancel": 1, "report": 1, "print": 1},
 	},
 	POS_CASHIER_ROLE: {
 		"POS Profile": {"read": 1},
@@ -92,6 +94,12 @@ ROLE_PERMISSIONS = {
 		"Item Group": {"read": 1, "write": 1, "create": 1, "report": 1},
 		"Item Price": {"read": 1, "write": 1, "create": 1, "report": 1},
 		"Brand": {"read": 1}, "UOM": {"read": 1}, "Price List": {"read": 1},
+	},
+	"POS Inventory Controller": {
+		"Stock Reconciliation": {"read": 1, "write": 1, "create": 1, "submit": 1, "cancel": 1, "report": 1, "print": 1},
+		"Item": {"read": 1}, "Warehouse": {"read": 1}, "Company": {"read": 1},
+		"UOM": {"read": 1}, "Batch": {"read": 1}, "Serial No": {"read": 1},
+		"Account": {"read": 1}, "Cost Center": {"read": 1},
 	},
 }
 

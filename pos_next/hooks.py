@@ -55,6 +55,7 @@ web_include_css = [
 # include js in doctype views
 doctype_js = {
 	"Customer": "public/js/customer.js",
+	"Stock Reconciliation": "public/js/stock_reconciliation.js",
 	"User": "public/js/user.js",
 	"Pricing Rule": "public/js/pricing_rule.js",
 	"Promotional Scheme": "public/js/promotional_scheme.js",
@@ -100,8 +101,8 @@ jinja = {
 # Fixtures
 # --------
 fixtures = [
-	{"dt": "Role", "filters": [["role_name", "in", ["POS Cashier", "POS Manager", "POS Purchases", "POS Expenses", "POS Cash Management", "POS Reports", "POS Catalog Manager"]]]},
-	{"dt": "Custom DocPerm", "filters": [["role", "in", ["POS Cashier", "POS Manager", "POS Purchases", "POS Expenses", "POS Cash Management", "POS Reports", "POS Catalog Manager"]]]},
+	{"dt": "Role", "filters": [["role_name", "in", ["POS Cashier", "POS Manager", "POS Purchases", "POS Expenses", "POS Cash Management", "POS Reports", "POS Catalog Manager", "POS Inventory Controller"]]]},
+	{"dt": "Custom DocPerm", "filters": [["role", "in", ["POS Cashier", "POS Manager", "POS Purchases", "POS Expenses", "POS Cash Management", "POS Reports", "POS Catalog Manager", "POS Inventory Controller"]]]},
 ]
 
 # Installation
