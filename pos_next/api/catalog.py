@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import flt, getdate
 
 from pos_next.api.management_scope import assert_doc_permission, require_feature_permission
+from pos_next.api.company_scope import OWNERSHIP_FIELD, is_multi_company_site
 
 
 def _context(pos_profile=None):
@@ -124,7 +125,7 @@ def create_quick_item(
 
 	frappe.db.savepoint("posnext_catalog_item")
 	try:
-		doc = frappe.get_doc({
+		item_data = {
 			"doctype": "Item",
 			"item_code": item_code,
 			"item_name": item_name.strip(),
@@ -134,7 +135,10 @@ def create_quick_item(
 			"is_purchase_item": 1,
 			"is_stock_item": 1 if int(is_stock_item or 0) else 0,
 			"barcodes": [{"barcode": barcode}] if barcode else [],
-		}).insert(ignore_permissions=False)
+		}
+		if is_multi_company_site() and frappe.db.has_column("Item", OWNERSHIP_FIELD):
+			item_data[OWNERSHIP_FIELD] = company
+		doc = frappe.get_doc(item_data).insert(ignore_permissions=False)
 		if flt(price) > 0:
 			_upsert_item_price(doc.name, selling_list, flt(price), stock_uom, valid_from, valid_upto)
 		if flt(buying_price) > 0:
@@ -147,7 +151,7 @@ def create_quick_item(
 
 @frappe.whitelist()
 def create_item_group(group_name, parent_item_group="All Item Groups", pos_profile=None):
-	profile, _company = _context(pos_profile)
+	profile, company = _context(pos_profile)
 	frappe.has_permission("Item Group", "create", throw=True)
 	group_name = (group_name or "").strip()
 	if not group_name:
@@ -156,12 +160,15 @@ def create_item_group(group_name, parent_item_group="All Item Groups", pos_profi
 		frappe.throw(_("Item Group '{0}' already exists").format(group_name))
 	parent = parent_item_group or "All Item Groups"
 	_assert_item_group(parent, profile, parent=True)
-	doc = frappe.get_doc({
+	group_data = {
 		"doctype": "Item Group",
 		"item_group_name": group_name,
 		"parent_item_group": parent,
 		"is_group": 0,
-	}).insert(ignore_permissions=False)
+	}
+	if is_multi_company_site() and frappe.db.has_column("Item Group", OWNERSHIP_FIELD):
+		group_data[OWNERSHIP_FIELD] = company
+	doc = frappe.get_doc(group_data).insert(ignore_permissions=False)
 	if _allowed_item_groups(profile):
 		profile_doc = assert_doc_permission("POS Profile", profile, "write")
 		if not any(row.item_group == doc.name for row in profile_doc.item_groups):

@@ -6,6 +6,9 @@ Handles customer search, creation, and management for POS operations
 import frappe
 from frappe import _
 
+from pos_next.api.company_scope import OWNERSHIP_FIELD, is_multi_company_site
+from pos_next.api.feature_flags import resolve_pos_profile
+
 
 @frappe.whitelist()
 def get_customers(search_term="", pos_profile=None, limit=20, modified_since=None):
@@ -32,7 +35,10 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 		# Filter by POS Profile customer group if specified
 		if pos_profile:
 			frappe.logger().debug(f"Loading POS Profile: {pos_profile}")
+			pos_profile = resolve_pos_profile(pos_profile=pos_profile)
 			profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
+			if is_multi_company_site() and frappe.db.has_column("Customer", OWNERSHIP_FIELD):
+				filters[OWNERSHIP_FIELD] = profile_doc.company
 			# Check if customer_group field exists (it may not exist in all versions)
 			if hasattr(profile_doc, "customer_group") and profile_doc.customer_group:
 				filters["customer_group"] = profile_doc.customer_group
@@ -116,10 +122,10 @@ def create_customer(
 	if not customer_name:
 		frappe.throw(_("Customer name is required"))
 
-	loyalty_program = get_default_loyalty_program_from_settings(
-		company=company,
-		pos_profile=pos_profile,
-	)
+	if pos_profile:
+		pos_profile = resolve_pos_profile(pos_profile=pos_profile, company=company)
+		company = frappe.db.get_value("POS Profile", pos_profile, "company")
+	loyalty_program = get_default_loyalty_program_from_settings(company=company, pos_profile=pos_profile)
 
 	resolved_customer_group = customer_group
 	if not resolved_customer_group:
@@ -155,6 +161,8 @@ def create_customer(
 			"custom_district": custom_district or None,
 		}
 	)
+	if is_multi_company_site() and frappe.db.has_column("Customer", OWNERSHIP_FIELD):
+		customer.set(OWNERSHIP_FIELD, company)
 
 	frappe.flags.pos_next_customer_company = company
 	frappe.flags.pos_next_customer_pos_profile = pos_profile

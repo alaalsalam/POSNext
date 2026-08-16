@@ -144,12 +144,19 @@ before_uninstall = "pos_next.uninstall.before_uninstall"
 
 override_doctype_class = {"Sales Invoice": "pos_next.overrides.sales_invoice.CustomSalesInvoice"}
 
+permission_query_conditions = {
+	"Item": "pos_next.api.company_scope.company_query_condition",
+	"Item Group": "pos_next.api.company_scope.company_query_condition",
+	"Customer": "pos_next.api.company_scope.company_query_condition",
+}
+
 # Document Events
 # ---------------
 # Hook on document methods and events
 
 doc_events = {
 	"Customer": {
+		"validate": "pos_next.api.company_scope.enforce_company_ownership",
 		"after_insert": [
 			"pos_next.api.customers.auto_assign_loyalty_program",
 			"pos_next.realtime_events.emit_customer_event",
@@ -158,6 +165,8 @@ doc_events = {
 		"on_update": "pos_next.realtime_events.emit_customer_event",
 		"on_trash": "pos_next.realtime_events.emit_customer_event",
 	},
+	"Item": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
+	"Item Group": {"validate": "pos_next.api.company_scope.enforce_company_ownership"},
 	"Sales Invoice": {
 		"validate": [
 			"pos_next.api.sales_invoice_hooks.validate",

@@ -1,7 +1,7 @@
 <template>
 	<div class="min-h-screen bg-emerald-50/60 px-4 py-8 sm:px-6 lg:px-8" dir="auto">
 		<div class="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl items-center gap-8 lg:grid-cols-[1.35fr_0.9fr]">
-			<section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+			<section v-if="showDemoAccounts" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
 				<div class="mb-5 flex flex-col gap-1 text-right">
 					<h2 class="text-2xl font-bold text-slate-950">{{ __("حسابات الدخول السريعة") }}</h2>
 					<p class="text-sm text-slate-600">
@@ -134,7 +134,7 @@
 
 <script setup>
 import { FeatherIcon } from "frappe-ui";
-import { onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import ShiftOpeningDialog from "../components/ShiftOpeningDialog.vue";
 import { session } from "../data/session";
@@ -143,11 +143,14 @@ import { cleanupUserSession } from "../utils/sessionCleanup";
 import { ensureCSRFToken } from "../utils/csrf";
 import { offlineWorker } from "../utils/offline/workerClient";
 import { logger } from "@/utils/logger";
+import { useBrandingStore } from "@/stores/branding";
 
 const log = logger.create("Login");
 
 const router = useRouter();
+const branding = useBrandingStore();
 const { cachePasswordHashFromLogin } = useSessionLock();
+const showDemoAccounts = computed(() => Boolean(branding.settings?.show_demo_accounts));
 
 const demoPassword = "demo@2026";
 const demoAccounts = [
@@ -177,6 +180,7 @@ const showShiftDialog = ref(false);
 const showPassword = ref(false);
 
 onMounted(async () => {
+	await branding.loadBranding();
 	loginForm.email = "";
 	loginForm.password = "";
 	showPassword.value = false;

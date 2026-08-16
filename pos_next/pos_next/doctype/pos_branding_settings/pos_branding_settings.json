@@ -5,6 +5,9 @@
  "engine": "InnoDB",
  "field_order": [
   "enabled",
+  "site_operations_section",
+  "tenant_mode",
+  "show_demo_accounts",
   "identity_section",
   "app_name",
   "app_short_name",
@@ -39,6 +42,27 @@
    "fieldname": "enabled",
    "fieldtype": "Check",
    "label": "Enabled"
+  },
+  {
+   "fieldname": "site_operations_section",
+   "fieldtype": "Section Break",
+   "label": "Site Operations"
+  },
+  {
+   "default": "Single Company",
+   "description": "Multiple Companies isolates POS master data by its assigned company. Unassigned records are hidden.",
+   "fieldname": "tenant_mode",
+   "fieldtype": "Select",
+   "label": "Company Mode",
+   "options": "Single Company\nMultiple Companies",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Show preconfigured demo login accounts on the POS sign-in page. Keep disabled on production sites.",
+   "fieldname": "show_demo_accounts",
+   "fieldtype": "Check",
+   "label": "Show Demo Login Accounts"
   },
   {
    "fieldname": "identity_section",

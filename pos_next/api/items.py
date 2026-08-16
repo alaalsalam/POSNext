@@ -12,6 +12,9 @@ from frappe.query_builder import DocType
 from frappe.query_builder import functions as fn
 from frappe.utils import flt, nowdate
 
+from pos_next.api.company_scope import OWNERSHIP_FIELD, is_multi_company_site
+from pos_next.api.feature_flags import resolve_pos_profile
+
 ITEM_RESULT_FIELDS = [
 	"name as item_code",
 	"item_name",
@@ -345,6 +348,7 @@ def search_by_barcode(barcode, pos_profile):
 			frappe.throw(_("Item with barcode {0} not found").format(barcode))
 
 		# Get POS Profile details
+		pos_profile = resolve_pos_profile(pos_profile=pos_profile)
 		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
 
 		# Validate POS Profile has required fields
@@ -1200,6 +1204,9 @@ def get_items(
 			hide_unavailable=hide_unavailable,
 			warehouse=pos_profile_doc.warehouse,
 		)
+		if is_multi_company_site() and frappe.db.has_column("Item", OWNERSHIP_FIELD):
+			conditions.append(f"i.`{OWNERSHIP_FIELD}` = %s")
+			params.append(pos_profile_doc.company)
 
 		# Build column list with table alias
 		item_columns = ",\n\t".join([f"i.{col}" for col in ITEM_RESULT_FIELDS])

@@ -233,6 +233,8 @@ POS_BRANDING_DOCTYPE = "POS Branding Settings"
 
 POS_DEFAULT_BRANDING = {
 	"enabled": 1,
+	"tenant_mode": "Single Company",
+	"show_demo_accounts": 0,
 	"app_name": "Digit POS",
 	"app_short_name": "Digit",
 	"workspace_label": "Digit POS",
@@ -316,6 +318,8 @@ def get_pos_branding_settings_doc():
 		settings[key] = _clean_pos_color(settings.get(key), POS_DEFAULT_BRANDING[key])
 
 	settings["enabled"] = 1 if settings.get("enabled") else 0
+	settings["tenant_mode"] = "Multiple Companies" if settings.get("tenant_mode") == "Multiple Companies" else "Single Company"
+	settings["show_demo_accounts"] = 1 if settings.get("show_demo_accounts") else 0
 	settings["demo_banner_enabled"] = 1 if settings.get("demo_banner_enabled") else 0
 	settings["receipt_footer"] = settings.get("receipt_footer") or ""
 	settings["demo_banner_text"] = settings.get("demo_banner_text") or ""
@@ -341,6 +345,8 @@ POS_BRANDING_EDITABLE_TEXT = (
 )
 POS_BRANDING_EDITABLE_COLOR = ("primary_color", "secondary_color", "theme_color", "background_color")
 POS_BRANDING_EDITABLE_ASSET = ("primary_logo", "header_logo", "app_icon", "pwa_icon_192", "pwa_icon_512")
+POS_BRANDING_EDITABLE_SELECT = ("tenant_mode",)
+POS_BRANDING_EDITABLE_CHECK = ("show_demo_accounts",)
 
 
 @frappe.whitelist()
@@ -373,6 +379,10 @@ def save_pos_branding_settings(settings=None, **kwargs):
 	for field in POS_BRANDING_EDITABLE_ASSET:
 		if field in data:
 			doc.set(field, _clean_pos_asset_url(data.get(field)))
+	if "tenant_mode" in data:
+		doc.set("tenant_mode", "Multiple Companies" if data.get("tenant_mode") == "Multiple Companies" else "Single Company")
+	if "show_demo_accounts" in data:
+		doc.set("show_demo_accounts", 1 if data.get("show_demo_accounts") else 0)
 	if "enabled" in data:
 		doc.set("enabled", 1 if data.get("enabled") else 0)
 

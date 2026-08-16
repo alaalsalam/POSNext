@@ -30,6 +30,23 @@
 		</div>
 
 		<div class="p-6 flex flex-col gap-5">
+			<!-- Site operation mode -->
+			<div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+				<h4 class="text-sm font-bold text-amber-950">{{ __("Site operation") }}</h4>
+				<label class="mt-3 flex flex-col gap-1">
+					<span class="text-sm font-medium text-gray-700">{{ __("Company mode") }}</span>
+					<select v-model="form.tenant_mode" class="rounded-md border border-gray-300 px-3 py-2 text-sm">
+						<option value="Single Company">{{ __("Single Company") }}</option>
+						<option value="Multiple Companies">{{ __("Multiple Companies") }}</option>
+					</select>
+					<span class="text-xs text-amber-800">{{ __("Multiple Companies hides unassigned items, item groups and customers until they are assigned to a company.") }}</span>
+				</label>
+				<label class="mt-3 flex items-start gap-2 text-sm text-gray-700">
+					<input v-model="form.show_demo_accounts" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300" />
+					<span>{{ __("Show demo login accounts on the sign-in screen") }}</span>
+				</label>
+			</div>
+
 			<!-- Names -->
 			<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 				<label class="flex flex-col gap-1">
@@ -191,6 +208,8 @@ const FIELDS = [
 	"secondary_color",
 	"primary_logo",
 	"header_logo",
+	"tenant_mode",
+	"show_demo_accounts",
 ];
 
 const form = reactive({});
@@ -251,7 +270,7 @@ async function save() {
 	saving.value = true;
 	try {
 		const payload = {};
-		for (const f of FIELDS) payload[f] = form[f];
+	for (const f of FIELDS) payload[f] = form[f];
 		payload.header_logo = form.header_logo || form.primary_logo;
 		payload.theme_color = form.primary_color;
 		await call("pos_next.api.branding.save_pos_branding_settings", { settings: payload });
