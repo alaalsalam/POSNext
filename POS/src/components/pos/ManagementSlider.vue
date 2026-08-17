@@ -173,6 +173,20 @@
 			</div>
 		</button>
 
+		<!-- Inventory count and adjustment — native, company-scoped reconciliation -->
+		<button
+			v-if="canManageInventory"
+			data-testid="rail-inventory-button"
+			@click="handleMenuClick('inventory')"
+			class="w-12 h-12 rounded-lg flex items-center justify-center transition-all relative group text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+			:title="__('Inventory Count & Adjustment')"
+		>
+			<FeatherIcon name="clipboard" class="w-5 h-5" />
+			<div class="absolute start-full ms-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+				{{ __('Inventory Count & Adjustment') }}
+			</div>
+		</button>
+
 		<!-- Spacer to push settings to bottom -->
 		<div class="flex-1"></div>
 
@@ -215,6 +229,7 @@ const props = defineProps({
 	canManageCash: { type: Boolean, default: false },
 	// Expense-type management screen (gated by the enable_expense_types flag + manager).
 	canManageExpenseTypes: { type: Boolean, default: false },
+	canManageInventory: { type: Boolean, default: false },
 	// True while the cart is in purchase mode — highlights the purchase toggle.
 	purchaseModeActive: { type: Boolean, default: false },
 });

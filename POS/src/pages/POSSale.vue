@@ -266,6 +266,7 @@
 					:can-manage-settings="canManageFeatureFlags"
 					:can-manage-cash="canManageCash"
 					:can-manage-expense-types="canManageExpenseTypes"
+					:can-manage-inventory="canManageInventory"
 					:purchase-mode-active="cartStore.mode === 'purchase'"
 				/>
 
@@ -1502,6 +1503,9 @@ watch(canManageExpenseTypes, (allowed) => {
 	if (!allowed) showExpenseTypesPanel.value = false;
 });
 
+// Native stock reconciliation opens separately to preserve an active POS cart.
+const canManageInventory = ref(false);
+
 // Purchase mode (main-screen unified purchase flow)
 const purchaseBuyingPrices = ref({}); // { item_code: buying_price }
 const purchaseMetaDefaults = ref({}); // company/currency/dates/buying_price_list
@@ -1875,6 +1879,7 @@ async function checkCatalogPermission() {
 		canManageFeatureFlags.value = result?.can_manage_feature_flags || false;
 		canManageCash.value = result?.can_manage_cash || false;
 		canManageExpenseTypes.value = result?.can_manage_expense_types || false;
+		canManageInventory.value = result?.can_manage_inventory || false;
 		canCreateSupplierPayment.value = result?.can_create_payment_entries || false;
 		canReadSupplierPayments.value = result?.can_read_payment_entries || false;
 		canSubmitSupplierPayment.value = result?.can_submit_payment_entries || false;
@@ -1895,6 +1900,7 @@ async function checkCatalogPermission() {
 		canManageFeatureFlags.value = false;
 		canManageCash.value = false;
 		canManageExpenseTypes.value = false;
+		canManageInventory.value = false;
 	}
 }
 
@@ -3404,6 +3410,9 @@ function handleManagementMenuClick(menuItem) {
 		if (canManageCash.value) showCashPanel.value = true;
 	} else if (menuItem === "expense_types") {
 		if (canManageExpenseTypes.value) showExpenseTypesPanel.value = true;
+	} else if (menuItem === "inventory") {
+		if (!canManageInventory.value) return;
+		window.open("/app/stock-reconciliation/new-stock-reconciliation-1", "_blank", "noopener");
 	}
 }
 

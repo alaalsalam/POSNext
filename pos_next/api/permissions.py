@@ -89,6 +89,10 @@ def get_pos_permissions(pos_profile=None):
 		# ── Cash / expenses ──
 		"can_manage_cash": bool(feature_flags["enable_cash_management"] and can("Journal Entry", "create") and can("Journal Entry", "read")),
 		"can_manage_expense_types": bool(feature_flags["enable_expense_types"] and can("POS Expense Type", "write")),
+		# Native Stock Reconciliation remains the accounting source of truth.
+		"can_manage_inventory": bool(
+			can("Stock Reconciliation", "read") and can("Stock Reconciliation", "create")
+		),
 		# ── Reports ──
 		"can_view_reports": bool(
 			feature_flags["enable_pos_reports"]
