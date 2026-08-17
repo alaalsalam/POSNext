@@ -26,6 +26,7 @@ declare module 'vue' {
     EditItemDialog: typeof import('./src/components/sale/EditItemDialog.vue')['default']
     ExpenseTypeManagement: typeof import('./src/components/cash/ExpenseTypeManagement.vue')['default']
     InstallAppBadge: typeof import('./src/components/common/InstallAppBadge.vue')['default']
+    InventoryAdjustment: typeof import('./src/components/inventory/InventoryAdjustment.vue')['default']
     InvoiceCart: typeof import('./src/components/sale/InvoiceCart.vue')['default']
     InvoiceDetailDialog: typeof import('./src/components/invoices/InvoiceDetailDialog.vue')['default']
     InvoiceFilters: typeof import('./src/components/invoices/InvoiceFilters.vue')['default']
