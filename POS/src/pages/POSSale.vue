@@ -853,6 +853,11 @@
 				:pos-profile="shiftStore.profileName"
 				@close="showCatalogManagement = false"
 			/>
+			<InventoryAdjustment
+				:show="showInventoryAdjustment"
+				:pos-profile="shiftStore.profileName"
+				@close="showInventoryAdjustment = false"
+			/>
 
 			<!-- Purchases Panel — hosts the purchase invoice FORM and supplier PAYMENTS
 			     views, opened from Invoice Management's Purchases mode. The invoice LIST
@@ -1296,6 +1301,7 @@ import SessionLockScreen from "@/components/common/SessionLockScreen.vue";
 import LoadingSpinner from "@/components/common/LoadingSpinner.vue";
 import ManagementSlider from "@/components/pos/ManagementSlider.vue";
 import CatalogManagement from "@/components/pos/CatalogManagement.vue";
+import InventoryAdjustment from "@/components/inventory/InventoryAdjustment.vue";
 import PurchaseInvoiceForm from "@/components/purchases/PurchaseInvoiceForm.vue";
 import PurchaseInvoiceDetailDialog from "@/components/purchases/PurchaseInvoiceDetailDialog.vue";
 import SupplierPaymentDialog from "@/components/purchases/SupplierPaymentDialog.vue";
@@ -1505,6 +1511,7 @@ watch(canManageExpenseTypes, (allowed) => {
 
 // Native stock reconciliation opens separately to preserve an active POS cart.
 const canManageInventory = ref(false);
+const showInventoryAdjustment = ref(false);
 
 // Purchase mode (main-screen unified purchase flow)
 const purchaseBuyingPrices = ref({}); // { item_code: buying_price }
@@ -3412,7 +3419,7 @@ function handleManagementMenuClick(menuItem) {
 		if (canManageExpenseTypes.value) showExpenseTypesPanel.value = true;
 	} else if (menuItem === "inventory") {
 		if (!canManageInventory.value) return;
-		window.open("/app/stock-reconciliation/new-stock-reconciliation-1", "_blank", "noopener");
+		showInventoryAdjustment.value = true;
 	}
 }
 
