@@ -87,6 +87,13 @@ export default defineConfig({
 				navigateFallback: null,
 				navigateFallbackDenylist: [/^\/api/, /^\/app/],
 				runtimeCaching: [
+					// Permission and feature visibility must always reflect the server.
+					// Caching this response can leave newly granted POS screens hidden
+					// until the API cache expires.
+					{
+						urlPattern: /\/api\/method\/pos_next\.api\.permissions\.get_pos_permissions/i,
+						handler: "NetworkOnly",
+					},
 					{
 						urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
 						handler: "CacheFirst",
