@@ -1348,10 +1348,13 @@
 											:label="__('Allow Customer Credit Payment')"
 											:description="__('Allow customers to pay using their credit balance')"
 										/>
-										<CheckboxField
-											v-model="settings.use_exact_amount"
-											:label="__('Use Exact Amount for Non-Cash')"
-											:description="__('Require exact payment amount for non-cash payment methods')"
+						<CheckboxField
+							v-model="settings.use_exact_amount"
+							:label="__('Use Exact Amount for Non-Cash')"
+							:disabled="Boolean(settings.allow_credit_sale || settings.allow_partial_payment)"
+							:description="settings.allow_credit_sale || settings.allow_partial_payment
+								? __('Unavailable while credit sale or partial payment is enabled.')
+								: __('Require exact payment amount for non-cash payment methods')"
 										/>
 										<CheckboxField
 											v-model="settings.fetch_coupon"
@@ -2219,6 +2222,10 @@ async function saveSettings() {
 	}
 	if (isOffline()) {
 		showWarning(__("Settings cannot be changed while offline"));
+		return;
+	}
+	if (settings.value.use_exact_amount && (settings.value.allow_credit_sale || settings.value.allow_partial_payment)) {
+		showWarning(__("Exact amount for non-cash cannot be used with credit sale or partial payment. Disable one of those options first."));
 		return;
 	}
 
