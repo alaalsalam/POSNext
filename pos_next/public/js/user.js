@@ -14,7 +14,10 @@ frappe.ui.form.on("User", {
 			"description",
 			__("Sets the user's default company and Company User Permission automatically on save."),
 		);
-		frm.set_query("custom_pos_company", () => ({ filters: { disabled: 0 } }));
+		// Company has no `disabled` field in Frappe v16.  Filtering on it makes
+		// the Link query fail before the user can select an allowed company.
+		// Native Company read permission and Company User Permissions remain the
+		// authority for the available choices.
 
 		if (frm.is_new() && !frm.doc.custom_pos_company) {
 			const context = await frappe.call({ method: "pos_next.api.utilities.check_user_company" });
