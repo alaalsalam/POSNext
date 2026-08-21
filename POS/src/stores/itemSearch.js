@@ -14,6 +14,23 @@ import { useRealtimePosProfile } from "@/composables/useRealtimePosProfile";
 
 const log = logger.create("ItemSearch");
 
+function normalizeItemFlags(item) {
+	if (!item || typeof item !== "object") {
+		return item;
+	}
+
+	item.is_stock_item = Boolean(item.is_stock_item);
+	item.has_batch_no = Boolean(item.has_batch_no);
+	item.has_serial_no = Boolean(item.has_serial_no);
+	item.has_variants = Boolean(Number(item.has_variants || 0));
+
+	if (Object.prototype.hasOwnProperty.call(item, "is_bundle")) {
+		item.is_bundle = Boolean(item.is_bundle);
+	}
+
+	return item;
+}
+
 /**
  * Fetch and cache batch/serial data for items with batch or serial tracking
  * This ensures batch/serial selection works offline
@@ -392,11 +409,13 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 	function registerItems(items, registrySet) {
 		if (!Array.isArray(items) || items.length === 0) return;
 
+		const normalizedItems = items.map(normalizeItemFlags);
+
 		// Initialize stock (smart & simple!)
-		stockStore.init(items);
+		stockStore.init(normalizedItems);
 
 		// Register items for tracking
-		items.forEach((item) => {
+		normalizedItems.forEach((item) => {
 			if (!item || !item.item_code) return;
 			let bucket = itemRegistry.get(item.item_code);
 			if (!bucket) {

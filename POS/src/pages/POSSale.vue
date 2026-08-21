@@ -1383,6 +1383,17 @@ const branding = useBrandingStore();
 // Note: settingsStore is an alias to posSettingsStore (same Pinia store singleton)
 const settingsStore = posSettingsStore;
 
+function asBool(value) {
+	return value === 1 || value === "1" || value === true;
+}
+
+function getVariantResolutionCacheKey(itemCode) {
+	const profile = shiftStore.currentProfile || "default";
+	return `${profile}:${itemCode}`;
+}
+
+const variantResolutionCache = new Map();
+
 // Real-time stock updates
 const { onStockUpdate } = useRealtimeStock();
 
@@ -2226,6 +2237,8 @@ async function handleShiftOpened() {
 	uiStore.showOpenShiftDialog = false;
 	if (!shiftStore.currentProfile) return;
 
+	variantResolutionCache.clear();
+
 	cartStore.posProfile = shiftStore.profileName;
 	cartStore.posOpeningShift = shiftStore.currentShift?.name;
 
@@ -2286,7 +2299,7 @@ async function handleShiftClosed() {
 	}
 }
 
-function handleItemSelected(item, autoAdd = false) {
+async function handleItemSelected(item, autoAdd = false) {
 	// Purchase mode: add directly at stock UOM with the buying price. Sales-only
 	// concepts (variants/UOM/batch/serial dialogs, stock-out guard) don't apply.
 	if (cartStore.mode === "purchase") {
@@ -2343,7 +2356,7 @@ function handleItemSelected(item, autoAdd = false) {
 	// Early out-of-stock guard — prevent opening dialogs for zero-stock items
 	// Full qty validation happens in cartStore.addItem()
 	if (
-		!item.has_variants &&
+		!asBool(item.has_variants) &&
 		settingsStore.shouldEnforceStockValidation() &&
 		shouldValidateItemStock(item)
 	) {
@@ -2362,7 +2375,44 @@ function handleItemSelected(item, autoAdd = false) {
 	}
 
 	// Check for variants
-	if (item.has_variants) {
+	// Defensive fallback: if has_variants is not set in the item payload (cached/offline
+	// inconsistency), verify against variants API once per item code and open selector
+	// when variants actually exist.
+	const cacheKey = getVariantResolutionCacheKey(item.item_code);
+	if (
+		!asBool(item.has_variants) &&
+		!item.variant_of &&
+		!variantResolutionCache.has(cacheKey)
+	) {
+		try {
+			if (shiftStore.currentProfile) {
+				const variantsResponse = await call("pos_next.api.items.get_item_variants", {
+					template_item: item.item_code,
+					pos_profile: shiftStore.currentProfile,
+				});
+				const variants = variantsResponse?.message || variantsResponse || [];
+				if (Array.isArray(variants) && variants.length > 0) {
+					item.has_variants = 1;
+					variantResolutionCache.set(cacheKey, true);
+					cartStore.setPendingItem(item, 1, "variant");
+					uiStore.showItemSelectionDialog = true;
+					return;
+				}
+				variantResolutionCache.set(cacheKey, false);
+			}
+		} catch (error) {
+			log.debug("Variant fallback check failed", {
+				itemCode: item.item_code,
+				error: error?.message || String(error),
+			});
+		}
+	}
+
+	if (asBool(variantResolutionCache.get(cacheKey))) {
+		item.has_variants = 1;
+	}
+
+	if (asBool(item.has_variants)) {
 		cartStore.setPendingItem(item, 1, "variant");
 		uiStore.showItemSelectionDialog = true;
 		return;

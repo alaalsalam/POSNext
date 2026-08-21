@@ -4,13 +4,15 @@
 from __future__ import unicode_literals
 
 import json
-from functools import lru_cache
 
 import frappe
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
 from erpnext.stock.doctype.batch.batch import get_batch_no, get_batch_qty
+from erpnext.stock.utils import get_stock_balance
 from frappe import _
 from frappe.utils import cint, cstr, flt, get_datetime, nowdate, nowtime
+
+from pos_next.api.feature_flags import assert_profile_access
 
 # ==========================================
 # Constants for field names (avoid typos and enable refactoring)
@@ -31,6 +33,33 @@ DOCTYPE_SALES_INVOICE = "Sales Invoice"
 DOCTYPE_POS_SETTINGS = "POS Settings"
 DOCTYPE_POS_PROFILE = "POS Profile"
 DOCTYPE_COMMENT = "Comment"
+
+
+def _require_pos_invoice_access(pos_profile, doctype, invoice_name=None, *, submitting=False):
+	"""Authorize the user before the POS flow uses internal save flags.
+
+	The POS API must bypass a few ERPNext *internal* permission checks while it
+	builds accounting data.  That bypass is safe only after the caller has been
+	bound to an assigned POS Profile, its Company User Permission, and the
+	appropriate document-level Sales Invoice permission.
+	"""
+	if doctype != "Sales Invoice":
+		frappe.throw(_("Only Sales Invoices can be created through the POS sale flow."), frappe.PermissionError)
+	if not pos_profile:
+		frappe.throw(_("A POS Profile is required to create or submit an invoice."), frappe.PermissionError)
+
+	assert_profile_access(pos_profile)
+
+	if invoice_name and frappe.db.exists(doctype, invoice_name):
+		invoice_doc = frappe.get_doc(doctype, invoice_name)
+		if cstr(invoice_doc.pos_profile).strip() != cstr(pos_profile).strip():
+			frappe.throw(_("The invoice does not belong to the selected POS Profile."), frappe.PermissionError)
+		frappe.has_permission(doctype, "write", doc=invoice_doc, throw=True)
+	else:
+		frappe.has_permission(doctype, "create", throw=True)
+
+	if submitting:
+		frappe.has_permission(doctype, "submit", throw=True)
 
 
 try:
@@ -424,8 +453,15 @@ def _set_payment_accounts(payments, company):
 # ==========================================
 
 
-def _get_available_stock(item):
-	"""Return available stock qty for an item row."""
+def _get_available_stock(item, posting_date=None, posting_time=None):
+	"""Return the ledger-backed available quantity for an invoice item.
+
+	``Bin.actual_qty`` is a performance cache.  It can briefly disagree with the
+	stock ledger after a back-dated transaction or a failed repost, whereas the
+	ledger is the source ERPNext validates when submitting a Sales Invoice.  Using
+	the ledger here lets POS reject the line before it creates a draft invoice
+	that ERPNext would later reject with ``NegativeStockError``.
+	"""
 	warehouse = item.get("warehouse")
 	batch_no = item.get("batch_no")
 	item_code = item.get("item_code")
@@ -436,28 +472,33 @@ def _get_available_stock(item):
 	if batch_no:
 		return get_batch_qty(batch_no, warehouse) or 0
 
-	# Get stock from Bin
-	bin_qty = frappe.db.get_value("Bin", {"item_code": item_code, "warehouse": warehouse}, "actual_qty")
-	return flt(bin_qty) or 0
+	return flt(
+		get_stock_balance(
+			item_code,
+			warehouse,
+			posting_date=posting_date or nowdate(),
+			posting_time=posting_time or nowtime(),
+		)
+	) or 0
 
 
-def _collect_stock_errors(items):
+def _collect_stock_errors(items, posting_date=None, posting_time=None):
 	"""Return list of items exceeding available stock.
 
-	Respects per-item allow_negative_stock if the field exists on Item.
+	The POS policy deliberately blocks sales that would take a stock item below
+	zero.  A catalog-level negative-stock flag must not bypass that cashier
+	control; any exceptional inventory correction belongs in a managed stock
+	transaction, not a sale at the counter.
 	"""
-	allowed_items = _get_item_negative_stock_allow_set(items)
 	errors = []
 	for d in items:
 		if flt(d.get("qty")) < 0:
 			continue
 
-		available = _get_available_stock(d)
+		available = _get_available_stock(d, posting_date=posting_date, posting_time=posting_time)
 		requested = flt(d.get("stock_qty") or (flt(d.get("qty")) * flt(d.get("conversion_factor") or 1)))
 
 		if requested > available:
-			if d.get("item_code") in allowed_items:
-				continue
 			errors.append(
 				{
 					"item_code": d.get("item_code"),
@@ -468,34 +509,6 @@ def _collect_stock_errors(items):
 			)
 
 	return errors
-
-
-@lru_cache(maxsize=1)
-def _item_has_allow_negative_stock_field():
-	"""Check whether Item doctype has an allow_negative_stock field."""
-	try:
-		return frappe.get_meta("Item").has_field("allow_negative_stock")
-	except Exception:
-		return False
-
-
-def _get_item_negative_stock_allow_set(items):
-	"""Return set of item codes that allow negative stock at Item level."""
-	if not items or not _item_has_allow_negative_stock_field():
-		return set()
-
-	item_codes = list({d.get("item_code") for d in items if d.get("item_code")})
-	if not item_codes:
-		return set()
-
-	return set(
-		frappe.get_all(
-			"Item",
-			filters={"name": ["in", item_codes], "allow_negative_stock": 1},
-			pluck="name",
-		)
-		or []
-	)
 
 
 def _should_block(pos_profile):
@@ -537,7 +550,11 @@ def _validate_stock_on_invoice(invoice_doc):
 		items_to_check.extend([d.as_dict() for d in invoice_doc.packed_items])
 
 	# Check for stock errors
-	errors = _collect_stock_errors(items_to_check)
+	errors = _collect_stock_errors(
+		items_to_check,
+		posting_date=invoice_doc.posting_date,
+		posting_time=invoice_doc.posting_time,
+	)
 
 	# Throw error if stock insufficient and blocking is enabled
 	if errors and _should_block(invoice_doc.pos_profile):
@@ -706,6 +723,7 @@ def update_invoice(data):
 
 		pos_profile = data.get("pos_profile")
 		doctype = data.get("doctype", "Sales Invoice")
+		_require_pos_invoice_access(pos_profile, doctype, data.get("name"))
 
 		# Ensure the document type is set
 		data.setdefault("doctype", doctype)
@@ -1290,6 +1308,11 @@ def submit_invoice(invoice=None, data=None):
 
 	pos_profile = invoice.get("pos_profile")
 	doctype = invoice.get("doctype", "Sales Invoice")
+	invoice_name = invoice.get("name")
+	if invoice_name and frappe.db.exists(doctype, invoice_name) and not pos_profile:
+		pos_profile = frappe.db.get_value(doctype, invoice_name, "pos_profile")
+		invoice["pos_profile"] = pos_profile
+	_require_pos_invoice_access(pos_profile, doctype, invoice_name, submitting=True)
 
 	# Normalize pricing_rules before processing
 	standardize_pricing_rules(invoice.get("items"))
@@ -1321,8 +1344,6 @@ def submit_invoice(invoice=None, data=None):
 	invoice_submitted = False
 
 	try:
-		invoice_name = invoice.get("name")
-
 		# Get or create invoice
 		if not invoice_name or not frappe.db.exists(doctype, invoice_name):
 			created = update_invoice(json.dumps(invoice))

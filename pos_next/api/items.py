@@ -518,7 +518,8 @@ def get_item_variants(template_item, pos_profile):
 		pos_profile_doc = frappe.get_cached_doc("POS Profile", pos_profile)
 
 		# Get all variants of this template using Query Builder for Frappe 16 compatibility
-		# Apply company filter: show variants for specific company + global variants (empty company)
+		# Apply company scope in multi-company mode, keeping the same boundary
+		# behavior as browse queries.
 		Item = DocType("Item")
 		query = (
 			frappe.qb.from_(Item)
@@ -538,6 +539,9 @@ def get_item_variants(template_item, pos_profile):
 			.where(Item.disabled == 0)
 			.where(Item.is_sales_item == 1)
 		)
+
+		if is_multi_company_site() and frappe.db.has_column("Item", OWNERSHIP_FIELD):
+			query = query.where(Item[OWNERSHIP_FIELD] == pos_profile_doc.company)
 
 		variants = query.run(as_dict=True)
 
@@ -642,6 +646,37 @@ def get_item_variants(template_item, pos_profile):
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Get Item Variants Error")
 		frappe.throw(_("Error fetching item variants: {0}").format(str(e)))
+
+
+def _apply_variant_ownership_fix(item_codes, company=None):
+	"""Ensure has_variants is accurate even when template cache flags are stale.
+
+	The `Item.has_variants` flag can be stale in some migration/seed flows.
+	To avoid blocking variant sales in the POS (especially for companies using
+	specialised stock setups), we re-check variants from the DB and set
+	has_variants=1 for matching templates.
+	"""
+	if not item_codes:
+		return {}
+
+	if not frappe.db.has_column("Item", "variant_of"):
+		return {}
+
+	filters = {"variant_of": ["in", item_codes], "is_sales_item": 1, "disabled": 0}
+	if is_multi_company_site() and company and frappe.db.has_column("Item", OWNERSHIP_FIELD):
+		filters[OWNERSHIP_FIELD] = company
+
+	try:
+		variant_parents = frappe.get_all(
+			"Item",
+			filters=filters,
+			fields=["variant_of"],
+		)
+	except Exception:
+		return {}
+
+	variant_set = {entry["variant_of"] for entry in variant_parents if entry.get("variant_of")}
+	return {item_code: True for item_code in variant_set}
 
 
 def _get_item_group_with_descendants(item_group):
@@ -1278,6 +1313,7 @@ def get_items(
 
 		# Prepare maps for enrichment
 		item_codes = [item["item_code"] for item in items]
+		variants_by_template = _apply_variant_ownership_fix(item_codes, pos_profile_doc.company)
 		conversion_map = defaultdict(dict)  # parent -> {uom: factor}
 		uom_map = {}  # parent -> [ {uom, conversion_factor}, ... ]
 		uom_prices_map = {}  # item_code -> {uom: price_list_rate}
@@ -1502,6 +1538,10 @@ def get_items(
 			if item.get("variant_of") and item["item_code"] in attributes_map:
 				item["attributes"] = attributes_map[item["item_code"]]
 
+			# Defensive fix: trust live DB relation over possibly stale flags.
+			if item["item_code"] in variants_by_template:
+				item["has_variants"] = 1
+
 		# Apply resolved barcode data (weighted/priced) to the first matching item
 		if resolved_barcode_data and items:
 			from pos_next.services.barcode import compute_resolved_item_data
@@ -1575,6 +1615,14 @@ def get_items_bulk(
 			conditions.append(f"i.item_group IN ({placeholders})")
 			params.extend(all_groups)
 
+		# This endpoint feeds the complete offline catalog.  It must use the
+		# same company boundary as get_items(), otherwise records belonging to
+		# another POS company are persisted in the browser and subsequently fail
+		# when the cashier requests their details.
+		if is_multi_company_site() and frappe.db.has_column("Item", OWNERSHIP_FIELD):
+			conditions.append(f"i.`{OWNERSHIP_FIELD}` = %s")
+			params.append(pos_profile_doc.company)
+
 		item_columns = ",\n\t".join([f"i.{col}" for col in ITEM_RESULT_FIELDS])
 		group_by_columns = ", ".join([f"i.{col.split(' as ')[0]}" for col in ITEM_RESULT_FIELDS])
 
@@ -1599,6 +1647,7 @@ def get_items_bulk(
 
 		# Bulk enrichment (same as get_items)
 		item_codes = [item["item_code"] for item in items]
+		variants_by_template = _apply_variant_ownership_fix(item_codes, pos_profile_doc.company)
 		conversion_map = defaultdict(dict)
 		uom_map = {}
 		uom_prices_map = {}
@@ -1704,6 +1753,10 @@ def get_items_bulk(
 			if item.get("variant_of") and item_code in attributes_map:
 				item["attributes"] = attributes_map[item_code]
 
+			# Defensive fix: ensure variant templates open the variant selector.
+			if item_code in variants_by_template:
+				item["has_variants"] = 1
+
 		# Post-filter: hide unavailable bundles
 		if hide_unavailable and bundle_availability_map:
 			items = [item for item in items if not item.get("is_bundle") or item.get("actual_qty", 0) > 0]
@@ -1750,6 +1803,12 @@ def get_items_count(pos_profile, item_group=None, brand=None, include_variants=0
 			hide_unavailable=hide_unavailable,
 			warehouse=pos_profile_doc.warehouse,
 		)
+		# Keep the count in lockstep with both catalog endpoints.  Apart from
+		# accurate pagination, this prevents a background cache sync from being
+		# told to fetch items outside the active POS company's catalog.
+		if is_multi_company_site() and frappe.db.has_column("Item", OWNERSHIP_FIELD):
+			conditions.append(f"i.`{OWNERSHIP_FIELD}` = %s")
+			params.append(pos_profile_doc.company)
 
 		where_clause = " AND ".join(conditions)
 		query = f"""

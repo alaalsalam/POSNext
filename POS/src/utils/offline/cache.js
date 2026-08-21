@@ -4,6 +4,10 @@ import { offlineState } from "./offlineState";
 
 // Cache structure definition - modify this when cache structure changes
 const CACHE_STRUCTURE = {
+	// Catalog records are now strictly scoped by the active POS company.
+	// Changing this fingerprint clears client caches populated by older builds
+	// that could have stored items from another company.
+	catalog_scope_revision: "company-profile-v1",
 	// Define what gets cached
 	items: ["item_code", "item_name", "item_group", "barcodes", "price", "stock"],
 	customers: ["name", "customer_name", "mobile_no", "email_id"],
