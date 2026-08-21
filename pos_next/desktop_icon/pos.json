@@ -1,0 +1,33 @@
+{
+ "app": "pos_next",
+ "creation": "2026-08-20 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "bg_color": "blue",
+ "hidden": 0,
+ "icon": "shopping-cart",
+ "icon_type": "Link",
+ "idx": 0,
+ "label": "POS",
+
+ "logo_url": "/assets/pos_next/images/pos-workspace-icon.svg",
+ "link_to": "POS",
+ "link_type": "Workspace Sidebar",
+ "modified": "2026-08-20 12:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "POS",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [
+  {"role": "POS Manager"},
+  {"role": "POS Cashier"},
+  {"role": "POS Purchases"},
+  {"role": "POS Expenses"},
+  {"role": "POS Cash Management"},
+  {"role": "POS Reports"},
+  {"role": "POS Financial Reports"},
+  {"role": "POS Catalog Manager"},
+  {"role": "POS Inventory Controller"}
+ ],
+ "standard": 1
+}

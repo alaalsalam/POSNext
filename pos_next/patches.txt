@@ -27,3 +27,8 @@ pos_next.patches.v2_1_0.refresh_pos_workspace_labels
 pos_next.patches.v2_1_0.refresh_pos_workspace_v16
 pos_next.patches.v2_1_0.add_pos_financial_reports_role
 pos_next.patches.v2_1_0.add_required_party_mobile_fields
+pos_next.patches.v2_1_0.install_pos_workspace_sidebar
+pos_next.patches.v2_1_0.install_pos_whatsapp_print_format
+pos_next.patches.v2_1_0.remove_unowned_tools_workspace
+pos_next.patches.v2_1_0.remove_legacy_custom_workspaces
+pos_next.patches.v2_1_0.remove_all_legacy_workspace_navigation

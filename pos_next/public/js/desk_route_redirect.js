@@ -12,6 +12,7 @@
 // web pages, or web forms.
 (function () {
 	const targetRoute = "pos";
+	const posRoles = new Set(["POS Cashier", "POS Manager", "POS Purchases", "POS Expenses", "POS Cash Management", "POS Reports", "POS Catalog Manager", "POS Inventory Controller"]);
 	const legacyRoutes = new Set([
 		"pos-trilogy",
 		"pos_trilogy",
@@ -57,6 +58,11 @@
 		return slug;
 	}
 
+	function isPosUser() {
+		const roles = (window.frappe && frappe.boot && frappe.boot.user && frappe.boot.user.roles) || [];
+		return roles.some((role) => posRoles.has(role));
+	}
+
 	function maybeRedirect() {
 		const slug = currentWorkspaceSlug();
 
@@ -68,7 +74,13 @@
 		// Empty route → user's own default workspace (if any).
 		if (slug === "" || slug == null) {
 			const dw = defaultWorkspaceSlug();
-			if (dw) goToWorkspace(dw);
+			if (dw) {
+				goToWorkspace(dw);
+				return;
+			}
+			if (isPosUser()) {
+				goToWorkspace(targetRoute);
+			}
 		}
 	}
 

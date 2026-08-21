@@ -35,7 +35,10 @@ _asset_version = get_build_version()
 app_include_js = [
 	f"/assets/pos_next/js/desk_route_redirect.js?v={_asset_version}",
 	f"/assets/pos_next/js/pos_form_guidance.js?v={_asset_version}",
+	f"/assets/pos_next/js/pos_workspace_dashboard.js?v={_asset_version}",
 ]
+
+app_include_css = [f"/assets/pos_next/css/pos_workspace_dashboard.css?v={_asset_version}"]
 
 # include js, css files in header of web template
 web_include_css = [

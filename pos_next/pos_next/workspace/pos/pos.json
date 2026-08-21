@@ -7,7 +7,7 @@
  "docstatus": 0,
  "doctype": "Workspace",
  "hide_custom": 0,
- "icon": "sell",
+ "icon": "shopping-cart",
  "idx": 0,
  "indicator_color": "blue",
  "is_hidden": 0,
@@ -396,7 +396,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-16 23:15:25.908597",
+ "modified": "2026-08-20 18:40:09.101149",
  "modified_by": "Administrator",
  "module": "POS Next",
  "name": "POS",
@@ -405,7 +405,35 @@
  "parent_page": "",
  "public": 1,
  "quick_lists": [],
- "roles": [],
+ "roles": [
+  {
+   "role": "POS Manager"
+  },
+  {
+   "role": "POS Cashier"
+  },
+  {
+   "role": "POS Purchases"
+  },
+  {
+   "role": "POS Expenses"
+  },
+  {
+   "role": "POS Cash Management"
+  },
+  {
+   "role": "POS Reports"
+  },
+  {
+   "role": "POS Financial Reports"
+  },
+  {
+   "role": "POS Catalog Manager"
+  },
+  {
+   "role": "POS Inventory Controller"
+  }
+ ],
  "sequence_id": 1.0,
  "shortcuts": [
   {

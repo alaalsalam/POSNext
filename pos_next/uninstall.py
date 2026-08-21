@@ -88,6 +88,7 @@ def remove_print_formats():
 		# List of print formats to remove
 		print_formats = [
 			"POS Next Receipt",
+			"POS WhatsApp Invoice",
 			"POS Next EOD Report",
 		]
 
