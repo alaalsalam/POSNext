@@ -1122,6 +1122,34 @@ const skipPageReset = ref(false); // Skip page reset when navigating via paginat
 const showWarehouseDialog = ref(false);
 const warehouseDialogItem = ref(null);
 
+function applyDefaultViewMode() {
+	if (userManuallySetView.value) return;
+
+	const preferredMode = settingsStore.defaultCardView ? "grid" : "list";
+	if (viewMode.value === preferredMode) return;
+
+	viewMode.value = preferredMode;
+	lastAutoSwitchCount.value = 0;
+}
+
+watch(
+	() => settingsStore.isLoaded,
+	(isLoaded) => {
+		if (!isLoaded) return;
+		applyDefaultViewMode();
+	},
+	{ immediate: false }
+);
+
+watch(
+	() => settingsStore.defaultCardView,
+	() => {
+		if (!settingsStore.isLoaded) return;
+		applyDefaultViewMode();
+	},
+	{ deep: false }
+);
+
 // Infinite scroll refs
 const gridScrollContainer = ref(null);
 const listScrollContainer = ref(null);
@@ -1267,7 +1295,9 @@ watch(
 	() => props.posProfile,
 	(newProfile) => {
 		if (newProfile) {
+			userManuallySetView.value = false;
 			itemStore.setPosProfile(newProfile);
+			applyDefaultViewMode();
 		}
 	},
 	{ immediate: true }
@@ -1302,6 +1332,7 @@ watch(
 		// and we're in grid view with many items
 		if (
 			!userManuallySetView.value &&
+			!settingsStore.defaultCardView &&
 			viewMode.value === "grid" &&
 			itemCount > itemThreshold.value
 		) {

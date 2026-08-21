@@ -4,6 +4,10 @@ import { computed, ref } from "vue";
 import { getSetting, setSetting } from "@/utils/offline";
 import { useBootstrapStore } from "./bootstrap";
 
+function asBool(value) {
+	return value === true || value === 1 || value === "1";
+}
+
 export const usePOSSettingsStore = defineStore("posSettings", () => {
 	const settingsCacheKey = (posProfile) => `pos_settings:${posProfile || "default"}`;
 	// State
@@ -108,7 +112,7 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 	const useExactAmount = computed(() => Boolean(settings.value.use_exact_amount));
 
 	// Computed - Display Settings
-	const defaultCardView = computed(() => Boolean(settings.value.default_card_view));
+	const defaultCardView = computed(() => asBool(settings.value.default_card_view));
 	const displayItemCode = computed(() => Boolean(settings.value.display_item_code));
 	const showCustomerBalance = computed(() => Boolean(settings.value.show_customer_balance));
 	const hideExpectedAmount = computed(() => Boolean(settings.value.hide_expected_amount));
@@ -227,7 +231,11 @@ export const usePOSSettingsStore = defineStore("posSettings", () => {
 		try {
 			const bootstrapStore = useBootstrapStore();
 			const preloadedSettings = bootstrapStore.getPreloadedPOSSettings();
-			if (preloadedSettings && Object.keys(preloadedSettings).length > 0) {
+			if (
+				preloadedSettings &&
+				preloadedSettings.pos_profile === posProfile &&
+				Object.keys(preloadedSettings).length > 0
+			) {
 				Object.assign(settings.value, preloadedSettings);
 				isLoaded.value = true;
 				isLoading.value = false;

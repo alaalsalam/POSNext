@@ -16,6 +16,7 @@ Note: Some settings are derived from POS Profile as single source of truth:
 # Used by both bootstrap.py and pos_profile.py
 POS_SETTINGS_FIELDS = [
 	"name",
+	"pos_profile",
 	"enabled",
 	"tax_inclusive",
 	"allow_user_to_edit_additional_discount",
@@ -39,6 +40,15 @@ POS_SETTINGS_FIELDS = [
 	"enable_session_lock",
 	"session_lock_timeout",
 	"show_variants_as_items",
+	# Display preferences must be included in bootstrap data. The POS client uses
+	# bootstrap settings during startup, so omitting these fields silently made it
+	# fall back to the list layout even when card view was enabled per profile.
+	"default_card_view",
+	"display_item_code",
+	"show_customer_balance",
+	"hide_expected_amount",
+	"display_discount_percentage",
+	"display_discount_amount",
 	"enable_catalog_management",
 	"enable_purchases",
 	"enable_supplier_payments",
