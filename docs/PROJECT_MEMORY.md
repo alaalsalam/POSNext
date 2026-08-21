@@ -1,6 +1,6 @@
 # Digit POS Development Program — Project Memory
 
-Last verified: 2026-08-03
+Last verified: 2026-08-20
 
 This file is the durable memory and source of operational context for the Digit POS
 development program. Read it before changing code, and update the progress section
@@ -158,6 +158,10 @@ A feature is complete only when all applicable conditions are true:
 | Feature flag foundation | Completed | `35194aa` | Four profile-scoped management flags; secure-off and manager-controlled |
 | Reports compatibility and in-POS access | Completed | `2a39d82` | Manager-only, profile/company isolated, ERPNext-reconciled, five reports integrated |
 | Catalog/purchases/supplier payments hardening | Completed | `8b5145d`, `8f4a067`, `5249fe5` | Accepted workflow plus full retry binding, locking evidence, and durable documentation |
+| POS Desk workspace navigation | Completed | Local workspace/sidebar patch, 2026-08-20 | Frappe v16 app-owned sidebar with six RTL-translated sections, 39 permission-filtered entries, a branded colored POS icon, and a professional workspace home. The home now shows a permission-scoped account overview (today's sales, monthly net sales, returns, open shifts, and recent invoices) followed by native operational and financial cards. |
+| POS stock integrity and availability | Completed | `pos.yemenfrappe.com`, 2026-08-20 | POS pre-submission validation now reads the stock ledger rather than the Bin cache; zero/negative items are blocked from the cart, 2,183 ordinary POS item/warehouse pairs were reconciled to 20 units, and three serial/batch items were deliberately left for controlled serial/batch setup. Negative stock was enabled only during the historical-ledger repair and restored to disabled. |
+| POS WhatsApp invoice delivery | Completed | `pos.yemenfrappe.com`, 2026-08-20 | Automatic invoice delivery now renders internal attachments under the system account while restoring the cashier session afterwards, so POS staff do not need broad Conversations permissions. The Sales Invoice scenario uses the dedicated `POS WhatsApp Invoice` PDF format. Each automation now decides whether it applies the sending policy; transactional automations default to direct delivery with the policy off, while campaigns explicitly opt in to managed pacing. |
+| POS invoice print formats | Completed | `pos.yemenfrappe.com`, 2026-08-20 | `POS Next Receipt` is a high-contrast 80 mm thermal receipt with customer mobile, paid/balance/return status, accurate discounted item totals, payment and warranty/serial details. `POS WhatsApp Invoice` is a branded A4 PDF with store-logo fallback, payment status, customer and item/IMEI detail, totals, and tax QR; it is the active automatic WhatsApp format. Both rendered successfully from `ACC-SINV-2026-00113`; the WhatsApp PDF is 136 KB. |
 | Offline end-to-end hardening | Integrated baseline | `6b26a64` | Deployed on YemenFrappe; full transactional browser acceptance remains a separate QA milestone |
 | Keyboard productivity | Not started | — | Quick, isolated milestone |
 | Credit approval workflow | Not started | — | Accounting/permissions sensitive |
@@ -872,3 +876,65 @@ restart, write, push, merge, or deployment occurred. Milestone 3 was not started
 - Ruff, Python compile, JSON validation, targeted Biome, `git diff --check`, and the
   development Vite build passed. Vite transformed 2,192 modules; only the previously
   documented runtime asset and mixed-import warnings remain.
+
+## 2026-08-21 — Workspace ownership cleanup and framework update
+
+- Updated the local `version-16` branches by merging the current official releases:
+  Frappe `16.31.0` and ERPNext `16.32.3`. Both merges completed without conflicts.
+- Built Frappe and ERPNext assets, migrated `pos.yemenfrappe.com`, cleared cache, and
+  restarted web, socketio, scheduler, and worker services.
+- Removed only the legacy `Tools` workspace because it had no application ownership;
+  its matching `Desktop Icon` and `Workspace Sidebar` were also removed. The cleanup is
+  recorded as `pos_next.patches.v2_1_0.remove_unowned_tools_workspace`.
+- Kept standard Frappe/ERPNext workspaces untouched, including `Accounting`, whose
+  Desktop Icon is explicitly owned by ERPNext. App-owned workspaces retained: `POS`
+  (`pos_next`) and `WhatsApp` (`frappe_conversations`).
+- Pre-update uncommitted work in Frappe and ERPNext was preserved safely in named Git
+  stashes (`codex-pre-update-20260821-*`) and intentionally not reapplied automatically.
+
+### Follow-up correction
+
+- Compared workspaces to `upstream/version-16` rather than the locally merged trees.
+  Five legacy local customizations were correctly identified and removed from the site:
+  `Accounting.`, `Custom Users`, `Financial Management`, `Reports`, and
+  `Customization`. Their Workspace Sidebar and Desktop Icon records were removed too.
+  The cleanup is recorded as
+  `pos_next.patches.v2_1_0.remove_legacy_custom_workspaces`.
+
+- Final navigation audit also removed legacy `ERPNext Integrations` Workspace,
+  `Selling.` Sidebar, and orphaned `Payables`/`Receivables` Desktop Icons. The old
+  source files for the five removed workspaces were deleted after migration (workspace
+  sync runs before patches). Effective source comparison to `upstream/version-16` and
+  site-record checks are clean. Patch:
+  `pos_next.patches.v2_1_0.remove_all_legacy_workspace_navigation`.
+
+## 2026-08-21 — Forced upstream replacement
+
+- At the user's explicit request, force-reset `apps/frappe` and `apps/erpnext` to
+  `upstream/version-16`, removing all local commits and working-tree customizations.
+  Final source trees exactly match Frappe `16.31.0` (`6a329d0684`) and ERPNext
+  `16.32.3` (`11e0ba0a1c`).
+- Reinstalled requirements, rebuilt assets, migrated `pos.yemenfrappe.com`, cleared
+  cache, and restarted services. Existing pre-reset stashes remain preserved but are
+  not applied.
+
+## 2026-08-21 — Static asset and Leany integration health
+
+- Fixed public-asset permissions after the forced reset: 462 files below application
+  `public/` folders lacked world-read permission, which made Nginx return 404 for the
+  ERPNext `Organization` icon. All public files are now readable; the icon and sampled
+  Frappe, ERPNext, POS Next, and Universal Standard assets return HTTP 200.
+- Audited `leany-frappe` upstream. It is a Desk CSS-only design system; its existing
+  Universal Standard integration is injected after the main Universal CSS for every
+  `/app` response. Added the previously missing native Leany dark-mode token palette
+  and versioned the asset URL as `20260821_leany_complete` for cache invalidation.
+- Verified Python compilation, diff whitespace, asset delivery, `/api/method/ping`, and
+  two active workers via `bench --site pos.yemenfrappe.com doctor`.
+
+### Desk route correction
+
+- The site serves its authenticated Desk at `/desk`, while Universal Standard had been
+  injecting its UI/Leany assets only for `/app`. Updated the injector to support both
+  routes and bumped the asset version to `20260821_leany_desk`; cache cleared and
+  services restarted. Guest HTTP checks redirect before Desk HTML is rendered, while
+  the authenticated `/desk` response now meets the injector's route condition.
