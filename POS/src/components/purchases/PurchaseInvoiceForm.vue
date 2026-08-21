@@ -352,7 +352,11 @@ const form = reactive({
 	buying_price_list: "",
 	price_list_currency: "",
 	plc_conversion_rate: 1,
-	update_stock: false,
+	// A POS purchase is a stock receipt by default.  Starting this as `false`
+	// made it far too easy to submit a supplier invoice without receiving its
+	// items, which looked like a sale/expense transaction to the operator and
+	// left the inventory unchanged.
+	update_stock: true,
 	set_warehouse: "",
 	items: [],
 	taxes_and_charges: null,
@@ -520,7 +524,12 @@ const formCanSubmit = computed(
 	() =>
 		!!form.supplier &&
 		form.items.length > 0 &&
-		form.items.every((l) => l.item_code && l.qty > 0),
+		form.items.every((l) => l.item_code && l.qty > 0) &&
+		// Stock receipts need both a destination and a real cost.  ERPNext uses
+		// that cost for inventory valuation and COGS, so do not defer this error
+		// until after the user presses Submit.
+		(!form.update_stock ||
+			(!!form.set_warehouse && form.items.every((l) => Number(l.rate || 0) > 0))),
 )
 
 const docstatusLabel = computed(() => {
@@ -744,6 +753,9 @@ onMounted(async () => {
 		form.price_list_currency = def.price_list_currency || def.currency || ""
 		form.bill_date = def.posting_date || ""
 		form.taxes_and_charges = props.defaults?.taxes_and_charges || null
+		// Keep the full purchase form aligned with the quick purchase flow: the
+		// configured receiving warehouse is preselected when opening a new invoice.
+		form.set_warehouse = def.default_warehouse || ""
 
 		const [groups, whs, curr, expenses, taxes] = await Promise.all([
 			call("pos_next.api.purchases.get_supplier_groups", { pos_profile: props.posProfile }),

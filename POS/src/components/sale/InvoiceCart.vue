@@ -2226,7 +2226,11 @@ const canConfirmPurchase = computed(
 		props.canSubmitPurchases &&
 		props.items.length > 0 &&
 		!!cartStore.supplier &&
-		!!cartStore.purchaseWarehouse
+		!!cartStore.purchaseWarehouse &&
+		// A stock receipt at zero cost corrupts inventory valuation.  The cart
+		// already highlights an unpriced line with the "Enter buying price" chip;
+		// keep the confirmation unavailable until every line has a real cost.
+		props.items.every((item) => Number(item.rate || 0) > 0)
 );
 
 /**
