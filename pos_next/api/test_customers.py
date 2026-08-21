@@ -101,11 +101,12 @@ class TestCustomersAPI(unittest.TestCase):
 
 		result = create_customer(
 			customer_name="John Doe",
+			mobile_no="+967-777000001",
 			customer_group="Individual",
 			territory="All Territories",
 			pos_profile="POS-A",
 		)
 
 		mock_get_loyalty.assert_called_once_with(company=None, pos_profile="POS-A")
-		customer_doc.insert.assert_called_once_with()
+		customer_doc.insert.assert_called_once_with(ignore_permissions=True)
 		self.assertEqual(result["loyalty_program"], "LOYALTY-A")

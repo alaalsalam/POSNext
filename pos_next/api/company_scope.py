@@ -33,9 +33,28 @@ def is_multi_company_site():
 def active_company(user=None):
 	"""Return a company only when it is a valid native Frappe default."""
 	user = user or frappe.session.user
+	selected_company = None
+	if hasattr(frappe, "session") and hasattr(frappe.session, "selected_company"):
+		selected_company = frappe.session.get("selected_company")
+	if not selected_company and hasattr(frappe, "session") and hasattr(frappe.session, "data"):
+		selected_company = getattr(frappe.session.data, "selected_company", None)
+
+	if selected_company and frappe.db.exists("Company", selected_company):
+		if frappe.has_permission("Company", "read", doc=selected_company, user=user):
+			return selected_company
+
+	# Prefer the user's custom POS company when set in profile.
+	if frappe.db.has_column("User", USER_COMPANY_FIELD):
+		profile_company = frappe.db.get_value("User", user, USER_COMPANY_FIELD)
+		if profile_company and frappe.db.exists("Company", profile_company):
+			if frappe.has_permission("Company", "read", doc=profile_company, user=user):
+				return profile_company
+
 	company = frappe.defaults.get_user_default("Company", user=user)
-	if company and frappe.db.exists("Company", company) and frappe.has_permission("Company", "read", doc=company, user=user):
-		return company
+	if company and frappe.db.exists("Company", company):
+		if frappe.has_permission("Company", "read", doc=company, user=user):
+			return company
+
 	permissions = frappe.get_all(
 		"User Permission",
 		filters={"user": user, "allow": "Company"},
@@ -43,7 +62,11 @@ def active_company(user=None):
 		order_by="is_default desc, creation asc",
 		limit=1,
 	)
-	return permissions[0].for_value if permissions else None
+	for permission in permissions:
+		if permission.for_value and frappe.db.exists("Company", permission.for_value):
+			if frappe.has_permission("Company", "read", doc=permission.for_value, user=user):
+				return permission.for_value
+	return None
 
 
 def company_query_condition(user, doctype):
@@ -69,9 +92,24 @@ def enforce_company_ownership(doc, method=None):
 	# administrator is setting up another company.  This request-local flag is
 	# only set by trusted server-side setup code; it is never read from input.
 	company = getattr(frappe.flags, "pos_next_setup_company", None) or active_company()
+	doc_company = doc.get(OWNERSHIP_FIELD)
+
+	# During import, allow the row-level company to be authoritative when no
+	# active company has been selected yet.
+	if not company and getattr(frappe.flags, "in_import", False):
+		if doc_company and frappe.db.exists("Company", doc_company):
+			if frappe.has_permission("Company", "read", doc=doc_company):
+				company = doc_company
+		elif doc.name and not doc.is_new():
+			persisted_company = frappe.db.get_value(doc.doctype, doc.name, OWNERSHIP_FIELD)
+			if persisted_company and frappe.db.exists("Company", persisted_company):
+				if frappe.has_permission("Company", "read", doc=persisted_company):
+					company = persisted_company
+
 	if not company:
 		frappe.throw(_("Select an allowed company before creating or editing POS master data."), frappe.PermissionError)
-	if doc.get(OWNERSHIP_FIELD) and doc.get(OWNERSHIP_FIELD) != company:
+
+	if doc_company and doc_company != company:
 		frappe.throw(_("This record belongs to a different company."), frappe.PermissionError)
 	doc.set(OWNERSHIP_FIELD, company)
 

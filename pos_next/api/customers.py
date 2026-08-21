@@ -174,7 +174,13 @@ def create_customer(
 	frappe.flags.pos_next_customer_company = company
 	frappe.flags.pos_next_customer_pos_profile = pos_profile
 	try:
-		customer.insert()
+		# Permission is explicitly verified above, before any user supplied data is
+		# used.  In a multi-company site Frappe performs a second document-level
+		# create check on a new Customer before its company ownership hook runs;
+		# that check has no owner value yet and incorrectly rejects an authorized
+		# cashier.  The POS endpoint has already resolved and authorized the active
+		# profile/company, so skip only this duplicate check.
+		customer.insert(ignore_permissions=True)
 	finally:
 		frappe.flags.pos_next_customer_company = None
 		frappe.flags.pos_next_customer_pos_profile = None

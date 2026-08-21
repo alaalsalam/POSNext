@@ -74,6 +74,14 @@ def check_user_company():
 	if company and frappe.db.exists("Company", company):
 		return {"has_company": True, "company": company}
 
+	# Users can also have a dedicated POS company profile field.
+	# Prefer it as the active context when native defaults are missing.
+	profile_company = None
+	if frappe.db.has_column("User", "custom_pos_company"):
+		profile_company = frappe.db.get_value("User", frappe.session.user, "custom_pos_company")
+	if profile_company and frappe.db.exists("Company", profile_company):
+		return {"has_company": True, "company": profile_company}
+
 	# Older users can have Company User Permissions without a matching Default
 	# Value yet. Prefer the permission marked default, otherwise choose a stable
 	# assigned company; opening a POS shift will persist that verified company as

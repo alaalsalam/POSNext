@@ -323,7 +323,7 @@ const emit = defineEmits(["update:modelValue", "customer-created", "customer-upd
 // ── State ───────────────────────────────────────────────────────────────────
 const hasPermission = ref(true);
 const checkingPermission = ref(false);
-const selectedCountryCode = ref("+966");
+const selectedCountryCode = ref("+967");
 const phoneNumber = ref("");
 const referralCode = ref("");
 const showCountryDropdown = ref(false);
@@ -356,7 +356,7 @@ const show = computed({
 const isEditMode = computed(() => !!props.customer?.name);
 const currentCountryCode = computed(() => {
 	const c = countriesStore.countries.find((c) => c.isd === selectedCountryCode.value);
-	return c?.code.toLowerCase() || "sa";
+	return c?.code.toLowerCase() || "ye";
 });
 const filteredCountries = computed(() => {
 	if (!countrySearchQuery.value) return countriesStore.countries;
@@ -385,9 +385,9 @@ const handleClickOutside = (e) => {
 	}
 };
 const setCountryFromName = (countryName) => {
-	if (!countryName) { selectedCountryCode.value = "+966"; return; }
+	if (!countryName) { selectedCountryCode.value = "+967"; return; }
 	const isd = countriesStore.countryNameToISDMap[countryName];
-	selectedCountryCode.value = isd || "+966";
+	selectedCountryCode.value = isd || "+967";
 };
 const updateTerritoryFromCountry = () => {
 	if (!territories.value.length) return;
@@ -524,8 +524,8 @@ const posProfileResource = createResource({
 	url: "frappe.client.get_value",
 	makeParams: () => ({ doctype: "POS Profile", filters: { name: props.posProfile }, fieldname: ["country"] }),
 	auto: false,
-	onSuccess: (data) => setCountryFromName(data?.country || "Saudi Arabia"),
-	onError: () => { selectedCountryCode.value = "+966"; },
+	onSuccess: (data) => setCountryFromName(data?.country || "Yemen"),
+	onError: () => { selectedCountryCode.value = "+967"; },
 });
 
 // ── Dialog lifecycle ────────────────────────────────────────────────────────
@@ -542,7 +542,7 @@ const loadDialogData = async () => {
 	}
 	checkPermissions();
 	if (props.posProfile) await posProfileResource.reload();
-	else selectedCountryCode.value = "+966";
+	else selectedCountryCode.value = "+967";
 };
 
 const checkPermissions = async () => {
@@ -589,7 +589,7 @@ const resetForm = () => {
 		custom_district: "",
 	});
 	districts.value = [];
-	selectedCountryCode.value = "+966";
+	selectedCountryCode.value = "+967";
 	phoneNumber.value = "";
 	referralCode.value = "";
 };
