@@ -851,6 +851,7 @@
 			<CatalogManagement
 				:show="showCatalogManagement"
 				:pos-profile="shiftStore.profileName"
+				:can-manage-catalog="canManageCatalog"
 				@close="showCatalogManagement = false"
 			/>
 			<InventoryAdjustment
