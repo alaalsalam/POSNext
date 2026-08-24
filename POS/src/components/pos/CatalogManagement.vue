@@ -34,7 +34,7 @@
 					:title="__('إضافة')"
 					@click="enterAddMode"
 				>
-					<span class="cat-tb-icon bg-orange-600"><FeatherIcon name="plus" class="w-4 h-4 text-white" /></span>
+					<span class="cat-tb-icon bg-blue-600"><FeatherIcon name="plus" class="w-4 h-4 text-white" /></span>
 					<span>{{ __("إضافة") }}</span>
 				</button>
 
@@ -46,7 +46,7 @@
 					:disabled="!isEditable || saving"
 					@click="onSave"
 				>
-					<span class="cat-tb-icon bg-orange-500"><FeatherIcon name="save" class="w-4 h-4 text-white" /></span>
+					<span class="cat-tb-icon bg-blue-500"><FeatherIcon name="save" class="w-4 h-4 text-white" /></span>
 					<span>{{ saving ? __("جارٍ الحفظ...") : __("حفظ") }}</span>
 				</button>
 
@@ -59,7 +59,7 @@
 					:disabled="selectedIndex < 0 || loading"
 					@click="onEdit"
 				>
-					<span class="cat-tb-icon bg-amber-500"><FeatherIcon name="edit-2" class="w-4 h-4 text-white" /></span>
+					<span class="cat-tb-icon bg-blue-500"><FeatherIcon name="edit-2" class="w-4 h-4 text-white" /></span>
 					<span>{{ __("تعديل") }}</span>
 				</button>
 
@@ -100,7 +100,7 @@
 						@keydown.enter="doSearch"
 					/>
 					<button type="button" class="cat-tb-btn" data-testid="cat-search-btn" :title="__('بحث')" :disabled="loading" @click="doSearch">
-						<span class="cat-tb-icon bg-orange-600"><FeatherIcon name="search" class="w-4 h-4 text-white" /></span>
+						<span class="cat-tb-icon bg-blue-600"><FeatherIcon name="search" class="w-4 h-4 text-white" /></span>
 						<span>{{ __("بحث") }}</span>
 					</button>
 					<button type="button" class="cat-nav-btn" :title="__('تحديث')" :disabled="loading" @click="onRefresh"><FeatherIcon name="refresh-cw" class="w-4 h-4" /></button>
@@ -204,7 +204,7 @@
 						<div class="flex-1 min-w-0 flex items-center gap-2">
 							<div class="cat-thumb">
 								<img v-if="form.image" :src="form.image" :alt="form.item_name || __('صورة الصنف')" />
-								<FeatherIcon v-else name="image" class="w-5 h-5 text-orange-300" />
+								<FeatherIcon v-else name="image" class="w-5 h-5 text-blue-300" />
 							</div>
 							<div v-if="isEditable" class="flex flex-col gap-1">
 								<input ref="fileInput" type="file" accept="image/*" class="hidden" @change="uploadImage" />
@@ -590,65 +590,65 @@ async function uploadImage(event) {
 
 <style scoped>
 .cat-brand-icon {
-	@apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-orange-600 text-white shadow-sm;
+	@apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm;
 }
 .cat-toolbar {
-	@apply border-b border-orange-200 bg-orange-50 px-3 py-2;
+	@apply border-b border-blue-100 bg-blue-50 px-3 py-2;
 }
 .cat-tb-btn {
-	@apply flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-gray-800 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-40;
+	@apply flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-gray-800 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40;
 }
 .cat-tb-icon {
 	@apply flex h-9 w-9 items-center justify-center rounded-full shadow-sm;
 }
 .cat-tb-divider {
-	@apply mx-1 h-8 w-px bg-orange-200;
+	@apply mx-1 h-8 w-px bg-blue-200;
 }
 .cat-nav-btn {
-	@apply flex h-9 w-9 items-center justify-center rounded-full border border-orange-300 bg-white text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-40;
+	@apply flex h-9 w-9 items-center justify-center rounded-full border border-blue-300 bg-white text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40;
 }
 .cat-nav-pos {
 	@apply px-1 text-xs font-semibold tabular-nums text-gray-600;
 }
 .cat-search-input {
-	@apply h-9 w-44 rounded-lg border border-orange-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 sm:w-56;
+	@apply h-9 w-44 rounded-lg border border-blue-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 sm:w-56;
 }
 
 .cat-form {
-	@apply rounded-2xl border border-orange-200 bg-orange-50 p-4 shadow-sm;
+	@apply rounded-2xl border border-blue-200 bg-white p-4 shadow-sm;
 }
 .cat-field {
 	@apply flex items-center gap-2;
 }
 .cat-label {
-	@apply flex-shrink-0 text-end text-sm font-semibold text-orange-900;
+	@apply flex-shrink-0 text-end text-sm font-semibold text-blue-900;
 	width: 6.5rem;
 }
 .cat-input {
-	@apply h-9 w-full min-w-0 flex-1 rounded-lg border border-orange-200 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-orange-50;
+	@apply h-9 w-full min-w-0 flex-1 rounded-lg border border-blue-200 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50;
 }
 textarea.cat-input {
 	@apply h-auto py-2;
 }
 .cat-readonly {
-	@apply bg-orange-100 font-semibold;
+	@apply bg-blue-50 font-semibold;
 }
 .cat-add-group,
 .cat-mini-btn {
-	@apply flex h-9 items-center justify-center rounded-lg border border-orange-300 bg-white px-2 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50;
+	@apply flex h-9 items-center justify-center rounded-lg border border-blue-300 bg-white px-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50;
 }
 .cat-mini-danger {
 	@apply border-red-200 text-red-600 hover:bg-red-50;
 }
 .cat-thumb {
-	@apply flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-orange-200 bg-white;
+	@apply flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-blue-200 bg-white;
 }
 .cat-thumb img {
 	@apply h-full w-full object-cover;
 }
 
 .cat-grid-wrap {
-	@apply overflow-x-auto rounded-xl border border-orange-200 bg-white;
+	@apply overflow-x-auto rounded-xl border border-blue-200 bg-white;
 }
 .cat-grid-state {
 	@apply py-12 text-center text-sm text-gray-400;
@@ -657,16 +657,16 @@ textarea.cat-input {
 	@apply min-w-full text-sm;
 }
 .cat-grid thead th {
-	@apply sticky top-0 bg-orange-100 px-3 py-2.5 text-start text-xs font-bold text-orange-900;
+	@apply sticky top-0 bg-blue-100 px-3 py-2.5 text-start text-xs font-bold text-blue-900;
 }
 .cat-grid tbody td {
 	@apply px-3 py-2 text-start text-gray-800;
 }
 .cat-row {
-	@apply cursor-pointer border-t border-orange-100 transition-colors hover:bg-orange-50;
+	@apply cursor-pointer border-t border-blue-100 transition-colors hover:bg-blue-50;
 }
 .cat-row-active {
-	@apply bg-orange-100 hover:bg-orange-100;
+	@apply bg-blue-100 hover:bg-blue-100;
 }
 .cat-row-disabled {
 	@apply text-gray-400;
