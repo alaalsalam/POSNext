@@ -59,6 +59,34 @@
                 {{ a.account_name || a.name }}
               </option>
             </select>
+            <div v-if="showNewAccount" class="mt-2 flex gap-2">
+              <input
+                v-model="newAccountName"
+                data-testid="new-account-name"
+                type="text"
+                :placeholder="__('اسم حساب المصروف الجديد')"
+                class="field bg-white flex-1"
+                @keyup.enter="createAccount"
+              />
+              <button
+                type="button"
+                data-testid="create-account"
+                @click="createAccount"
+                :disabled="creatingAccount || !newAccountName.trim()"
+                class="pos-management-secondary rounded-lg px-3 text-sm font-bold whitespace-nowrap"
+              >
+                {{ creatingAccount ? __("جاري...") : __("إنشاء") }}
+              </button>
+            </div>
+            <button
+              v-else
+              type="button"
+              data-testid="toggle-new-account"
+              @click="showNewAccount = true"
+              class="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
+            >
+              ＋ {{ __("حساب مصروف جديد") }}
+            </button>
           </div>
 
           <label class="flex items-center gap-2 cursor-pointer">
@@ -166,6 +194,9 @@ const accountsLoading = ref(false)
 const saving = ref(false)
 const deletingName = ref("")
 const errorMsg = ref("")
+const showNewAccount = ref(false)
+const newAccountName = ref("")
+const creatingAccount = ref(false)
 
 const form = reactive({
 	name: "",
@@ -208,6 +239,27 @@ async function loadAccounts() {
 		errorMsg.value = parseError(error).message
 	} finally {
 		accountsLoading.value = false
+	}
+}
+
+async function createAccount() {
+	const name = newAccountName.value.trim()
+	if (!name || creatingAccount.value) return
+	creatingAccount.value = true
+	try {
+		const res = await call("pos_next.api.cash_management.create_expense_account", {
+			account_name: name,
+			pos_profile: props.posProfile,
+		})
+		await loadAccounts()
+		if (res?.name) form.expense_account = res.name
+		newAccountName.value = ""
+		showNewAccount.value = false
+		showSuccess(__("تم إنشاء الحساب"))
+	} catch (error) {
+		showError(parseError(error).message)
+	} finally {
+		creatingAccount.value = false
 	}
 }
 

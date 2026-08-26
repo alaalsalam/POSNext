@@ -43,12 +43,19 @@ const ACCOUNTS = {
 }
 
 function mockApi() {
-	call.mockImplementation(async (method) => {
+	const extraAccounts = []
+	call.mockImplementation(async (method, params) => {
 		if (method.endsWith("get_expense_types")) return TYPES
-		if (method.endsWith("get_expense_accounts")) return ACCOUNTS
+		if (method.endsWith("get_expense_accounts"))
+			return { ...ACCOUNTS, accounts: [...ACCOUNTS.accounts, ...extraAccounts] }
 		if (method.endsWith("save_expense_type")) return { name: "EXP-NEW" }
 		if (method.endsWith("delete_expense_type"))
 			return { name: "EXP-ELEC", deleted: true }
+		if (method.endsWith("create_expense_account")) {
+			const account = { name: "ACC-3", account_name: params.account_name }
+			extraAccounts.push(account)
+			return account
+		}
 		return {}
 	})
 }
@@ -91,6 +98,23 @@ describe("ExpenseTypeManagement", () => {
 		expect(options.map((o) => o.text())).toEqual(
 			expect.arrayContaining(["Utilities", "Maintenance"]),
 		)
+	})
+
+	it("admin creates an expense account inline, then it's preselected in the picker", async () => {
+		const wrapper = mountScreen()
+		await flushPromises()
+		await wrapper.find('[data-testid="toggle-new-account"]').trigger("click")
+		await wrapper.find('[data-testid="new-account-name"]').setValue("Rent")
+		await wrapper.find('[data-testid="create-account"]').trigger("click")
+		await flushPromises()
+		const createCall = call.mock.calls.find(([m]) =>
+			m.endsWith("create_expense_account"),
+		)
+		expect(createCall?.[1]).toMatchObject({ account_name: "Rent", pos_profile: "POS-A" })
+		// the picker reloaded and the new account is selected
+		expect(
+			wrapper.find('[data-testid="expense-account-select"]').element.value,
+		).toBe("ACC-3")
 	})
 
 	it("creates a new type (no name) with the exact payload", async () => {
