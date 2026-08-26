@@ -501,6 +501,63 @@ class TestExpenseTypeManagement(TestCase):
 			cm.delete_expense_type("EXP-9", pos_profile="POS-TEST")
 		delete_doc.assert_not_called()
 
+	def test_create_account_gated_before_account_permission(self):
+		with (
+			patch.object(cm, "_assert_cash_manager", side_effect=frappe.PermissionError),
+			patch.object(cm.frappe, "has_permission") as permission,
+			self.assertRaises(frappe.PermissionError),
+		):
+			cm.create_expense_account("Electricity", pos_profile="POS-TEST")
+		permission.assert_not_called()
+
+	def test_create_account_requires_a_name(self):
+		with (
+			patch.object(cm, "_assert_cash_manager", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm.frappe, "has_permission", return_value=True),
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.ValidationError),
+		):
+			cm.create_expense_account("   ", pos_profile="POS-TEST")
+
+	def test_create_account_rejects_duplicate_name(self):
+		database = MagicMock()
+		database.exists.return_value = "Electricity - TC"
+		with (
+			patch.object(cm, "_assert_cash_manager", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm.frappe, "has_permission", return_value=True),
+			patch.dict(cm.frappe.__dict__, {"db": database}),
+			patch.object(cm.frappe, "throw", side_effect=_throw),
+			self.assertRaises(frappe.ValidationError),
+		):
+			cm.create_expense_account("Electricity", pos_profile="POS-TEST")
+
+	def test_create_account_marks_it_as_a_pos_expense_account(self):
+		created = {}
+		doc = MagicMock()
+		doc.name = "Electricity - TC"
+		doc.account_name = "Electricity"
+
+		def get_doc(payload):
+			created.update(payload)
+			return doc
+
+		database = MagicMock()
+		database.exists.return_value = None
+		with (
+			patch.object(cm, "_assert_cash_manager", return_value=("POS-TEST", "Test Company")),
+			patch.object(cm.frappe, "has_permission", return_value=True),
+			patch.dict(cm.frappe.__dict__, {"db": database}),
+			patch.object(cm, "_expense_parent_group", return_value="Indirect Expenses - TC"),
+			patch.object(cm.frappe, "get_doc", side_effect=get_doc),
+		):
+			result = cm.create_expense_account("Electricity", pos_profile="POS-TEST")
+		self.assertEqual(created["custom_pos_expense_account"], 1)
+		self.assertEqual(created["root_type"], "Expense")
+		self.assertEqual(created["parent_account"], "Indirect Expenses - TC")
+		self.assertEqual(created["company"], "Test Company")
+		doc.insert.assert_called_once()
+		self.assertEqual(result["name"], "Electricity - TC")
+
 
 class TestCashEntrySummary(TestCase):
 	def test_summary_uses_drawer_ledger_effect_and_marks_every_entry(self):

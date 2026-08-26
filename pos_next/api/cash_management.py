@@ -472,18 +472,68 @@ def get_expense_types(pos_profile=None):
 
 @frappe.whitelist()
 def get_expense_accounts(pos_profile=None):
-	"""The company's non-group, enabled Expense accounts — the scoped picker for a type, so the
-	manager never has to scroll the whole chart of accounts."""
+	"""Only the expense accounts the admin created from this screen (marked
+	`custom_pos_expense_account`, plus any grandfathered ones already used by a type) — so the
+	picker never shows the whole chart of accounts."""
 	profile, company = _assert_cash_manager(pos_profile)
 	frappe.has_permission("Account", "read", throw=True)
 	accounts = frappe.get_list(
 		"Account",
-		filters={"company": company, "root_type": "Expense", "is_group": 0, "disabled": 0},
+		filters={
+			"company": company,
+			"root_type": "Expense",
+			"is_group": 0,
+			"disabled": 0,
+			"custom_pos_expense_account": 1,
+		},
 		fields=["name", "account_name"],
 		order_by="account_name",
 		limit=1000,
 	)
 	return {"accounts": accounts, "company": company}
+
+
+def _expense_parent_group(company):
+	"""A non-group leaf account is created under a standard Expense group of the company."""
+	for candidate in ("Indirect Expenses", "Direct Expenses", "Expenses"):
+		acc = frappe.db.get_value(
+			"Account",
+			{"company": company, "account_name": candidate, "is_group": 1, "root_type": "Expense"},
+			"name",
+		)
+		if acc:
+			return acc
+	acc = frappe.db.get_value(
+		"Account", {"company": company, "root_type": "Expense", "is_group": 1}, "name", order_by="lft"
+	)
+	if not acc:
+		frappe.throw(_("This company has no Expense account group to create the account under."))
+	return acc
+
+
+@frappe.whitelist()
+def create_expense_account(account_name, pos_profile=None):
+	"""Admin-only: create a new company expense account from the Expense Types screen. It is marked
+	so it (and only accounts created here / grandfathered) appears in the account picker."""
+	profile, company = _assert_cash_manager(pos_profile)
+	frappe.has_permission("Account", "create", throw=True)
+	account_name = (account_name or "").strip()
+	if not account_name:
+		frappe.throw(_("Enter an account name"))
+	if frappe.db.exists("Account", {"account_name": account_name, "company": company}):
+		frappe.throw(_("An account named {0} already exists for this company").format(account_name))
+	doc = frappe.get_doc({
+		"doctype": "Account",
+		"account_name": account_name,
+		"company": company,
+		"parent_account": _expense_parent_group(company),
+		"root_type": "Expense",
+		"report_type": "Profit and Loss",
+		"is_group": 0,
+		"custom_pos_expense_account": 1,
+	})
+	doc.insert(ignore_permissions=False)
+	return {"name": doc.name, "account_name": doc.account_name}
 
 
 @frappe.whitelist()

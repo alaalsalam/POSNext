@@ -34,3 +34,4 @@ pos_next.patches.v2_1_0.remove_legacy_custom_workspaces
 pos_next.patches.v2_1_0.remove_all_legacy_workspace_navigation
 
 pos_next.patches.v2_1_0.add_pos_item_serial_field
+pos_next.patches.v2_1_0.add_pos_expense_account_marker
