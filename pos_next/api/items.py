@@ -1287,11 +1287,11 @@ def get_items(
 				prefix_pattern,
 				prefix_pattern,
 			]
-			order_by = f"{relevance} DESC, i.item_name ASC"
+			order_by = f"{relevance} DESC, CAST(i.item_code AS UNSIGNED) ASC, i.item_code ASC"
 		else:
-			# No search term - simple ordering
+			# No search term - order by item code ascending (numeric-aware, so 2 < 10 < 161).
 			score_params = []
-			order_by = "i.item_name ASC"
+			order_by = "CAST(i.item_code AS UNSIGNED) ASC, i.item_code ASC"
 
 		where_clause = " AND ".join(conditions)
 
@@ -1636,7 +1636,7 @@ def get_items_bulk(
 			{extra_joins}
 			WHERE {where_clause}
 			GROUP BY {group_by_columns}
-			ORDER BY i.item_name ASC
+			ORDER BY CAST(i.item_code AS UNSIGNED) ASC, i.item_code ASC
 			LIMIT %s OFFSET %s
 		"""
 		all_params = [*params, int(limit), int(start)]
