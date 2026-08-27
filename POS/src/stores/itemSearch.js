@@ -631,10 +631,14 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 						break;
 
 					case "item_code":
-						// Sort by item_code alphabetically
-						const codeA = (a.item_code || "").toLowerCase();
-						const codeB = (b.item_code || "").toLowerCase();
-						compareResult = codeA.localeCompare(codeB);
+						// Natural (numeric-aware) sort so codes order 2,4,…,99,100
+						// not lexically (99 > 100 > 9), matching the backend's
+						// CAST(item_code AS UNSIGNED) ordering.
+						compareResult = (a.item_code || "").localeCompare(
+							b.item_code || "",
+							undefined,
+							{ numeric: true, sensitivity: "base" },
+						);
 						break;
 
 					default:
