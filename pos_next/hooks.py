@@ -27,7 +27,7 @@ app_license = "agpl-3.0"
 # ------------------
 
 # Get unique build version for cache busting
-_asset_version = get_build_version()
+_asset_version = f"{get_build_version()}-desk-landing-20260821"
 
 # include js, css files in header of desk.html
 # app_include_css = f"/assets/pos_next/css/pos_next.css?v={_asset_version}"
@@ -175,6 +175,12 @@ has_permission = {
 # Hook on document methods and events
 
 doc_events = {
+	"Company": {
+		"after_insert": "pos_next.api.pos_defaults.ensure_company_pos_defaults",
+	},
+	"POS Branding Settings": {
+		"on_update": "pos_next.api.pos_defaults.sync_multi_company_defaults",
+	},
 	"Customer": {
 		"validate": [
 			"pos_next.api.party_contacts.sync_pos_mobile_no",

@@ -16,6 +16,24 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
+        <input
+          ref="importFileInput"
+          type="file"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          class="hidden"
+          @change="importInvoiceFile"
+        />
+        <button
+          v-if="isNew && !isSubmitted && canCreate"
+          type="button"
+          :disabled="importingInvoice"
+          title="Excel / CSV: Item Code أو Item Name، Quantity، Purchase Rate، Unit (اختياري)"
+          @click="importFileInput?.click()"
+          class="h-8 px-2.5 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-semibold hover:bg-emerald-50 disabled:opacity-50 flex items-center gap-1.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+          {{ importingInvoice ? __("جارٍ الاستيراد...") : __("استيراد Excel") }}
+        </button>
         <!-- Status badge -->
         <span v-if="!isNew" :class="docstatusClass" class="text-[10px] font-bold px-2 py-0.5 rounded-full">
           {{ docstatusLabel }}
@@ -45,7 +63,18 @@
 
       <!-- Supplier section -->
       <div class="bg-white rounded-xl border border-gray-100 p-4">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">{{ __("المورد") }}</h3>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ __("المورد") }}</h3>
+          <button
+            v-if="!isSubmitted && canCreate"
+            type="button"
+            @click="openSupplierCreate"
+            class="flex items-center gap-1 text-xs text-blue-600 font-semibold hover:text-blue-700"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            {{ __("إضافة مورد") }}
+          </button>
+        </div>
         <div class="grid grid-cols-1 gap-3">
           <!-- Supplier autocomplete -->
           <div>
@@ -70,7 +99,7 @@
                   <span class="text-xs text-gray-400 ms-2">{{ s.supplier_group }}</span>
                 </button>
                 <button
-                  @mousedown.prevent="showCreateSupplier = true; showSupplierDropdown = false"
+                  @mousedown.prevent="openSupplierCreate"
                   class="w-full text-start px-3 py-2 text-xs text-blue-600 font-semibold hover:bg-blue-50 border-t border-gray-100 flex items-center gap-1"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -365,6 +394,8 @@ const form = reactive({
 
 const saving = ref(false)
 const submitting = ref(false)
+const importingInvoice = ref(false)
+const importFileInput = ref(null)
 const showConfirm = ref(false)
 const errorMsg = ref("")
 const staleDraft = ref(false)
@@ -416,6 +447,12 @@ function selectSupplier(s) {
 	supplierOptions.value = []
 }
 
+function openSupplierCreate() {
+	newSupplierName.value = newSupplierName.value || supplierSearch.value.trim()
+	showCreateSupplier.value = true
+	showSupplierDropdown.value = false
+}
+
 async function createSupplier() {
 	if (!newSupplierName.value || !newSupplierMobileNo.value) return
 	creatingSupplier.value = true
@@ -437,6 +474,68 @@ async function createSupplier() {
 		errorMsg.value = error?.message || __("فشل إنشاء المورد")
 	} finally {
 		creatingSupplier.value = false
+	}
+}
+
+function importedLine(line) {
+	const qty = Number.parseFloat(line.qty) || 0
+	const rate = Number.parseFloat(line.rate) || 0
+	return {
+		item_code: line.item_code,
+		item_name: line.item_name,
+		qty,
+		uom: line.uom || "Nos",
+		rate,
+		amount: Number.parseFloat((qty * rate).toFixed(2)),
+		expense_account: "",
+		_itemSearch: line.item_name || line.item_code,
+		_options: [],
+		_showDrop: false,
+	}
+}
+
+async function importInvoiceFile(event) {
+	const file = event.target?.files?.[0]
+	if (!file || importingInvoice.value) return
+	if (!/\.(xlsx|csv)$/i.test(file.name)) {
+		errorMsg.value = __("اختر ملف Excel بصيغة XLSX أو CSV")
+		return
+	}
+	if (form.items.length && !window.confirm(__("سيتم استبدال أصناف المسودة الحالية بالأصناف المستوردة. هل تريد المتابعة؟"))) {
+		event.target.value = ""
+		return
+	}
+	importingInvoice.value = true
+	errorMsg.value = ""
+	try {
+		const body = new FormData()
+		body.append("file", file, file.name)
+		body.append("is_private", "1")
+		const response = await fetch("/api/method/upload_file", {
+			method: "POST",
+			credentials: "same-origin",
+			headers: {
+				"X-Frappe-CSRF-Token": window.csrf_token || frappe.csrf_token || "",
+				"X-Frappe-Site-Name": window.location.hostname,
+			},
+			body,
+		})
+		const uploaded = await response.json()
+		if (!response.ok || uploaded.exc || !uploaded.message?.file_url) {
+			throw new Error(uploaded._server_messages || uploaded.message || __("فشل رفع ملف الاستيراد"))
+		}
+		const result = await call("pos_next.api.purchases.import_purchase_invoice_excel", {
+			file_url: uploaded.message.file_url,
+			pos_profile: props.posProfile,
+		})
+		if (!result?.items?.length) throw new Error(__("لم يتم العثور على أصناف صالحة في الملف"))
+		form.items = result.items.map(importedLine)
+		showSuccess(__("تم استيراد {0} صنفًا إلى المسودة. راجع المورد والمخزن ثم احفظ الفاتورة.", [result.count]))
+	} catch (error) {
+		errorMsg.value = error?.message || __("فشل استيراد ملف الفاتورة")
+	} finally {
+		importingInvoice.value = false
+		if (event.target) event.target.value = ""
 	}
 }
 

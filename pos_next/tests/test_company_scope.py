@@ -72,3 +72,20 @@ class TestCompanyScope(TestCase):
 		):
 			company_scope.enforce_company_ownership(doc)
 			self.assertEqual(doc.get(company_scope.OWNERSHIP_FIELD), "Company Z")
+
+	def test_allowed_companies_uses_user_selector_and_legacy_default(self):
+		meta = type("Meta", (), {"has_field": lambda self, field: field == company_scope.USER_ALLOWED_COMPANIES_FIELD})()
+		with (
+			patch("pos_next.api.company_scope.frappe.get_meta", return_value=meta),
+			patch("pos_next.api.company_scope.frappe.db.exists", return_value=True),
+			patch("pos_next.api.company_scope.frappe.db.has_column", return_value=True),
+			patch("pos_next.api.company_scope.frappe.db.get_value", return_value="Company A"),
+			patch(
+				"pos_next.api.company_scope.frappe.get_all",
+				return_value=["Company B", "Company A", "Company B"],
+			),
+		):
+			self.assertEqual(
+				company_scope.allowed_companies_for_user("cashier@example.com"),
+				["Company B", "Company A"],
+			)

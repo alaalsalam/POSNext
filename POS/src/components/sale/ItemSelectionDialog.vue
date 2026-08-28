@@ -108,6 +108,7 @@
 									{{ formatCurrency(matchedVariant.rate || 0) }}
 								</p>
 								<p
+									v-if="transactionMode !== 'purchase'"
 									class="text-xs"
 									:class="
 										(matchedVariant.stock ??
@@ -383,6 +384,12 @@ const props = defineProps({
 		type: String,
 		default: DEFAULT_CURRENCY,
 	},
+	// Incoming purchase lines must not be treated as an attempt to consume the
+	// current warehouse stock. Keep UOM/variant selection free of sales warnings.
+	transactionMode: {
+		type: String,
+		default: "sales",
+	},
 });
 
 const emit = defineEmits(["update:modelValue", "option-selected"]);
@@ -416,6 +423,7 @@ const confirmButtonText = computed(() => {
 
 // Computed: Stock warning when quantity exceeds available stock
 const stockWarning = computed(() => {
+	if (props.transactionMode === "purchase") return null;
 	if (props.mode !== "uom" || !selectedOption.value) return null;
 
 	const availableStock =

@@ -938,3 +938,38 @@ restart, write, push, merge, or deployment occurred. Milestone 3 was not started
   routes and bumped the asset version to `20260821_leany_desk`; cache cleared and
   services restarted. Guest HTTP checks redirect before Desk HTML is rendered, while
   the authenticated `/desk` response now meets the injector's route condition.
+
+## 2026-08-22 — POS catalogue and purchase workflow verification
+
+- Confirmed every enabled POS Settings profile enables both catalogue management and
+  purchases. Catalogue management already exposes the functional add-item action.
+- Added a visible "Add Supplier" action in the purchase-invoice form, using the
+  existing permission-checked supplier quick-create API (name, mobile number and
+  supplier group are required).
+- Added a permission-scoped Excel/CSV purchase-invoice importer. It accepts Arabic or
+  English headers, validates uploaded-file ownership, item purchasing eligibility,
+  quantity and rate, and only pre-fills a draft form; it cannot save or submit a
+  financial document. Required columns: Item Code or Item Name, Quantity, Purchase
+  Rate; Unit is optional.
+- Built the POS frontend, passed `PurchaseInvoiceForm` tests (5/5), verified Python
+  compilation and the import-header parser, cleared cache, and restored the managed
+  Frappe services after discovering the local Supervisor socket/services were down.
+
+## 2026-08-23 — Durable multi-company POS isolation
+
+- Added idempotent company provisioning for item, customer and supplier groups plus a
+  walk-in customer and default supplier. Every record is bound to the company through
+  `custom_pos_company`; group display names are derived from the company but ownership
+  is enforced by the relationship, not by text matching.
+- Provisioning runs for the initial Company at app installation, after every migration,
+  whenever multi-company mode is enabled, and after creating a new Company.
+- Added the `POS User Company` child DocType and the User field `POS Allowed Companies`.
+  The ordered list is now the source of truth: its first company is the User/POS default
+  and the app synchronizes native Company User Permissions, removing obsolete company
+  grants to prevent stale access.
+- Migrated existing users without guessing access: their legacy default or existing
+  Company User Permissions were adopted into the new selector. Users without either
+  remain fail-closed until an administrator assigns a company.
+- Verified migration, default master branches for all current companies, a Phones user
+  permission round-trip, Python/JSON/diff checks, POS frontend build, cache clear and
+  web-service restart. Production unit tests remain disabled by site configuration.

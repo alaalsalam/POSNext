@@ -23,6 +23,12 @@ def after_install():
 	"""Hook that runs after app installation"""
 	try:
 		log_message("POS Next: Running post-install setup", level="info")
+		# A site normally already has its first Company before POS Next is
+		# installed, so Company.after_insert cannot prepare it.  Bootstrap the
+		# same idempotent company branch here for every fresh installation.
+		from pos_next.api.pos_defaults import provision_all_company_pos_defaults
+
+		provision_all_company_pos_defaults()
 
 		# Setup default print format for POS Profiles
 		setup_default_print_format()
@@ -50,6 +56,12 @@ def after_migrate():
 
 		# Setup default print format
 		setup_default_print_format(quiet=True)
+
+		# Keep the durable company branch in sync after an app update as well.
+		# This repairs records created while the app was temporarily disabled.
+		from pos_next.api.pos_defaults import sync_multi_company_defaults
+
+		sync_multi_company_defaults()
 
 		# Clear cache
 		frappe.clear_cache()

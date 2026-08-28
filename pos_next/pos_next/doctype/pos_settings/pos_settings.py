@@ -23,6 +23,14 @@ class POSSettings(Document):
 		self.company = frappe.db.get_value("POS Profile", self.pos_profile, "company")
 		if self.company:
 			self.settings_title = _("POS Settings · {0}").format(self.company)
+			# Fill a company-specific system supplier for new settings, without
+			# replacing a supplier selected deliberately by the manager.
+			if not self.posa_default_supplier:
+				from pos_next.api.pos_defaults import provision_company_pos_defaults
+
+				self.posa_default_supplier = provision_company_pos_defaults(self.company).get(
+					"default_supplier"
+				)
 
 	def validate(self):
 		"""Validate POS Settings"""

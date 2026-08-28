@@ -433,7 +433,7 @@
 					>
 						<!-- Stock Badge - Tap to select, long press to view warehouse availability -->
 						<div
-							v-if="(item.is_stock_item || item.is_bundle) && !item.has_variants"
+							v-if="!isPurchaseMode && (item.is_stock_item || item.is_bundle) && !item.has_variants"
 							@pointerdown="onLongPressStart(item)"
 							@pointerup="onLongPressEnd"
 							@pointercancel="clearLongPress"
@@ -459,7 +459,7 @@
 							<div
 								:class="[
 									'w-full h-full transition-all duration-300',
-									(item.is_stock_item || item.is_bundle) &&
+									!isPurchaseMode && (item.is_stock_item || item.is_bundle) &&
 									(item.actual_qty ?? item.stock_qty ?? 0) <= 0
 										? 'group-hover:blur-sm group-hover:brightness-75'
 										: '',
@@ -509,7 +509,7 @@
 							<!-- Info Icon Overlay - Tap to select, long press to show warehouse availability -->
 							<div
 								v-if="
-									(item.is_stock_item || item.is_bundle) &&
+									!isPurchaseMode && (item.is_stock_item || item.is_bundle) &&
 									(item.actual_qty ?? item.stock_qty ?? 0) <= 0
 								"
 								@pointerdown="onLongPressStart(item)"
@@ -836,7 +836,7 @@
 								<!-- Stock Badge - Tap to select, long press to view warehouse availability -->
 								<div
 									v-if="
-										(item.is_stock_item || item.is_bundle) &&
+										!isPurchaseMode && (item.is_stock_item || item.is_bundle) &&
 										!item.has_variants
 									"
 									@pointerdown="onLongPressStart(item)"
@@ -856,7 +856,7 @@
 								>
 									{{ Math.floor(item.actual_qty ?? item.stock_qty ?? 0) }}
 								</div>
-								<span v-else class="text-xs sm:text-sm text-gray-400 italic">
+									<span v-else-if="!isPurchaseMode" class="text-xs sm:text-sm text-gray-400 italic">
 									{{ __("N/A") }}
 								</span>
 							</td>
@@ -1281,12 +1281,14 @@ const selectedFilterLabel = computed(() => selectedBrand.value || selectedItemGr
 // Watch for cart items and pos profile changes (optimized - uses length + hash instead of deep watch)
 // Tracks: length, item_code, quantity, and amount to detect all cart changes including array replacements
 watch(
-	() =>
-		`${props.cartItems.length}-${props.cartItems
+		() =>
+			`${isPurchaseMode.value}-${props.cartItems.length}-${props.cartItems
 			.map((i) => `${i.item_code}:${i.quantity || 0}:${i.amount || 0}`)
 			.join("|")}`,
 	() => {
-		itemStore.setCartItems(props.cartItems);
+			// A purchase cart represents incoming stock. Do not reserve its lines
+			// from the sales-stock display before its Purchase Invoice is submitted.
+			itemStore.setCartItems(props.cartItems, { reserveStock: !isPurchaseMode.value });
 	},
 	{ immediate: true, flush: "sync" } // Synchronous to ensure immediate stock updates
 );

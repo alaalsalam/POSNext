@@ -19,6 +19,7 @@ OWNED_DOCTYPES = (
 	"Supplier Group",
 )
 USER_COMPANY_FIELD = "custom_pos_company"
+USER_ALLOWED_COMPANIES_FIELD = "custom_pos_allowed_companies"
 SHARED_STRUCTURAL_ROOTS = {
 	"Item Group": "All Item Groups",
 	"Customer Group": "All Customer Groups",
@@ -30,9 +31,50 @@ def is_multi_company_site():
 	return frappe.db.get_single_value("POS Branding Settings", "tenant_mode") == "Multiple Companies"
 
 
+def allowed_companies_for_user(user):
+	"""Return the explicit POS company boundary for a user.
+
+	The User child table is the source of truth.  The legacy single-company
+	field is kept as a compatible default and is automatically folded into the
+	list for sites created before the multi-company selector existed.
+	"""
+	if user in {"Administrator", "Guest"}:
+		return []
+
+	companies = []
+	if frappe.get_meta("User").has_field(USER_ALLOWED_COMPANIES_FIELD) and frappe.db.exists("DocType", "POS User Company"):
+		companies = frappe.get_all(
+			"POS User Company",
+			filters={"parent": user, "parenttype": "User", "parentfield": USER_ALLOWED_COMPANIES_FIELD},
+			pluck="company",
+			order_by="idx asc",
+			limit_page_length=0,
+		)
+	default_company = (
+		frappe.db.get_value("User", user, USER_COMPANY_FIELD)
+		if frappe.db.has_column("User", USER_COMPANY_FIELD)
+		else None
+	)
+	if default_company and default_company not in companies:
+		companies.insert(0, default_company)
+	return [company for company in dict.fromkeys(companies) if frappe.db.exists("Company", company)]
+
+
+def _user_allowed_company(user, company):
+	"""Administrator is unrestricted; all other users need an explicit grant."""
+	return user == "Administrator" or company in allowed_companies_for_user(user)
+
+
 def active_company(user=None):
 	"""Return a company only when it is a valid native Frappe default."""
 	user = user or frappe.session.user
+	# POS APIs resolve and authorize a POS Profile before setting this request-local
+	# context. It makes the global master-data query guard agree with the profile
+	# company, including mobile sessions that do not have a Desk company selected.
+	request_company = getattr(frappe.flags, "pos_next_company_scope", None)
+	if request_company and frappe.db.exists("Company", request_company):
+		if _user_allowed_company(user, request_company) and frappe.has_permission("Company", "read", doc=request_company, user=user):
+			return request_company
 	selected_company = None
 	if hasattr(frappe, "session") and hasattr(frappe.session, "selected_company"):
 		selected_company = frappe.session.get("selected_company")
@@ -40,19 +82,19 @@ def active_company(user=None):
 		selected_company = getattr(frappe.session.data, "selected_company", None)
 
 	if selected_company and frappe.db.exists("Company", selected_company):
-		if frappe.has_permission("Company", "read", doc=selected_company, user=user):
+		if _user_allowed_company(user, selected_company) and frappe.has_permission("Company", "read", doc=selected_company, user=user):
 			return selected_company
 
 	# Prefer the user's custom POS company when set in profile.
 	if frappe.db.has_column("User", USER_COMPANY_FIELD):
 		profile_company = frappe.db.get_value("User", user, USER_COMPANY_FIELD)
 		if profile_company and frappe.db.exists("Company", profile_company):
-			if frappe.has_permission("Company", "read", doc=profile_company, user=user):
+			if _user_allowed_company(user, profile_company) and frappe.has_permission("Company", "read", doc=profile_company, user=user):
 				return profile_company
 
 	company = frappe.defaults.get_user_default("Company", user=user)
 	if company and frappe.db.exists("Company", company):
-		if frappe.has_permission("Company", "read", doc=company, user=user):
+		if _user_allowed_company(user, company) and frappe.has_permission("Company", "read", doc=company, user=user):
 			return company
 
 	permissions = frappe.get_all(
@@ -64,7 +106,7 @@ def active_company(user=None):
 	)
 	for permission in permissions:
 		if permission.for_value and frappe.db.exists("Company", permission.for_value):
-			if frappe.has_permission("Company", "read", doc=permission.for_value, user=user):
+			if _user_allowed_company(user, permission.for_value) and frappe.has_permission("Company", "read", doc=permission.for_value, user=user):
 				return permission.for_value
 	return None
 
@@ -138,47 +180,65 @@ def has_company_document_permission(doc, user=None, permission_type=None):
 	return bool(company and doc.get(OWNERSHIP_FIELD) == company)
 
 
+def _companies_from_user_doc(doc):
+	"""Read ordered companies from an unsaved User document without DB reads."""
+	companies = [row.company for row in (doc.get(USER_ALLOWED_COMPANIES_FIELD) or []) if row.company]
+	if doc.get(USER_COMPANY_FIELD) and doc.get(USER_COMPANY_FIELD) not in companies:
+		companies.insert(0, doc.get(USER_COMPANY_FIELD))
+	return list(dict.fromkeys(companies))
+
+
 def prepare_user_company(doc, method=None):
-	"""Make a new user's selected POS company the native Frappe company context."""
+	"""Validate and normalize the user's explicit POS company boundary."""
 	if not is_multi_company_site() or doc.name in {"Administrator", "Guest"}:
 		return
 	if not frappe.db.has_column("User", USER_COMPANY_FIELD):
 		return
-	company = doc.get(USER_COMPANY_FIELD) or active_company()
-	if not company:
-		frappe.throw(_("Select a POS Company when creating a user in multiple-company mode."), frappe.ValidationError)
-	if not frappe.db.exists("Company", company) or not frappe.has_permission("Company", "read", doc=company):
-		frappe.throw(_("You cannot assign this POS Company."), frappe.PermissionError)
-	doc.set(USER_COMPANY_FIELD, company)
+	companies = _companies_from_user_doc(doc)
+	if not companies:
+		fallback = active_company()
+		if fallback:
+			companies = [fallback]
+			doc.append(USER_ALLOWED_COMPANIES_FIELD, {"company": fallback})
+	if not companies:
+		frappe.throw(_("Select at least one allowed POS Company when creating a user in multiple-company mode."), frappe.ValidationError)
+	for company in companies:
+		if not frappe.db.exists("Company", company) or not frappe.has_permission("Company", "read", doc=company):
+			frappe.throw(_("You cannot assign POS Company {0}.").format(company), frappe.PermissionError)
+	# The selected/default company must always be in the allowed list.  The first
+	# row is deliberately the default, making the setup predictable on login.
+	doc.set(USER_COMPANY_FIELD, companies[0])
 
 
 def sync_user_company_permission(doc, method=None):
-	"""Create/update the user's default native Company User Permission."""
+	"""Synchronize native Company User Permissions with the User selector."""
 	if not is_multi_company_site() or doc.name in {"Administrator", "Guest"}:
 		return
-	company = doc.get(USER_COMPANY_FIELD)
-	if not company:
+	companies = _companies_from_user_doc(doc)
+	if not companies:
 		return
-	permission = frappe.db.get_value(
-		"User Permission", {"user": doc.name, "allow": "Company", "for_value": company}, "name"
+	existing = frappe.get_all(
+		"User Permission", filters={"user": doc.name, "allow": "Company"}, fields=["name", "for_value"], limit_page_length=0
 	)
-	# Exactly one native Company User Permission is the default.  Keeping old
-	# permissions is intentional: an administrator may grant a user extra
-	# companies later, but the selected POS Company remains deterministic.
-	frappe.db.set_value(
-		"User Permission", {"user": doc.name, "allow": "Company"}, "is_default", 0, update_modified=False
-	)
-	if permission:
-		frappe.db.set_value("User Permission", permission, "is_default", 1, update_modified=False)
-	else:
-		frappe.get_doc(
-			{
-				"doctype": "User Permission",
-				"user": doc.name,
-				"allow": "Company",
-				"for_value": company,
-				"is_default": 1,
-				"apply_to_all_doctypes": 1,
-			}
-		).insert(ignore_permissions=True)
-	frappe.defaults.set_user_default("Company", company, user=doc.name)
+	for permission in existing:
+		if permission.for_value not in companies:
+			# Company access is governed by the selector. Removing an old Company
+			# permission prevents a stale manual grant from bypassing this boundary.
+			frappe.delete_doc("User Permission", permission.name, ignore_permissions=True, force=True)
+	for index, company in enumerate(companies):
+		permission = next((row.name for row in existing if row.for_value == company), None)
+		if permission:
+			frappe.db.set_value("User Permission", permission, "is_default", int(index == 0), update_modified=False)
+		else:
+			frappe.get_doc(
+				{
+					"doctype": "User Permission",
+					"user": doc.name,
+					"allow": "Company",
+					"for_value": company,
+					"is_default": int(index == 0),
+					"apply_to_all_doctypes": 1,
+				}
+			).insert(ignore_permissions=True)
+	frappe.defaults.set_user_default("Company", companies[0], user=doc.name)
+	frappe.clear_cache(user=doc.name)

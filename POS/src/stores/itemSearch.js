@@ -2171,9 +2171,9 @@ export const useItemSearchStore = defineStore("itemSearch", () => {
 	/**
 	 * Update cart items - delegates to stock store
 	 */
-	function setCartItems(items) {
+	function setCartItems(items, { reserveStock = true } = {}) {
 		cartItems.value = items;
-		stockStore.reserve(items); // Simple!
+		stockStore.reserve(reserveStock ? items : []);
 	}
 
 	/**

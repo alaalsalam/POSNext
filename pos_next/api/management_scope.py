@@ -23,6 +23,10 @@ def require_feature_permission(feature, doctype, ptype="read", pos_profile=None,
 	profile_company = frappe.db.get_value("POS Profile", profile, "company")
 	if not frappe.has_permission("Company", "read", doc=profile_company):
 		frappe.throw(_("You do not have access to this company"), frappe.PermissionError)
+	# The profile is already assignment- and permission-checked in
+	# require_feature(). Keep the global query guards on Item/Customer/Supplier
+	# masters aligned with that same company for the lifetime of this request.
+	frappe.flags.pos_next_company_scope = profile_company
 	return profile, profile_company
 
 

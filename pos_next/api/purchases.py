@@ -1,12 +1,16 @@
 """Profile-scoped Purchase Invoice and supplier Payment Entry APIs."""
 
+import csv
 import json
+import re
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
+from pathlib import Path
 
 import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, nowdate
+from openpyxl import load_workbook
 
 from pos_next.api.management_scope import (
 	assert_company_resource,
@@ -40,6 +44,85 @@ PURCHASE_NUMERIC_FIELDS = {
 ITEM_NUMERIC_FIELDS = {"conversion_factor", "qty", "rate"}
 TAX_NUMERIC_FIELDS = {"included_in_print_rate", "rate", "tax_amount"}
 DATE_FIELDS = {"bill_date", "due_date", "posting_date", "reference_date"}
+
+# The import is deliberately limited to a draft-form helper.  It never creates,
+# saves, or submits a financial document: the operator reviews the imported
+# rows and completes the supplier/warehouse before choosing Save or Submit.
+IMPORT_MAX_ROWS = 500
+IMPORT_COLUMN_ALIASES = {
+	"item_code": {"itemcode", "code", "sku", "رمزالصنف", "كودالصنف"},
+	"item_name": {"itemname", "item", "product", "اسمالصنف", "الصنف"},
+	"qty": {"qty", "quantity", "الكمية"},
+	"rate": {"rate", "price", "unitprice", "purchaserate", "سعرالشراء", "السعر"},
+	"uom": {"uom", "unit", "الوحدة"},
+}
+
+
+def _normalise_import_header(value):
+	return re.sub(r"[^a-z0-9\u0600-\u06ff]+", "", str(value or "").strip().lower())
+
+
+def _import_column_map(headers):
+	columns = {}
+	for index, header in enumerate(headers):
+		normalised = _normalise_import_header(header)
+		for field, aliases in IMPORT_COLUMN_ALIASES.items():
+			if normalised in aliases:
+				columns[field] = index
+				break
+	if not (columns.get("item_code") is not None or columns.get("item_name") is not None):
+		frappe.throw(_("The file must include Item Code or Item Name"))
+	if columns.get("qty") is None:
+		frappe.throw(_("The file must include a Quantity column"))
+	if columns.get("rate") is None:
+		frappe.throw(_("The file must include a Purchase Rate column"))
+	return columns
+
+
+def _cell_value(row, column):
+	return row[column] if column is not None and column < len(row) else None
+
+
+def _read_import_rows(file_doc):
+	file_name = file_doc.file_name or file_doc.file_url or ""
+	extension = Path(file_name).suffix.lower()
+	if extension not in {".xlsx", ".csv"}:
+		frappe.throw(_("Only Excel (.xlsx) or CSV files can be imported"))
+	path = file_doc.get_full_path()
+	if extension == ".xlsx":
+		try:
+			workbook = load_workbook(path, read_only=True, data_only=True)
+			rows = list(workbook.active.iter_rows(values_only=True))
+		finally:
+			if "workbook" in locals():
+				workbook.close()
+	else:
+		with open(path, encoding="utf-8-sig", newline="") as handle:
+			rows = list(csv.reader(handle))
+	rows = [list(row) for row in rows if any(value not in (None, "") for value in row)]
+	if len(rows) < 2:
+		frappe.throw(_("The import file must contain a header row and at least one item"))
+	if len(rows) - 1 > IMPORT_MAX_ROWS:
+		frappe.throw(_("An import can contain at most {0} item rows").format(IMPORT_MAX_ROWS))
+	return rows
+
+
+def _resolve_import_item(item_code, item_name, row_number):
+	if item_code:
+		name = str(item_code).strip()
+		if not frappe.db.exists("Item", name):
+			frappe.throw(_("Item Code {0} in row {1} does not exist").format(name, row_number))
+		return assert_doc_permission("Item", name)
+	if not item_name:
+		frappe.throw(_("Enter an Item Code or Item Name in row {0}").format(row_number))
+	matches = frappe.get_list(
+		"Item", filters={"item_name": str(item_name).strip()}, pluck="name", limit=2
+	)
+	if not matches:
+		frappe.throw(_("Item {0} in row {1} does not exist").format(item_name, row_number))
+	if len(matches) > 1:
+		frappe.throw(_("Item Name {0} in row {1} is not unique; use Item Code").format(item_name, row_number))
+	return assert_doc_permission("Item", matches[0])
 
 
 def _context(feature, pos_profile=None, company=None):
@@ -356,6 +439,51 @@ def create_supplier(supplier_name, supplier_group, supplier_type="Company", pos_
 
 
 @frappe.whitelist()
+def import_purchase_invoice_excel(file_url, pos_profile=None):
+	"""Validate an uploaded spreadsheet and return purchase rows for a draft form.
+
+	The caller must own the uploaded private File (unless Administrator).  This
+	prevents one POS user from importing another user's attachment by guessing its
+	URL, while the Item checks retain the normal company/document permissions.
+	"""
+	_context("purchases", pos_profile)
+	frappe.has_permission("Purchase Invoice", "create", throw=True)
+	file_url = str(file_url or "").strip()
+	if not file_url:
+		frappe.throw(_("Upload an Excel or CSV file first"))
+	file_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if not file_name:
+		frappe.throw(_("The uploaded import file was not found"), frappe.DoesNotExistError)
+	file_doc = frappe.get_doc("File", file_name)
+	if frappe.session.user != "Administrator" and file_doc.owner != frappe.session.user:
+		frappe.throw(_("You can import only files that you uploaded"), frappe.PermissionError)
+
+	rows = _read_import_rows(file_doc)
+	columns = _import_column_map(rows[0])
+	items = []
+	for row_number, row in enumerate(rows[1:], start=2):
+		item_code = _cell_value(row, columns.get("item_code"))
+		item_name = _cell_value(row, columns.get("item_name"))
+		item = _resolve_import_item(item_code, item_name, row_number)
+		if item.disabled or not item.is_purchase_item:
+			frappe.throw(_("Item {0} in row {1} is not enabled for purchasing").format(item.name, row_number))
+		qty = flt(_cell_value(row, columns.get("qty")))
+		rate = flt(_cell_value(row, columns.get("rate")))
+		if qty <= 0:
+			frappe.throw(_("Quantity must be positive in row {0}").format(row_number))
+		if rate < 0:
+			frappe.throw(_("Purchase Rate cannot be negative in row {0}").format(row_number))
+		items.append({
+			"item_code": item.name,
+			"item_name": item.item_name,
+			"qty": qty,
+			"uom": str(_cell_value(row, columns.get("uom")) or item.stock_uom or "Nos").strip(),
+			"rate": rate,
+		})
+	return {"items": items, "file_name": file_doc.file_name, "count": len(items)}
+
+
+@frappe.whitelist()
 def get_purchase_invoices(supplier=None, status=None, from_date=None, to_date=None, search=None, limit=50, start=0, pos_profile=None):
 	profile, company = _context("purchases", pos_profile)
 	frappe.has_permission("Purchase Invoice", "read", throw=True)
@@ -400,6 +528,17 @@ def get_new_purchase_invoice_defaults(pos_profile=None):
 		],
 		as_dict=True,
 	) or {}
+	default_supplier = settings.get("posa_default_supplier")
+	# A stale POS Settings record must never pre-fill a supplier from another
+	# company after a tenant changes to multi-company mode.
+	if default_supplier and (
+		not frappe.db.exists("Supplier", default_supplier)
+		or (
+			is_multi_company_site()
+			and frappe.db.get_value("Supplier", default_supplier, OWNERSHIP_FIELD) != company
+		)
+	):
+		default_supplier = None
 	default_currency = frappe.db.get_value("Company", company, "default_currency")
 	return {
 		"pos_profile": profile,
@@ -412,11 +551,11 @@ def get_new_purchase_invoice_defaults(pos_profile=None):
 		"company_currency": default_currency,
 		# Configurable purchase defaults (mirror the sales default customer) so
 		# Purchase mode opens pre-filled. Cashier can still change any of them.
-		"default_supplier": settings.get("posa_default_supplier"),
+		"default_supplier": default_supplier,
 		"default_supplier_name": frappe.db.get_value(
-			"Supplier", settings.get("posa_default_supplier"), "supplier_name"
+			"Supplier", default_supplier, "supplier_name"
 		)
-		if settings.get("posa_default_supplier")
+		if default_supplier
 		else None,
 		# The receiving warehouse has no on-screen picker in purchase mode, so it must
 		# resolve to something valid: the configured default, else the profile's own
