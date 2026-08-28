@@ -1,6 +1,6 @@
 {
-	"name": "Digit POS",
-	"short_name": "Digit",
+	"name": "POS",
+	"short_name": "POS",
 	"id": "/pos",
 	"start_url": "/pos",
 	"scope": "/pos",
@@ -9,7 +9,7 @@
 	"dir": "rtl",
 	"background_color": "#ffffff",
 	"theme_color": "#0a8754",
-	"description": "Point of Sale application with offline support.",
+	"description": "نظام نقطة بيع متكامل مع دعم العمل دون اتصال.",
 	"categories": ["business", "productivity"],
 	"icons": [
 		{

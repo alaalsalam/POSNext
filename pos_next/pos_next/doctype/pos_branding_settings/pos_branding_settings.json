@@ -70,7 +70,7 @@
    "label": "Application Identity"
   },
   {
-   "default": "Digit POS",
+   "default": "POS",
    "fieldname": "app_name",
    "fieldtype": "Data",
    "label": "Application Name",

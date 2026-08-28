@@ -5,10 +5,10 @@
 			<div class="w-16 flex-shrink-0 flex items-center justify-center">
 				<button
 					class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#064E3B] text-white shadow-md shadow-emerald-900/40 transition-all hover:bg-[#065f46] active:scale-95"
-					:aria-label="__('Digit POS')"
-					:title="__('Digit POS')"
+					:aria-label="__('نقطة البيع')"
+					:title="__('نقطة البيع')"
 				>
-					<!-- Digit brand mark: three rows with emerald accent — matches digit-icon-white.svg -->
+					<!-- POS register mark -->
 					<svg class="h-6 w-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 						<rect x="13" y="20" width="42" height="14" rx="7" fill="#ffffff" />
 						<rect x="60" y="20" width="27" height="14" rx="7" fill="#34D399" />
@@ -29,7 +29,7 @@
 							<h1
 								class="text-xs sm:text-base font-bold text-gray-900 truncate flex-shrink"
 							>
-								{{ "POS Digit" }}
+								{{ "نقطة البيع" }}
 							</h1>
 							<span
 								class="relative hidden flex-shrink-0 items-center rounded-md bg-amber-100 px-1 py-0.5 text-[8px] font-bold text-amber-800 shadow-sm transition-shadow hover:shadow-md sm:inline-flex sm:px-2 sm:text-[10px]"
@@ -37,7 +37,7 @@
 								<span
 									class="absolute inset-0 bg-white/20 rounded-md animate-pulse"
 								></span>
-								<span class="relative">Digit v{{ appVersion }}</span>
+								<span class="relative">POS v{{ appVersion }}</span>
 							</span>
 						</div>
 						<p

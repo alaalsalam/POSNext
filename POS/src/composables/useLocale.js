@@ -138,7 +138,7 @@ function detectCachedLanguage() {
 		return browserLang;
 	}
 
-	// 4. Digit POS demo defaults to Arabic; English remains available by choice.
+	// 4. POS defaults to Arabic; English remains available by choice.
 	return "ar";
 }
 

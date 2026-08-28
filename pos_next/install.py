@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def after_install():
 	"""Hook that runs after app installation"""
 	try:
-		log_message("POS Next: Running post-install setup", level="info")
+		log_message("POS: Running post-install setup", level="info")
 		# A site normally already has its first Company before POS Next is
 		# installed, so Company.after_insert cannot prepare it.  Bootstrap the
 		# same idempotent company branch here for every fresh installation.
@@ -37,11 +37,11 @@ def after_install():
 		frappe.clear_cache()
 		frappe.db.commit()
 
-		log_message("POS Next: Installation completed successfully", level="success")
+		log_message("POS: Installation completed successfully", level="success")
 	except Exception as e:
 		frappe.db.rollback()
-		frappe.log_error(title="POS Next Installation Error", message=frappe.get_traceback())
-		log_message(f"POS Next: Installation error - {e!s}", level="error")
+		frappe.log_error(title="POS Installation Error", message=frappe.get_traceback())
+		log_message(f"POS: Installation error - {e!s}", level="error")
 		raise
 
 
@@ -53,6 +53,8 @@ def after_migrate():
 		# doctype sync runs after pos_next's and would overwrite anything we did
 		# during pre/post-model-sync.
 		reclaim_pos_settings_doctype(quiet=True)
+		migrate_legacy_print_format_names()
+		normalize_legacy_pos_branding()
 
 		# Setup default print format
 		setup_default_print_format(quiet=True)
@@ -67,27 +69,72 @@ def after_migrate():
 		frappe.clear_cache()
 		frappe.db.commit()
 
-		log_message("POS Next: Migration completed successfully", level="success")
+		log_message("POS: Migration completed successfully", level="success")
 	except Exception as e:
 		frappe.db.rollback()
-		frappe.log_error(title="POS Next Migration Error", message=frappe.get_traceback())
-		log_message(f"POS Next: Migration error - {str(e)}", level="error")
+		frappe.log_error(title="POS Migration Error", message=frappe.get_traceback())
+		log_message(f"POS: Migration error - {str(e)}", level="error")
 		raise
+
+
+def migrate_legacy_print_format_names():
+	"""Replace legacy display names without leaving duplicate print formats behind.
+
+	The app package remains ``pos_next`` for compatibility, while print formats are
+	user-facing records and must carry the neutral POS identity.  This routine is
+	idempotent: it handles both an upgrade where the old record is the only one
+	present and a sync where Frappe has already created the new record.
+	"""
+	for old_name, new_name in {
+		"POS Next Receipt": "POS Receipt",
+		"POS Next EOD Report": "POS EOD Report",
+	}.items():
+		if not frappe.db.exists("Print Format", old_name):
+			continue
+
+		if frappe.db.exists("Print Format", new_name):
+			frappe.db.set_value(
+				"POS Profile",
+				{"print_format": old_name},
+				"print_format",
+				new_name,
+				update_modified=False,
+			)
+			frappe.delete_doc("Print Format", old_name, force=True, ignore_permissions=True)
+		else:
+			frappe.rename_doc("Print Format", old_name, new_name, force=True, ignore_permissions=True)
+
+
+def normalize_legacy_pos_branding():
+	"""Replace only the known legacy default identity stored in existing sites."""
+	if not frappe.db.exists("DocType", "POS Branding Settings"):
+		return
+
+	legacy_values = {
+		"app_name": ("Digit POS", "POS"),
+		"app_short_name": ("Digit", "POS"),
+		"workspace_label": ("Digit POS", "POS"),
+		"login_title": ("تسجيل الدخول إلى Digit POS", "تسجيل الدخول إلى نقطة البيع"),
+		"receipt_title": ("Digit POS", "نقطة البيع"),
+	}
+	for fieldname, (old_value, new_value) in legacy_values.items():
+		if frappe.db.get_single_value("POS Branding Settings", fieldname) == old_value:
+			frappe.db.set_single_value("POS Branding Settings", fieldname, new_value)
 
 
 def setup_default_print_format(quiet=False):
 	"""
-	Set POS Next Receipt as default print format for POS Profiles if not already set.
+	Set POS Receipt as default print format for POS Profiles if not already set.
 
 	Args:
 		quiet (bool): If True, suppress detailed logs
 	"""
 	try:
 		# Check if the print format exists
-		if not frappe.db.exists("Print Format", "POS Next Receipt"):
+		if not frappe.db.exists("Print Format", "POS Receipt"):
 			if not quiet:
 				log_message(
-					"POS Next Receipt print format not found, skipping default setup", level="warning"
+					"POS Receipt print format not found, skipping default setup", level="warning"
 				)
 			return
 
@@ -101,7 +148,7 @@ def setup_default_print_format(quiet=False):
 			for profile in pos_profiles:
 				try:
 					frappe.db.set_value(
-						"POS Profile", profile.name, "print_format", "POS Next Receipt", update_modified=False
+						"POS Profile", profile.name, "print_format", "POS Receipt", update_modified=False
 					)
 					if not quiet:
 						log_message(f"Set default print format for: {profile.name}", level="info", indent=1)

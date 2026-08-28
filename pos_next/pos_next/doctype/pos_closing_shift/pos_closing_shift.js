@@ -34,7 +34,7 @@ frappe.ui.form.on("POS Closing Shift", {
 				frappe.utils.print(
 					frm.doctype,
 					frm.docname,
-					"POS Next EOD Report",
+					"POS EOD Report",
 					frm.doc.letter_head,
 					frm.doc.language || frappe.boot.lang
 				);

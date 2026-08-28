@@ -42,7 +42,7 @@
 						<FeatherIcon name="shopping-bag" class="h-8 w-8" :stroke-width="2" />
 					</div>
 					<h1 class="mt-6 text-3xl font-bold text-slate-950">
-						{{ __("Sign in to POS Digit") }}
+						{{ __("تسجيل الدخول إلى نقطة البيع") }}
 					</h1>
 					<p class="mt-3 text-sm text-slate-600">
 						{{ __("Enter your username and password to open the Digit point of sale.") }}

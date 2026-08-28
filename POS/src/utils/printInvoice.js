@@ -7,7 +7,7 @@ import { printHTML as qzPrintHTML } from "@/utils/qzTray";
 
 const log = logger.create("PrintInvoice");
 
-const DEFAULT_PRINT_FORMAT = "POS Next Receipt";
+const DEFAULT_PRINT_FORMAT = "POS Receipt";
 
 // ============================================================================
 // Shared helpers
@@ -202,7 +202,7 @@ export function buildReceiptHTML(invoiceData) {
 	return `
 			<div class="receipt">
 				<div class="header">
-					<div class="company-name">${invoiceData.company || "Digit POS"}</div>
+					<div class="company-name">${invoiceData.company || "نقطة البيع"}</div>
 					<div style="font-size: 12px;">${invoiceData.header || __("TAX INVOICE")}</div>
 				</div>
 
@@ -312,7 +312,7 @@ export function buildReceiptHTML(invoiceData) {
 					${
 						invoiceData.footer
 							? ""
-							: `<div style="font-size: 10px;">Powered by <a href="https://nexus.brainwise.me" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: 600;">BrainWise</a></div>`
+							: ``
 					}
 				</div>
 			</div>`;

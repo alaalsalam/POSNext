@@ -1,6 +1,6 @@
 import { silentPrintDoc } from "./printInvoice";
 
-const EOD_PRINT_FORMAT = "POS Next EOD Report";
+const EOD_PRINT_FORMAT = "POS EOD Report";
 
 function openBrowserEODPrint(closingShiftName) {
 	const params = new URLSearchParams({

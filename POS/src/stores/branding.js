@@ -4,10 +4,10 @@ import { computed, ref } from "vue"
 
 export const DEFAULT_BRANDING = {
 	enabled: 1,
-	app_name: "Digit POS",
-	app_short_name: "Digit",
-	workspace_label: "Digit POS",
-	login_title: "تسجيل الدخول إلى Digit POS",
+	app_name: "POS",
+	app_short_name: "POS",
+	workspace_label: "POS",
+	login_title: "تسجيل الدخول إلى نقطة البيع",
 	login_subtitle: "أدخل اسم المستخدم وكلمة المرور لفتح نقطة البيع.",
 	primary_logo: "",
 	header_logo: "",
@@ -19,7 +19,7 @@ export const DEFAULT_BRANDING = {
 	theme_color: "#0a8754",
 	background_color: "#ffffff",
 	install_button_label: "تثبيت",
-	receipt_title: "Digit POS",
+	receipt_title: "نقطة البيع",
 	receipt_footer: "",
 	demo_banner_enabled: 0,
 	demo_banner_text: "",

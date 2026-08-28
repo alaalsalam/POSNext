@@ -18,7 +18,7 @@
  "modified": "2026-08-21 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "POS Next",
- "name": "POS Next Receipt",
+ "name": "POS Receipt",
  "owner": "Administrator",
  "print_format_builder": 0,
  "print_format_builder_beta": 0,

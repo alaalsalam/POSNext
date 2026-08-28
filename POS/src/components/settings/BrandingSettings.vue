@@ -55,7 +55,7 @@
 						v-model="form.app_name"
 						type="text"
 						class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500"
-						:placeholder="__('Digit POS')"
+						:placeholder="__('نقطة البيع')"
 					/>
 				</label>
 				<label class="flex flex-col gap-1">
