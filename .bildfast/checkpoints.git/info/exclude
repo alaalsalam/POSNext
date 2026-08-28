@@ -1,0 +1,13 @@
+.git/
+.bildfast/checkpoints.git/
+.bildfast/checkpoints.jsonl
+node_modules/
+__pycache__/
+*.pyc
+dist/
+build/
+graphify-out/
+*/public/
+*/www/
+.env
+.DS_Store
