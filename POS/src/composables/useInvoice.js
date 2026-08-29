@@ -698,12 +698,14 @@ export function useInvoice() {
 	 */
 	function computeBackendRate(item) {
 		const qty = item.quantity || item.qty || 1;
-		const priceListRate = item.price_list_rate || item.rate || 0;
+		const baseRate = item.is_rate_manually_edited
+			? item.rate
+			: item.price_list_rate || item.rate || 0;
 		const discountAmount = item.discount_amount || 0;
 
 		if (taxInclusive.value) {
 			// Gross rate: price minus per-unit discount
-			return roundCurrency(priceListRate - discountAmount / qty);
+			return roundCurrency(baseRate - discountAmount / qty);
 		}
 		// Net rate: total amount divided by quantity
 		return qty > 0 ? roundCurrency((item.amount || 0) / qty) : item.rate || 0;

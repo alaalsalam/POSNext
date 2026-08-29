@@ -561,7 +561,7 @@ const hasPricingRules = computed(() => {
 // - Sales mode: POS Settings allows it AND no pricing rules (promotional offers) applied
 const canEditRate = computed(() => {
 	if (isPurchaseMode.value) return true;
-	return settingsStore.allowUserToEditRate && !hasPricingRules.value;
+	return settingsStore.allowUserToEditRate;
 });
 
 // Tooltip message for why rate editing is disabled
