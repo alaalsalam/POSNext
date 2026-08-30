@@ -3,12 +3,82 @@ POS Next Customer API
 Handles customer search, creation, and management for POS operations
 """
 
+import re
+
 import frappe
 from frappe import _
 
 from pos_next.api.company_scope import OWNERSHIP_FIELD, assert_company_ownership, is_multi_company_site
 from pos_next.api.feature_flags import resolve_pos_profile
 from pos_next.api.party_contacts import require_mobile_no
+
+
+SAUDI_ARABIA = "Saudi Arabia"
+ARABIC_DIGIT_TRANSLATION = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+
+def _resolve_customer_context(pos_profile=None, company=None):
+	"""Resolve the POS company and country from an authorized profile."""
+	if not pos_profile:
+		return company, frappe.db.get_value("Company", company, "country") if company else None, None
+
+	profile_name = resolve_pos_profile(pos_profile=pos_profile, company=company)
+	profile = frappe.get_cached_doc("POS Profile", profile_name)
+	company = profile.company
+	country = frappe.db.get_value("Company", company, "country") or profile.get("country")
+	return company, country, profile_name
+
+
+def _normalize_tax_id(tax_id):
+	return (tax_id or "").translate(ARABIC_DIGIT_TRANSLATION).strip()
+
+
+def _validate_tax_id(company, tax_id, customer_type):
+	"""Require a Saudi VAT number only for Saudi company customers."""
+	tax_id = _normalize_tax_id(tax_id)
+	if (
+		frappe.db.get_value("Company", company, "country") == SAUDI_ARABIA
+		and customer_type == "Company"
+		and not re.fullmatch(r"\d{15}", tax_id)
+	):
+		frappe.throw(_("Saudi company customers require a 15-digit VAT number."))
+	return tax_id
+
+
+def _get_customer_form_extensions(pos_profile, company):
+	"""Load optional, app-provided POS customer form extensions."""
+	extensions = []
+	for handler_path in frappe.get_hooks("pos_next_customer_form_extensions"):
+		extension = frappe.get_attr(handler_path)(pos_profile=pos_profile, company=company)
+		if extension:
+			extensions.append(extension)
+	return extensions
+
+
+def _run_customer_created_extensions(customer, pos_profile, company, extension_data):
+	"""Notify optional apps after a POS customer is safely created."""
+	data = frappe.parse_json(extension_data) if isinstance(extension_data, str) else extension_data or {}
+	if not isinstance(data, dict):
+		frappe.throw(_("Customer extension data must be an object."))
+	for handler_path in frappe.get_hooks("pos_next_customer_created"):
+		frappe.get_attr(handler_path)(
+			customer=customer,
+			pos_profile=pos_profile,
+			company=company,
+			extension_data=data,
+		)
+
+
+@frappe.whitelist()
+def get_customer_form_context(pos_profile=None):
+	"""Return company-localized customer fields for the active POS profile."""
+	company, country, resolved_profile = _resolve_customer_context(pos_profile=pos_profile)
+	return {
+		"company": company,
+		"country": country,
+		"is_saudi": country == SAUDI_ARABIA,
+		"extensions": _get_customer_form_extensions(resolved_profile, company),
+	}
 
 
 @frappe.whitelist()
@@ -96,6 +166,7 @@ def create_customer(
 	custom_commercial_registration=None,
 	customer_type=None,
 	customer_address=None,
+	extension_data=None,
 ):
 	"""
 	Create a new customer from POS.
@@ -124,13 +195,11 @@ def create_customer(
 
 	if not customer_name:
 		frappe.throw(_("Customer name is required"))
-	require_mobile_no(mobile_no, "Customer")
 	if is_multi_company_site() and not pos_profile:
 		frappe.throw(_("A POS Profile is required in multiple-company mode."), frappe.PermissionError)
 
-	if pos_profile:
-		pos_profile = resolve_pos_profile(pos_profile=pos_profile, company=company)
-		company = frappe.db.get_value("POS Profile", pos_profile, "company")
+	company, _, pos_profile = _resolve_customer_context(pos_profile=pos_profile, company=company)
+	require_mobile_no(mobile_no, "Customer")
 	loyalty_program = get_default_loyalty_program_from_settings(company=company, pos_profile=pos_profile)
 
 	resolved_customer_group = customer_group
@@ -151,23 +220,27 @@ def create_customer(
 		)
 
 	resolved_customer_type = customer_type if customer_type in ("Individual", "Company") else "Individual"
+	tax_id = _validate_tax_id(company, tax_id, resolved_customer_type)
 
-	customer = frappe.get_doc(
-		{
-			"doctype": "Customer",
-			"customer_name": customer_name,
-			"customer_type": resolved_customer_type,
-			"customer_group": resolved_customer_group,
-			"territory": resolved_territory,
-			"mobile_no": mobile_no or "",
-			"custom_pos_mobile_no": mobile_no or "",
-			"tax_id": tax_id or "",
-			"custom_commercial_registration": custom_commercial_registration or "",
-			"loyalty_program": loyalty_program,
-			"custom_governorate": custom_governorate or None,
-			"custom_district": custom_district or None,
-		}
-	)
+	customer_data = {
+		"doctype": "Customer",
+		"customer_name": customer_name,
+		"customer_type": resolved_customer_type,
+		"customer_group": resolved_customer_group,
+		"territory": resolved_territory,
+		"mobile_no": mobile_no or "",
+		"custom_pos_mobile_no": mobile_no or "",
+		"tax_id": tax_id,
+		"loyalty_program": loyalty_program,
+		"custom_governorate": custom_governorate or None,
+		"custom_district": custom_district or None,
+	}
+	meta = frappe.get_meta("Customer")
+	if meta.get_field("custom_vat_registration_number"):
+		customer_data["custom_vat_registration_number"] = tax_id
+	if meta.get_field("custom_commercial_registration"):
+		customer_data["custom_commercial_registration"] = custom_commercial_registration or ""
+	customer = frappe.get_doc(customer_data)
 	if is_multi_company_site() and frappe.db.has_column("Customer", OWNERSHIP_FIELD):
 		customer.set(OWNERSHIP_FIELD, company)
 
@@ -185,6 +258,7 @@ def create_customer(
 		frappe.flags.pos_next_customer_company = None
 		frappe.flags.pos_next_customer_pos_profile = None
 
+	_run_customer_created_extensions(customer, pos_profile, company, extension_data)
 	return customer.as_dict()
 
 

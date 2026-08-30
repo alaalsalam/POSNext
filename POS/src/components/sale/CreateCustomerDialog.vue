@@ -49,7 +49,9 @@
 								<button
 									type="button"
 									@click="showCountryDropdown = !showCountryDropdown"
+									:disabled="isSaudiCompany"
 									class="flex items-center gap-1 w-24 ps-2 pe-1 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white hover:bg-gray-50"
+									:class="{ 'cursor-not-allowed bg-gray-50': isSaudiCompany }"
 								>
 									<img
 										:src="`https://flagcdn.com/h24/${currentCountryCode}.png`"
@@ -57,13 +59,13 @@
 										class="w-6 h-auto rounded-sm"
 										@error="handleFlagError"
 									/>
-									<span class="flex-1 text-start text-xs">{{ selectedCountryCode || "+966" }}</span>
+									<span class="flex-1 text-start text-xs">{{ selectedCountryCode || "+967" }}</span>
 									<ChevronDownIcon class="w-3 h-3 text-gray-400" />
 								</button>
 
 								<!-- Dropdown -->
 								<div
-									v-if="showCountryDropdown"
+									v-if="showCountryDropdown && !isSaudiCompany"
 									class="absolute start-0 z-50 mt-1 w-80 max-h-80 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden"
 								>
 									<div class="sticky top-0 bg-white border-b border-gray-200 p-2">
@@ -104,7 +106,7 @@
 							<input
 								v-model="phoneNumber"
 								type="tel"
-								:placeholder="__('5xxxxxxxx')"
+								:placeholder="isSaudiCompany ? __('5xxxxxxxx') : __('Enter phone number')"
 								class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
 								@input="updateMobileNumber"
 								required
@@ -120,15 +122,19 @@
 
 						<!-- VAT Number -->
 						<div>
-							<FieldLabel :label="__('VAT Number (الرقم الضريبي)')" />
+							<FieldLabel :label="isSaudiCompany ? __('Saudi VAT Number (15 digits)') : __('VAT Number (الرقم الضريبي)')" :required="isSaudiCompany" />
 							<input
 								v-model="customerData.tax_id"
 								type="text"
+								inputmode="numeric"
 								maxlength="15"
 								:placeholder="__('300xxxxxxxxxx003')"
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono"
+								class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono"
+								:class="taxIdError ? 'border-red-400' : 'border-gray-300'"
 								dir="ltr"
+								@input="normalizeTaxId"
 							/>
+							<p v-if="taxIdError" class="mt-1 text-xs text-red-600">{{ taxIdError }}</p>
 						</div>
 
 						<!-- CR Number -->
@@ -143,6 +149,23 @@
 							/>
 						</div>
 					</div>
+				</template>
+
+				<!-- ── Optional app-provided fields (for example, car-wash vehicles) ── -->
+				<template v-for="extension in customerFormContext.extensions" :key="extension.id">
+					<template v-if="!isEditMode">
+						<SectionLabel :label="__(extension.title)" icon="plus-circle" optional />
+						<div class="grid grid-cols-2 gap-3 mb-4">
+							<div v-for="field in extension.fields" :key="field.fieldname">
+								<FieldLabel :label="__(field.label)" :required="field.reqd" />
+								<input
+									v-model="extensionValues[extension.id][field.fieldname]"
+									type="text"
+									class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+								/>
+							</div>
+						</div>
+					</template>
 				</template>
 
 				<!-- ── Section: Address ── -->
@@ -234,7 +257,7 @@
 					variant="solid"
 					@click="handleCreate"
 					:loading="createCustomerResource.loading || updateCustomerResource.loading || checkingPermission"
-					:disabled="!customerData.customer_name || !phoneNumber || !hasPermission"
+					:disabled="!customerData.customer_name || !phoneNumber || !hasPermission || !!taxIdError"
 				>
 					{{ isEditMode ? __("Save Changes") : __("Create Customer") }}
 				</Button>
@@ -335,6 +358,8 @@ const customerGroups = ref([]);
 const territories = ref([]);
 const governorates = ref([]);
 const districts = ref([]);
+const customerFormContext = ref({ country: "Yemen", is_saudi: false, extensions: [] });
+const extensionValues = ref({});
 
 const customerData = ref({
 	customer_name: "",
@@ -354,6 +379,11 @@ const show = computed({
 	set: (val) => emit("update:modelValue", val),
 });
 const isEditMode = computed(() => !!props.customer?.name);
+const isSaudiCompany = computed(() => Boolean(customerFormContext.value.is_saudi));
+const taxIdError = computed(() => {
+	if (!isSaudiCompany.value || customerData.value.customer_type !== "Company") return "";
+	return /^\d{15}$/.test(customerData.value.tax_id) ? "" : __("Enter the 15-digit Saudi VAT number.");
+});
 const currentCountryCode = computed(() => {
 	const c = countriesStore.countries.find((c) => c.isd === selectedCountryCode.value);
 	return c?.code.toLowerCase() || "ye";
@@ -378,6 +408,11 @@ const updateMobileNumber = () => {
 	customerData.value.mobile_no = phoneNumber.value
 		? `${selectedCountryCode.value}-${phoneNumber.value}`
 		: "";
+};
+const normalizeTaxId = () => {
+	customerData.value.tax_id = customerData.value.tax_id
+		.replace(/[٠-٩]/g, (digit) => "٠١٢٣٤٥٦٧٨٩".indexOf(digit))
+		.replace(/\D/g, "");
 };
 const handleClickOutside = (e) => {
 	if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
@@ -415,6 +450,7 @@ const createCustomerResource = createResource({
 		custom_governorate: customerData.value.custom_governorate || "",
 		custom_district: customerData.value.custom_district || "",
 		pos_profile: props.posProfile,
+		extension_data: extensionValues.value,
 	}),
 	onSuccess: (data) => {
 		showSuccess(__("Customer {0} created", [data.customer_name]));
@@ -520,12 +556,26 @@ const districtsResource = createResource({
 	onError: (err) => log.error("Error loading Districts", err),
 });
 
-const posProfileResource = createResource({
-	url: "frappe.client.get_value",
-	makeParams: () => ({ doctype: "POS Profile", filters: { name: props.posProfile }, fieldname: ["country"] }),
+
+const customerFormContextResource = createResource({
+	url: "pos_next.api.customers.get_customer_form_context",
+	makeParams: () => ({ pos_profile: props.posProfile }),
 	auto: false,
-	onSuccess: (data) => setCountryFromName(data?.country || "Yemen"),
-	onError: () => { selectedCountryCode.value = "+967"; },
+	onSuccess: (data) => {
+		customerFormContext.value = data || { country: "Yemen", is_saudi: false, extensions: [] };
+		setCountryFromName(data?.country || "Yemen");
+		if (data?.is_saudi) selectedCountryCode.value = "+966";
+		extensionValues.value = Object.fromEntries(
+			(data?.extensions || []).map((extension) => [
+				extension.id,
+				Object.fromEntries((extension.fields || []).map((field) => [field.fieldname, ""])),
+			])
+		);
+	},
+	onError: () => {
+		customerFormContext.value = { country: "Yemen", is_saudi: false, extensions: [] };
+		selectedCountryCode.value = "+967";
+	},
 });
 
 // ── Dialog lifecycle ────────────────────────────────────────────────────────
@@ -541,7 +591,7 @@ const loadDialogData = async () => {
 		await districtsResource.reload();
 	}
 	checkPermissions();
-	if (props.posProfile) await posProfileResource.reload();
+	if (props.posProfile) await customerFormContextResource.reload();
 	else selectedCountryCode.value = "+967";
 };
 
@@ -557,6 +607,7 @@ const handleCreate = async () => {
 	if (!phoneNumber.value) {
 		return showError(__("Mobile Number is required"));
 	}
+	if (taxIdError.value) return showError(taxIdError.value);
 	if (isEditMode.value) {
 		await updateCustomerResource.submit();
 	} else {
@@ -592,6 +643,7 @@ const resetForm = () => {
 	selectedCountryCode.value = "+967";
 	phoneNumber.value = "";
 	referralCode.value = "";
+	extensionValues.value = {};
 };
 
 // ── Watchers ────────────────────────────────────────────────────────────────
