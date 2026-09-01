@@ -24,12 +24,7 @@ export function useInvoiceFilters(invoices) {
 		// Apply search term filter
 		if (filtersStore.searchTerm) {
 			const search = filtersStore.searchTerm.toLowerCase();
-			result = result.filter(
-				(inv) =>
-					inv.name?.toLowerCase().includes(search) ||
-					inv.customer_name?.toLowerCase().includes(search) ||
-					inv.customer?.toLowerCase().includes(search)
-			);
+			result = result.filter((inv) => invoiceMatchesSearch(inv, search));
 		}
 
 		// Apply date range filter
@@ -161,10 +156,7 @@ export function useInvoiceFilters(invoices) {
 		// Search term
 		if (filtersStore.searchTerm) {
 			const search = filtersStore.searchTerm.toLowerCase();
-			const matchesSearch =
-				invoice.name?.toLowerCase().includes(search) ||
-				invoice.customer_name?.toLowerCase().includes(search) ||
-				invoice.customer?.toLowerCase().includes(search);
+			const matchesSearch = invoiceMatchesSearch(invoice, search);
 			if (!matchesSearch) return false;
 		}
 
@@ -242,6 +234,17 @@ export function useInvoiceFilters(invoices) {
 		// Store access (for convenience)
 		store: filtersStore,
 	};
+}
+
+function invoiceMatchesSearch(invoice, search) {
+	return [
+		invoice.name,
+		invoice.customer,
+		invoice.customer_name,
+		invoice.moh_customer_phone,
+		invoice.contact_mobile,
+		invoice.customer_mobile,
+	].some((value) => String(value || "").toLowerCase().includes(search));
 }
 
 /**

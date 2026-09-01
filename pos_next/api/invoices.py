@@ -440,11 +440,7 @@ def _get_available_stock(item):
 
 
 def _collect_stock_errors(items):
-	"""Return list of items exceeding available stock.
-
-	Respects per-item allow_negative_stock if the field exists on Item.
-	"""
-	allowed_items = _get_item_negative_stock_allow_set(items)
+	"""Return list of items exceeding available stock."""
 	errors = []
 	for d in items:
 		if flt(d.get("qty")) < 0:
@@ -454,8 +450,6 @@ def _collect_stock_errors(items):
 		requested = flt(d.get("stock_qty") or (flt(d.get("qty")) * flt(d.get("conversion_factor") or 1)))
 
 		if requested > available:
-			if d.get("item_code") in allowed_items:
-				continue
 			errors.append(
 				{
 					"item_code": d.get("item_code"),
@@ -1624,7 +1618,7 @@ def get_invoice(invoice_name):
 
 
 @frappe.whitelist()
-def get_invoices(pos_profile: str, limit: int = 100, start: int = 0) -> list:
+def get_invoices(pos_profile: str, limit: int = 100, start: int = 0, search_term: str | None = None) -> list:
 	"""
 	Get list of invoices for a POS Profile.
 
@@ -1641,6 +1635,7 @@ def get_invoices(pos_profile: str, limit: int = 100, start: int = 0) -> list:
 
 	limit = cint(limit) or 100
 	start = cint(start) or 0
+	search_term = cstr(search_term or "").strip()
 
 	# Check if user has access to this POS Profile
 	has_access = frappe.db.exists("POS Profile User", {"parent": pos_profile, "user": frappe.session.user})
@@ -1648,35 +1643,56 @@ def get_invoices(pos_profile: str, limit: int = 100, start: int = 0) -> list:
 	if not has_access and not frappe.has_permission("Sales Invoice", "read"):
 		frappe.throw(_("You don't have access to this POS Profile"))
 
+	search_condition = ""
+	params = {"pos_profile": pos_profile, "limit": limit, "start": start}
+	if search_term:
+		params["search_term"] = f"%{search_term}%"
+		search_condition = """
+			AND (
+				si.name LIKE %(search_term)s
+				OR si.customer LIKE %(search_term)s
+				OR si.customer_name LIKE %(search_term)s
+				OR si.moh_customer_phone LIKE %(search_term)s
+				OR si.contact_mobile LIKE %(search_term)s
+				OR customer.mobile_no LIKE %(search_term)s
+			)
+		"""
+
 	# Query for invoices
 	invoices = frappe.db.sql(
-		"""
+		f"""
 		SELECT
-			name,
-			customer,
-			customer_name,
-			posting_date,
-			posting_time,
-			grand_total,
-			paid_amount,
-			outstanding_amount,
-			status,
-			docstatus,
-			is_return,
-			return_against
+			si.name,
+			si.customer,
+			si.customer_name,
+			si.moh_customer_phone,
+			si.contact_mobile,
+			customer.mobile_no AS customer_mobile,
+			si.posting_date,
+			si.posting_time,
+			si.grand_total,
+			si.paid_amount,
+			si.outstanding_amount,
+			si.status,
+			si.docstatus,
+			si.is_return,
+			si.return_against
 		FROM
-			`tabSales Invoice`
+			`tabSales Invoice` si
+		LEFT JOIN
+			`tabCustomer` customer ON customer.name = si.customer
 		WHERE
-			pos_profile = %(pos_profile)s
-			AND docstatus = 1
-			AND is_pos = 1
+			si.pos_profile = %(pos_profile)s
+			AND si.docstatus = 1
+			AND si.is_pos = 1
+			{search_condition}
 		ORDER BY
-			posting_date DESC,
-			posting_time DESC
+			si.posting_date DESC,
+			si.posting_time DESC
 		LIMIT %(limit)s
 		OFFSET %(start)s
 	""",
-		{"pos_profile": pos_profile, "limit": limit, "start": start},
+		params,
 		as_dict=True,
 	)
 

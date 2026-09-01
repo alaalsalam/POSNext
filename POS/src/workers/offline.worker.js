@@ -792,8 +792,14 @@ async function searchCachedCustomers(searchTerm = "", limit = 20) {
 				const name = (cust.customer_name || "").toLowerCase();
 				const mobile = (cust.mobile_no || "").toLowerCase();
 				const id = (cust.name || "").toLowerCase();
+				const plate = (cust.moh_vehicle_plate_number || "").toLowerCase();
 
-				return name.includes(term) || mobile.includes(term) || id.includes(term);
+				return (
+					name.includes(term) ||
+					mobile.includes(term) ||
+					id.includes(term) ||
+					plate.includes(term)
+				);
 			})
 			.slice(0, limit || allCustomers.length);
 

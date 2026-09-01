@@ -54,8 +54,8 @@ declare global {
 export const translationVersion = ref(0)
 let _versionDebounce: ReturnType<typeof setTimeout> | null = null
 
-/** Default locale when none is configured */
-const FALLBACK_LOCALE = "en"
+/** Default locale for this customer build */
+const FALLBACK_LOCALE = "ar"
 
 /** Options for locale loading behavior */
 type LoadOptions = {
@@ -124,11 +124,8 @@ export const __ = translate
 const getLocale = (): string => {
   if (typeof window === "undefined") return FALLBACK_LOCALE
 
-  return (
-    (window as any)?.frappe?.boot?.lang?.toLowerCase() ||
-    window.localStorage?.getItem("pos_next_language")?.toLowerCase() ||
-    FALLBACK_LOCALE
-  )
+  window.localStorage?.setItem("pos_next_language", FALLBACK_LOCALE)
+  return FALLBACK_LOCALE
 }
 
 /**

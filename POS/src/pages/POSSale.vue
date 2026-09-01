@@ -2077,6 +2077,7 @@ async function handlePaymentCompleted(paymentData) {
 				is_credit_sale: paymentData.is_credit_sale ? 1 : 0,
 				receivable_account: paymentData.receivable_account || null,
 				edited_from: editingOfflineContext?.originalOfflineId || null,
+				...(paymentData.print_details || {}),
 			};
 
 			// Save to the offline queue first so we can use the worker's
@@ -2116,6 +2117,7 @@ async function handlePaymentCompleted(paymentData) {
 				posting_date: new Date().toISOString().slice(0, 10),
 				company: shiftStore.profileCompany || undefined,
 				customer_name: customerLabel,
+				...(paymentData.print_details || {}),
 				items: preparedItems.map((item) => ({
 					...item,
 					quantity: item.qty ?? item.quantity,
@@ -2171,6 +2173,7 @@ async function handlePaymentCompleted(paymentData) {
 			const result = await cartStore.submitInvoice({
 				isCreditSale: Boolean(paymentData.is_credit_sale),
 				receivableAccount: paymentData.receivable_account || null,
+				printDetails: paymentData.print_details || {},
 			});
 
 			if (result) {

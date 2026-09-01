@@ -24,6 +24,13 @@ export function useInvoice() {
 	const customer = ref(null);
 	const payments = ref([]);
 	const salesTeam = ref([]); // Sales team for Sales Invoice
+	const invoicePrintDetails = ref({
+		moh_customer_phone: "",
+		moh_vehicle_mileage: "",
+		moh_vehicle_type: "",
+		moh_vehicle_plate_number: "",
+		moh_vehicle_chassis_number: "",
+	});
 	const posProfile = ref(null);
 	const posOpeningShift = ref(null); // POS Opening Shift name
 	const additionalDiscount = ref(0);
@@ -698,12 +705,13 @@ export function useInvoice() {
 	 */
 	function computeBackendRate(item) {
 		const qty = item.quantity || item.qty || 1;
-		const priceListRate = item.price_list_rate || item.rate || 0;
+		const isManuallyEdited = item.is_rate_manually_edited === 1;
+		const effectiveRate = isManuallyEdited ? item.rate : item.price_list_rate || item.rate || 0;
 		const discountAmount = item.discount_amount || 0;
 
 		if (taxInclusive.value) {
 			// Gross rate: price minus per-unit discount
-			return roundCurrency(priceListRate - discountAmount / qty);
+			return roundCurrency(effectiveRate - discountAmount / qty);
 		}
 		// Net rate: total amount divided by quantity
 		return qty > 0 ? roundCurrency((item.amount || 0) / qty) : item.rate || 0;
@@ -921,6 +929,16 @@ export function useInvoice() {
 		};
 	}
 
+	function normalizeInvoicePrintDetails(details = {}) {
+		return {
+			moh_customer_phone: details.moh_customer_phone || "",
+			moh_vehicle_mileage: details.moh_vehicle_mileage || "",
+			moh_vehicle_type: details.moh_vehicle_type || "",
+			moh_vehicle_plate_number: details.moh_vehicle_plate_number || "",
+			moh_vehicle_chassis_number: details.moh_vehicle_chassis_number || "",
+		};
+	}
+
 	async function saveDraft(targetDoctype = "Sales Invoice") {
 		/**
 		 * Save invoice as draft (Step 1)
@@ -936,6 +954,7 @@ export function useInvoice() {
 			pos_profile: posProfile.value,
 			posa_pos_opening_shift: posOpeningShift.value,
 			customer: customer.value?.name || customer.value,
+			...normalizeInvoicePrintDetails(invoicePrintDetails.value),
 			items: formatItemsForSubmission(rawItems),
 			payments: invoicePayments,
 			discount_amount: additionalDiscount.value || 0,
@@ -959,7 +978,8 @@ export function useInvoice() {
 		deliveryDate = null,
 		writeOffAmount = 0,
 		isCreditSale = false,
-		receivableAccount = null
+		receivableAccount = null,
+		printDetails = {}
 	) {
 		/**
 		 * Two-step submission process with mutex protection:
@@ -998,6 +1018,7 @@ export function useInvoice() {
 					pos_profile: posProfile.value,
 					posa_pos_opening_shift: posOpeningShift.value,
 					customer: customer.value?.name || customer.value,
+					...normalizeInvoicePrintDetails(printDetails),
 					items: formatItemsForSubmission(rawItems),
 					payments: invoicePayments,
 					discount_amount: additionalDiscount.value || 0,
@@ -1164,6 +1185,7 @@ export function useInvoice() {
 		payments.value = [];
 		additionalDiscount.value = 0;
 		couponCode.value = null;
+		invoicePrintDetails.value = normalizeInvoicePrintDetails();
 
 		// Reset incremental cache
 		_cachedSubtotal.value = 0;
@@ -1191,6 +1213,7 @@ export function useInvoice() {
 		payments.value = [];
 		additionalDiscount.value = 0;
 		couponCode.value = null;
+		invoicePrintDetails.value = normalizeInvoicePrintDetails();
 
 		// Reset incremental cache
 		_cachedSubtotal.value = 0;
@@ -1262,6 +1285,7 @@ export function useInvoice() {
 		customer,
 		payments,
 		salesTeam,
+		invoicePrintDetails,
 		posProfile,
 		posOpeningShift,
 		additionalDiscount,

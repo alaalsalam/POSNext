@@ -118,6 +118,115 @@
 					</div>
 				</div>
 
+				<!-- Tax ID -->
+				<div>
+					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+						{{ __("الرقم الضريبي") }}
+					</label>
+					<Input
+						v-model="customerData.custom_vat_registration_number"
+						type="text"
+						inputmode="numeric"
+						:maxlength="15"
+						:placeholder="__('15 رقم')"
+					/>
+					<p v-if="taxIdError" class="mt-1 text-xs text-red-600 text-start">
+						{{ taxIdError }}
+					</p>
+				</div>
+
+				<!-- Tax Address -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div class="sm:col-span-2">
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("العنوان الضريبي") }}
+						</label>
+						<Input
+							v-model="customerData.tax_address_line1"
+							type="text"
+							:placeholder="__('اسم الشارع')"
+						/>
+					</div>
+					<div>
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("رقم المبنى") }}
+						</label>
+						<Input
+							v-model="customerData.tax_building_number"
+							type="text"
+							inputmode="numeric"
+							:maxlength="4"
+							:placeholder="__('4 أرقام')"
+						/>
+					</div>
+					<div>
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("الرمز البريدي") }}
+						</label>
+						<Input
+							v-model="customerData.tax_postal_code"
+							type="text"
+							inputmode="numeric"
+							:maxlength="5"
+							:placeholder="__('5 أرقام')"
+						/>
+					</div>
+					<div>
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("المدينة") }}
+						</label>
+						<Input
+							v-model="customerData.tax_city"
+							type="text"
+							:placeholder="__('المدينة')"
+						/>
+					</div>
+					<div>
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("الحي") }}
+						</label>
+						<Input
+							v-model="customerData.tax_district"
+							type="text"
+							:placeholder="__('الحي')"
+						/>
+					</div>
+				</div>
+
+				<!-- Vehicle Details -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div>
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("نوع السيارة") }}
+						</label>
+						<Input
+							v-model="customerData.moh_vehicle_type"
+							type="text"
+							:placeholder="__('نوع السيارة')"
+						/>
+					</div>
+					<div>
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("رقم اللوحة") }}
+						</label>
+						<Input
+							v-model="customerData.moh_vehicle_plate_number"
+							type="text"
+							:placeholder="__('رقم اللوحة')"
+						/>
+					</div>
+					<div class="sm:col-span-2">
+						<label class="block text-start text-sm font-medium text-gray-700 mb-2">
+							{{ __("رقم الهيكل") }}
+						</label>
+						<Input
+							v-model="customerData.moh_vehicle_chassis_number"
+							type="text"
+							:placeholder="__('رقم الهيكل')"
+						/>
+					</div>
+				</div>
+
 				<!-- Email -->
 				<div>
 					<label class="block text-start text-sm font-medium text-gray-700 mb-2">
@@ -254,7 +363,7 @@
 							updateCustomerResource.loading ||
 							checkingPermission
 						"
-						:disabled="!customerData.customer_name || !hasPermission"
+						:disabled="!customerData.customer_name || !!taxIdError || !hasPermission"
 					>
 						{{ isEditMode ? __("Save Changes") : __("Create Customer") }}
 					</Button>
@@ -329,11 +438,20 @@ const districts = ref([]);
 const customerData = ref({
 	customer_name: "",
 	mobile_no: "",
+	custom_vat_registration_number: "",
+	tax_address_line1: "",
+	tax_building_number: "",
+	tax_city: "",
+	tax_district: "",
+	tax_postal_code: "",
 	email_id: "",
 	customer_group: "",
 	territory: "",
 	custom_governorate: "",
 	custom_district: "",
+	moh_vehicle_type: "",
+	moh_vehicle_plate_number: "",
+	moh_vehicle_chassis_number: "",
 });
 
 // =============================================================================
@@ -346,6 +464,15 @@ const show = computed({
 });
 
 const isEditMode = computed(() => !!props.customer?.name);
+
+const taxIdError = computed(() => {
+	const taxId = normalizeTaxId(customerData.value.custom_vat_registration_number);
+	if (!taxId) return "";
+	if (!/^\d{15}$/.test(taxId)) {
+		return __("الرقم الضريبي يجب أن يكون 15 رقم");
+	}
+	return "";
+});
 
 const currentCountryCode = computed(() => {
 	const country = countriesStore.countries.find((c) => c.isd === selectedCountryCode.value);
@@ -442,11 +569,20 @@ const createCustomerResource = createResource({
 	makeParams: () => ({
 		customer_name: customerData.value.customer_name,
 		mobile_no: customerData.value.mobile_no || "",
+		custom_vat_registration_number: normalizeTaxId(customerData.value.custom_vat_registration_number),
+		tax_address_line1: customerData.value.tax_address_line1 || "",
+		tax_building_number: normalizeDigits(customerData.value.tax_building_number),
+		tax_city: customerData.value.tax_city || "",
+		tax_district: customerData.value.tax_district || "",
+		tax_postal_code: normalizeDigits(customerData.value.tax_postal_code),
 		email_id: customerData.value.email_id || "",
 		customer_group: customerData.value.customer_group || "",
 		territory: customerData.value.territory || "",
 		custom_governorate: customerData.value.custom_governorate || "",
 		custom_district: customerData.value.custom_district || "",
+		moh_vehicle_type: customerData.value.moh_vehicle_type || "",
+		moh_vehicle_plate_number: customerData.value.moh_vehicle_plate_number || "",
+		moh_vehicle_chassis_number: customerData.value.moh_vehicle_chassis_number || "",
 		pos_profile: props.posProfile,
 	}),
 	onSuccess: (data) => {
@@ -461,19 +597,25 @@ const createCustomerResource = createResource({
 });
 
 const updateCustomerResource = createResource({
-	url: "frappe.client.set_value",
+	url: "pos_next.api.customers.update_customer",
 	makeParams: () => ({
-		doctype: "Customer",
 		name: props.customer?.name,
-		fieldname: {
-			customer_name: customerData.value.customer_name,
-			customer_group: customerData.value.customer_group || "",
-			territory: customerData.value.territory || "",
-			mobile_no: customerData.value.mobile_no || "",
-			email_id: customerData.value.email_id || "",
-			custom_governorate: customerData.value.custom_governorate || "",
-			custom_district: customerData.value.custom_district || "",
-		},
+		customer_name: customerData.value.customer_name,
+		customer_group: customerData.value.customer_group || "",
+		territory: customerData.value.territory || "",
+		mobile_no: customerData.value.mobile_no || "",
+		custom_vat_registration_number: normalizeTaxId(customerData.value.custom_vat_registration_number),
+		tax_address_line1: customerData.value.tax_address_line1 || "",
+		tax_building_number: normalizeDigits(customerData.value.tax_building_number),
+		tax_city: customerData.value.tax_city || "",
+		tax_district: customerData.value.tax_district || "",
+		tax_postal_code: normalizeDigits(customerData.value.tax_postal_code),
+		email_id: customerData.value.email_id || "",
+		custom_governorate: customerData.value.custom_governorate || "",
+		custom_district: customerData.value.custom_district || "",
+		moh_vehicle_type: customerData.value.moh_vehicle_type || "",
+		moh_vehicle_plate_number: customerData.value.moh_vehicle_plate_number || "",
+		moh_vehicle_chassis_number: customerData.value.moh_vehicle_chassis_number || "",
 	}),
 	onSuccess: (data) => {
 		showSuccess(__("Customer {0} updated successfully", [data.customer_name]));
@@ -645,6 +787,9 @@ const handleCreate = async () => {
 	if (!customerData.value.customer_name) {
 		return showError(__("Customer Name is required"));
 	}
+	if (taxIdError.value) {
+		return showError(taxIdError.value);
+	}
 	if (isEditMode.value) {
 		await updateCustomerResource.submit();
 	} else {
@@ -657,6 +802,12 @@ const resetForm = () => {
 	Object.assign(customerData.value, {
 		customer_name: "",
 		mobile_no: "",
+		custom_vat_registration_number: "",
+		tax_address_line1: "",
+		tax_building_number: "",
+		tax_city: "",
+		tax_district: "",
+		tax_postal_code: "",
 		email_id: "",
 		customer_group: pickDefault(settings.customer_group, customerGroups.value),
 		territory: pickDefault(settings.territory, territories.value, (list) =>
@@ -664,6 +815,9 @@ const resetForm = () => {
 		),
 		custom_governorate: "",
 		custom_district: "",
+		moh_vehicle_type: "",
+		moh_vehicle_plate_number: "",
+		moh_vehicle_chassis_number: "",
 	});
 	districts.value = [];
 	selectedCountryCode.value = "";
@@ -685,6 +839,13 @@ watch(
 	(customer) => {
 		if (customer?.name) {
 			customerData.value.customer_name = customer.customer_name || "";
+			customerData.value.custom_vat_registration_number =
+				customer.custom_vat_registration_number || customer.tax_id || "";
+			customerData.value.tax_address_line1 = customer.tax_address_line1 || "";
+			customerData.value.tax_building_number = customer.tax_building_number || "";
+			customerData.value.tax_city = customer.tax_city || "";
+			customerData.value.tax_district = customer.tax_district || "";
+			customerData.value.tax_postal_code = customer.tax_postal_code || "";
 			customerData.value.email_id = customer.email_id || "";
 			customerData.value.customer_group =
 				customer.customer_group || customerGroups.value[0] || "";
@@ -696,6 +857,10 @@ watch(
 
 			customerData.value.custom_governorate = customer.custom_governorate || "";
 			customerData.value.custom_district = customer.custom_district || "";
+			customerData.value.moh_vehicle_type = customer.moh_vehicle_type || "";
+			customerData.value.moh_vehicle_plate_number = customer.moh_vehicle_plate_number || "";
+			customerData.value.moh_vehicle_chassis_number =
+				customer.moh_vehicle_chassis_number || "";
 			// Handle mobile_no with country code
 			if (customer.mobile_no) {
 				customerData.value.mobile_no = customer.mobile_no;
@@ -766,6 +931,14 @@ onMounted(() => {
 onBeforeUnmount(() => {
 	document.removeEventListener("click", handleClickOutside);
 });
+
+function normalizeTaxId(value) {
+	return String(value || "").replace(/\D/g, "");
+}
+
+function normalizeDigits(value) {
+	return String(value || "").replace(/\D/g, "");
+}
 </script>
 
 <style scoped>

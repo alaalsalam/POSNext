@@ -7,6 +7,136 @@ import frappe
 from frappe import _
 
 
+def _validate_tax_id(tax_id):
+	tax_id = (tax_id or "").strip()
+	if tax_id and (not tax_id.isdigit() or len(tax_id) != 15):
+		frappe.throw(_("Tax ID must be exactly 15 digits"))
+	return tax_id
+
+
+def _validate_tax_address(vat_registration_number, address_line1, building_number, city, district, postal_code):
+	vat_registration_number = _validate_tax_id(vat_registration_number)
+	address_line1 = (address_line1 or "").strip()
+	building_number = (building_number or "").strip()
+	city = (city or "").strip()
+	district = (district or "").strip()
+	postal_code = (postal_code or "").strip()
+
+	if vat_registration_number:
+		missing = []
+		if not address_line1:
+			missing.append(_("Tax Address"))
+		if not building_number:
+			missing.append(_("Building Number"))
+		if not city:
+			missing.append(_("City"))
+		if not district:
+			missing.append(_("District"))
+		if not postal_code:
+			missing.append(_("Postal Code"))
+		if missing:
+			frappe.throw(_("Please complete tax address fields: {0}").format(", ".join(missing)))
+
+	if building_number and (not building_number.isdigit() or len(building_number) != 4):
+		frappe.throw(_("Building Number must be exactly 4 digits"))
+	if postal_code and (not postal_code.isdigit() or len(postal_code) != 5):
+		frappe.throw(_("Postal Code must be exactly 5 digits"))
+
+	return {
+		"vat_registration_number": vat_registration_number,
+		"address_line1": address_line1,
+		"building_number": building_number,
+		"city": city,
+		"district": district,
+		"postal_code": postal_code,
+	}
+
+
+def _get_customer_tax_address(customer_name):
+	if not customer_name:
+		return {}
+
+	address_name = frappe.db.get_value("Customer", customer_name, "customer_primary_address")
+	if not address_name:
+		address_name = frappe.db.get_value(
+			"Dynamic Link",
+			{"link_doctype": "Customer", "link_name": customer_name, "parenttype": "Address"},
+			"parent",
+		)
+	if not address_name:
+		return {}
+
+	address = frappe.db.get_value(
+		"Address",
+		address_name,
+		[
+			"address_line1",
+			"building_no",
+			"custom_building_number",
+			"city",
+			"district",
+			"custom_area",
+			"pincode",
+		],
+		as_dict=True,
+	)
+	if not address:
+		return {}
+
+	return {
+		"tax_address_line1": address.address_line1 or "",
+		"tax_building_number": address.custom_building_number or address.building_no or "",
+		"tax_city": address.city or "",
+		"tax_district": address.custom_area or address.district or "",
+		"tax_postal_code": address.pincode or "",
+	}
+
+
+def _upsert_customer_tax_address(customer, address_data):
+	has_address = any(
+		address_data.get(key)
+		for key in ["address_line1", "building_number", "city", "district", "postal_code"]
+	)
+	if not has_address:
+		return
+
+	address_name = customer.customer_primary_address
+	if not address_name:
+		address_name = frappe.db.get_value(
+			"Dynamic Link",
+			{"link_doctype": "Customer", "link_name": customer.name, "parenttype": "Address"},
+			"parent",
+		)
+
+	address_values = {
+		"address_title": customer.customer_name,
+		"address_type": "Billing",
+		"address_line1": address_data["address_line1"],
+		"city": address_data["city"],
+		"country": "Saudi Arabia",
+		"pincode": address_data["postal_code"],
+		"is_primary_address": 1,
+		"building_no": address_data["building_number"],
+		"custom_building_number": address_data["building_number"],
+		"street_name": address_data["address_line1"],
+		"district": address_data["district"],
+		"custom_area": address_data["district"],
+	}
+
+	if address_name and frappe.db.exists("Address", address_name):
+		address = frappe.get_doc("Address", address_name)
+		address.update(address_values)
+		if not any(link.link_doctype == "Customer" and link.link_name == customer.name for link in address.links):
+			address.append("links", {"link_doctype": "Customer", "link_name": customer.name})
+		address.save(ignore_permissions=True)
+	else:
+		address = frappe.get_doc({"doctype": "Address", **address_values})
+		address.append("links", {"link_doctype": "Customer", "link_name": customer.name})
+		address.insert(ignore_permissions=True)
+
+	customer.db_set("customer_primary_address", address.name, update_modified=False)
+
+
 @frappe.whitelist()
 def get_customers(search_term="", pos_profile=None, limit=20, modified_since=None):
 	"""
@@ -19,7 +149,7 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 	    modified_since (str): Fetch customers modified after this timestamp (ISO format)
 
 	Returns:
-	    list: List of customer dictionaries with name, customer_name, mobile_no, email_id, disabled
+	    list: List of customer dictionaries with name, customer_name, mobile_no, email_id, vehicle fields, disabled
 	"""
 	try:
 		frappe.logger().debug(
@@ -52,7 +182,10 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 				["Customer", "name", "like", like_term],
 				["Customer", "customer_name", "like", like_term],
 				["Customer", "mobile_no", "like", like_term],
+				["Customer", "tax_id", "like", like_term],
+				["Customer", "custom_vat_registration_number", "like", like_term],
 				["Customer", "email_id", "like", like_term],
+				["Customer", "moh_vehicle_plate_number", "like", like_term],
 			]
 
 		customer_limit = limit if limit not in (None, 0) else frappe.db.count("Customer", filters)
@@ -60,10 +193,27 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 			"Customer",
 			filters=filters,
 			or_filters=or_filters or None,
-			fields=["name", "customer_name", "mobile_no", "email_id", "disabled"],
+			fields=[
+				"name",
+				"customer_name",
+				"mobile_no",
+				"tax_id",
+				"custom_vat_registration_number",
+				"email_id",
+				"customer_group",
+				"territory",
+				"custom_governorate",
+				"custom_district",
+				"moh_vehicle_type",
+				"moh_vehicle_plate_number",
+				"moh_vehicle_chassis_number",
+				"disabled",
+			],
 			limit=customer_limit,
 			order_by="customer_name asc",
 		)
+		for customer in result:
+			customer.update(_get_customer_tax_address(customer.name))
 		frappe.logger().debug(f"get_customers returned {len(result)} customers")
 		return result
 	except Exception as e:
@@ -76,6 +226,13 @@ def get_customers(search_term="", pos_profile=None, limit=20, modified_since=Non
 def create_customer(
 	customer_name,
 	mobile_no=None,
+	tax_id=None,
+	custom_vat_registration_number=None,
+	tax_address_line1=None,
+	tax_building_number=None,
+	tax_city=None,
+	tax_district=None,
+	tax_postal_code=None,
 	email_id=None,
 	customer_group=None,
 	territory=None,
@@ -83,6 +240,9 @@ def create_customer(
 	pos_profile=None,
 	custom_governorate=None,
 	custom_district=None,
+	moh_vehicle_type=None,
+	moh_vehicle_plate_number=None,
+	moh_vehicle_chassis_number=None,
 ):
 	"""
 	Create a new customer from POS.
@@ -90,6 +250,7 @@ def create_customer(
 	Args:
 	    customer_name (str): Customer name (required)
 	    mobile_no (str): Mobile number (optional)
+	    custom_vat_registration_number (str): VAT registration number for ZATCA
 	    email_id (str): Email address (optional)
 	    customer_group (str): Customer group (default: from Selling Settings)
 	    territory (str): Territory (default: from Selling Settings)
@@ -97,6 +258,9 @@ def create_customer(
 	    pos_profile (str): POS Profile (optional, preferred for context-aware loyalty assignment)
 	    custom_governorate (str): Governorate (optional)
 	    custom_district (str): District (optional, must belong to the governorate)
+	    moh_vehicle_type (str): Customer vehicle type (optional)
+	    moh_vehicle_plate_number (str): Customer vehicle plate number (optional)
+	    moh_vehicle_chassis_number (str): Customer vehicle chassis number (optional)
 
 	Returns:
 	    dict: Created customer document
@@ -107,6 +271,15 @@ def create_customer(
 
 	if not customer_name:
 		frappe.throw(_("Customer name is required"))
+	address_data = _validate_tax_address(
+		custom_vat_registration_number or tax_id,
+		tax_address_line1,
+		tax_building_number,
+		tax_city,
+		tax_district,
+		tax_postal_code,
+	)
+	vat_registration_number = address_data["vat_registration_number"]
 
 	loyalty_program = get_default_loyalty_program_from_settings(
 		company=company,
@@ -138,10 +311,16 @@ def create_customer(
 			"customer_group": resolved_customer_group,
 			"territory": resolved_territory,
 			"mobile_no": mobile_no or "",
+			"tax_id": vat_registration_number,
+			"custom_vat_registration_number": vat_registration_number,
+			"tax_category": "Standard Tax Customer" if vat_registration_number else None,
 			"email_id": email_id or "",
 			"loyalty_program": loyalty_program,
 			"custom_governorate": custom_governorate or None,
 			"custom_district": custom_district or None,
+			"moh_vehicle_type": moh_vehicle_type or "",
+			"moh_vehicle_plate_number": moh_vehicle_plate_number or "",
+			"moh_vehicle_chassis_number": moh_vehicle_chassis_number or "",
 		}
 	)
 
@@ -149,10 +328,71 @@ def create_customer(
 	frappe.flags.pos_next_customer_pos_profile = pos_profile
 	try:
 		customer.insert()
+		_upsert_customer_tax_address(customer, address_data)
 	finally:
 		frappe.flags.pos_next_customer_company = None
 		frappe.flags.pos_next_customer_pos_profile = None
 
+	return customer.as_dict()
+
+
+@frappe.whitelist()
+def update_customer(
+	name,
+	customer_name,
+	mobile_no=None,
+	tax_id=None,
+	custom_vat_registration_number=None,
+	tax_address_line1=None,
+	tax_building_number=None,
+	tax_city=None,
+	tax_district=None,
+	tax_postal_code=None,
+	email_id=None,
+	customer_group=None,
+	territory=None,
+	custom_governorate=None,
+	custom_district=None,
+	moh_vehicle_type=None,
+	moh_vehicle_plate_number=None,
+	moh_vehicle_chassis_number=None,
+):
+	if not frappe.has_permission("Customer", "write"):
+		frappe.throw(_("You don't have permission to update customers"), frappe.PermissionError)
+	if not name or not frappe.db.exists("Customer", name):
+		frappe.throw(_("Customer is required"))
+	if not customer_name:
+		frappe.throw(_("Customer name is required"))
+
+	customer = frappe.get_doc("Customer", name)
+	address_data = _validate_tax_address(
+		custom_vat_registration_number or tax_id,
+		tax_address_line1,
+		tax_building_number,
+		tax_city,
+		tax_district,
+		tax_postal_code,
+	)
+	vat_registration_number = address_data["vat_registration_number"]
+	customer.update(
+		{
+			"customer_name": customer_name,
+			"customer_group": customer_group or customer.customer_group,
+			"territory": territory or customer.territory,
+			"mobile_no": mobile_no or "",
+			"tax_id": vat_registration_number,
+			"custom_vat_registration_number": vat_registration_number,
+			"tax_category": "Standard Tax Customer" if vat_registration_number else None,
+			"email_id": email_id or "",
+			"custom_governorate": custom_governorate or None,
+			"custom_district": custom_district or None,
+			"moh_vehicle_type": moh_vehicle_type or "",
+			"moh_vehicle_plate_number": moh_vehicle_plate_number or "",
+			"moh_vehicle_chassis_number": moh_vehicle_chassis_number or "",
+		}
+	)
+	customer.save()
+	_upsert_customer_tax_address(customer, address_data)
 	return customer.as_dict()
 
 

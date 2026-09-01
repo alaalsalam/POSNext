@@ -14,6 +14,8 @@ This module handles post-fixture tasks like setting defaults and clearing cache.
 import logging
 
 import frappe
+from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -26,6 +28,12 @@ def after_install():
 
 		# Setup default print format for POS Profiles
 		setup_default_print_format()
+
+		# Ensure POS customer vehicle fields exist
+		setup_customer_vehicle_fields()
+
+		# Keep customer tax fields clear for ZATCA
+		setup_customer_tax_fields()
 
 		# Clear cache to ensure changes take effect
 		frappe.clear_cache()
@@ -50,6 +58,12 @@ def after_migrate():
 
 		# Setup default print format
 		setup_default_print_format(quiet=True)
+
+		# Ensure POS customer vehicle fields exist
+		setup_customer_vehicle_fields()
+
+		# Keep customer tax fields clear for ZATCA
+		setup_customer_tax_fields()
 
 		# Clear cache
 		frappe.clear_cache()
@@ -107,6 +121,57 @@ def setup_default_print_format(quiet=False):
 	except Exception as e:
 		log_message(f"Error setting up default print format: {str(e)}", level="error")
 		frappe.log_error(title="Default Print Format Setup Error", message=frappe.get_traceback())
+
+
+def setup_customer_vehicle_fields():
+	"""Create simple one-car vehicle fields on Customer for POS billing."""
+	custom_fields = {
+		"Customer": [
+			{
+				"fieldname": "moh_vehicle_section",
+				"label": "بيانات السيارة",
+				"fieldtype": "Section Break",
+				"insert_after": "mobile_no",
+				"collapsible": 1,
+				"module": "POS Next",
+			},
+			{
+				"fieldname": "moh_vehicle_type",
+				"label": "نوع السيارة",
+				"fieldtype": "Data",
+				"insert_after": "moh_vehicle_section",
+				"module": "POS Next",
+			},
+			{
+				"fieldname": "moh_vehicle_plate_number",
+				"label": "رقم اللوحة",
+				"fieldtype": "Data",
+				"insert_after": "moh_vehicle_type",
+				"module": "POS Next",
+			},
+			{
+				"fieldname": "moh_vehicle_chassis_number",
+				"label": "رقم الهيكل",
+				"fieldtype": "Data",
+				"insert_after": "moh_vehicle_plate_number",
+				"module": "POS Next",
+			},
+		]
+	}
+	create_custom_fields(custom_fields, ignore_validate=True)
+
+
+def setup_customer_tax_fields():
+	"""Hide the legacy Customer tax field and label the ZATCA VAT field clearly."""
+	make_property_setter("Customer", "tax_id", "hidden", 1, "Check", validate_fields_for_doctype=False)
+	make_property_setter(
+		"Customer",
+		"custom_vat_registration_number",
+		"label",
+		"الرقم الضريبي",
+		"Data",
+		validate_fields_for_doctype=False,
+	)
 
 
 def log_message(message, level="info", indent=0):

@@ -445,6 +445,53 @@
 						</template>
 					</div>
 
+					<!-- Customer / Vehicle Print Details -->
+					<div
+						v-if="!isSalesOrder"
+						class="bg-sky-50 border border-sky-200 rounded-lg p-2"
+					>
+						<div class="flex items-center justify-between mb-1.5">
+							<label class="text-xs font-medium text-sky-700">
+								{{ __("بيانات الفاتورة") }}
+							</label>
+							<span class="text-[10px] text-sky-600">{{ __("الممشى لكل فاتورة") }}</span>
+						</div>
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+							<input
+								v-model.trim="invoicePrintDetails.moh_customer_phone"
+								type="tel"
+								inputmode="tel"
+								:placeholder="__('رقم الهاتف')"
+								class="h-8 border border-sky-200 rounded-lg px-2 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+							/>
+							<input
+								v-model.trim="invoicePrintDetails.moh_vehicle_mileage"
+								type="text"
+								inputmode="numeric"
+								:placeholder="__('الممشى')"
+								class="h-8 border border-sky-200 rounded-lg px-2 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+							/>
+							<input
+								v-model.trim="invoicePrintDetails.moh_vehicle_type"
+								type="text"
+								:placeholder="__('نوع السيارة')"
+								class="h-8 border border-sky-200 rounded-lg px-2 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+							/>
+							<input
+								v-model.trim="invoicePrintDetails.moh_vehicle_plate_number"
+								type="text"
+								:placeholder="__('رقم اللوحة')"
+								class="h-8 border border-sky-200 rounded-lg px-2 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+							/>
+							<input
+								v-model.trim="invoicePrintDetails.moh_vehicle_chassis_number"
+								type="text"
+								:placeholder="__('رقم الهيكل')"
+								class="h-8 border border-sky-200 rounded-lg px-2 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white sm:col-span-2"
+							/>
+						</div>
+					</div>
+
 					<!-- Outstanding Balance Row (full width, two columns) -->
 					<div
 						v-if="customerCreditEnabled && totalAvailableCredit !== 0"
@@ -2129,6 +2176,13 @@ const customerBalance = ref({
 	net_balance: 0,
 });
 const loadingCredit = ref(false);
+const invoicePrintDetails = ref({
+	moh_customer_phone: "",
+	moh_vehicle_mileage: "",
+	moh_vehicle_type: "",
+	moh_vehicle_plate_number: "",
+	moh_vehicle_chassis_number: "",
+});
 
 // Wallet state
 const walletInfo = ref({
@@ -2957,6 +3011,7 @@ watch(show, (newVal) => {
 		lastSelectedMethod.value = null;
 		selectedReceivableAccount.value = "";
 		customerCredit.value = [];
+		resetInvoicePrintDetails();
 		// Refetch credit sources every time the dialog opens. The pre-fetch
 		// watcher only fires when customer/company changes, so reopening the
 		// dialog for the same customer would otherwise leave credit_details
@@ -3014,6 +3069,21 @@ watch(show, (newVal) => {
 		}
 	}
 });
+
+watch(
+	() => props.customer,
+	(customer) => {
+		if (!show.value || !customer) return;
+		invoicePrintDetails.value.moh_customer_phone =
+			customer.mobile_no || customer.phone || customer.phone_no || "";
+		invoicePrintDetails.value.moh_vehicle_type = customer.moh_vehicle_type || "";
+		invoicePrintDetails.value.moh_vehicle_plate_number =
+			customer.moh_vehicle_plate_number || "";
+		invoicePrintDetails.value.moh_vehicle_chassis_number =
+			customer.moh_vehicle_chassis_number || "";
+	},
+	{ deep: true }
+);
 
 // ===========================================
 // Payment Method Press Handler (Long Press Support)
@@ -3356,6 +3426,7 @@ function addCreditAccountPayment() {
 		is_credit_sale: true, // Mark as credit sale
 		paid_amount: 0,
 		outstanding_amount: props.grandTotal,
+		print_details: getInvoicePrintDetails(),
 	};
 
 	log.debug("[PaymentDialog] Emitting credit sale payment-completed:", paymentData);
@@ -3366,6 +3437,27 @@ function addCreditAccountPayment() {
 function clearAll() {
 	paymentEntries.value = [];
 	customAmount.value = "";
+}
+
+function getInvoicePrintDetails() {
+	return {
+		moh_customer_phone: invoicePrintDetails.value.moh_customer_phone || "",
+		moh_vehicle_mileage: invoicePrintDetails.value.moh_vehicle_mileage || "",
+		moh_vehicle_type: invoicePrintDetails.value.moh_vehicle_type || "",
+		moh_vehicle_plate_number: invoicePrintDetails.value.moh_vehicle_plate_number || "",
+		moh_vehicle_chassis_number: invoicePrintDetails.value.moh_vehicle_chassis_number || "",
+	};
+}
+
+function resetInvoicePrintDetails() {
+	invoicePrintDetails.value = {
+		moh_customer_phone:
+			props.customer?.mobile_no || props.customer?.phone || props.customer?.phone_no || "",
+		moh_vehicle_mileage: "",
+		moh_vehicle_type: props.customer?.moh_vehicle_type || "",
+		moh_vehicle_plate_number: props.customer?.moh_vehicle_plate_number || "",
+		moh_vehicle_chassis_number: props.customer?.moh_vehicle_chassis_number || "",
+	};
 }
 
 function completePayment() {
@@ -3414,6 +3506,7 @@ function completePayment() {
 		// the allow_credit_sale gate).
 		receivable_account: receivableAccount,
 		is_credit_sale: !!receivableAccount && paymentEntries.value.length === 0,
+		print_details: getInvoicePrintDetails(),
 	};
 
 	log.debug("[PaymentDialog] Emitting payment-completed:", paymentData);

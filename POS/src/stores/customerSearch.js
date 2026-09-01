@@ -35,8 +35,14 @@ export const useCustomerSearchStore = defineStore("customerSearch", () => {
 			cached = {
 				name: (customer.customer_name || "").toLowerCase(),
 				mobile: (customer.mobile_no || "").toLowerCase(),
+				tax: (
+					customer.custom_vat_registration_number ||
+					customer.tax_id ||
+					""
+				).toLowerCase(),
 				email: (customer.email_id || "").toLowerCase(),
 				id: (customer.name || "").toLowerCase(),
+				plate: (customer.moh_vehicle_plate_number || "").toLowerCase(),
 				// Pre-compute word starts for super fast word matching
 				nameWords: (customer.customer_name || "").toLowerCase().split(" "),
 			};
@@ -59,6 +65,16 @@ export const useCustomerSearchStore = defineStore("customerSearch", () => {
 		if (cached.mobile === term) return 250;
 		if (cached.mobile.startsWith(term)) return 225;
 		if (cached.mobile.includes(term)) return 150;
+
+		// Tax number checks
+		if (cached.tax === term) return 240;
+		if (cached.tax.startsWith(term)) return 220;
+		if (cached.tax.includes(term)) return 145;
+
+		// Vehicle plate checks
+		if (cached.plate === term) return 230;
+		if (cached.plate.startsWith(term)) return 210;
+		if (cached.plate.includes(term)) return 145;
 
 		// Email checks
 		if (cached.email.startsWith(term)) return 200;
