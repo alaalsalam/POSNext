@@ -17,6 +17,15 @@ function formatCurrency(amount) {
 	return Number.parseFloat(amount || 0).toFixed(2);
 }
 
+function escapeHTML(value) {
+	return String(value ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
 /**
  * Fall back to summing payment rows when paid_amount is not set —
  * offline invoices lack paid_amount until server submission.
@@ -66,6 +75,11 @@ function receiptDocFromQueuedInvoice(offlineId, raw) {
 		posting_date: raw.posting_date || new Date().toISOString().slice(0, 10),
 		company: raw.company,
 		customer_name: raw.customer,
+		moh_customer_phone: raw.moh_customer_phone,
+		moh_vehicle_mileage: raw.moh_vehicle_mileage,
+		moh_vehicle_type: raw.moh_vehicle_type,
+		moh_vehicle_plate_number: raw.moh_vehicle_plate_number,
+		moh_vehicle_chassis_number: raw.moh_vehicle_chassis_number,
 		items: items.map((item) => ({
 			...item,
 			quantity: item.quantity ?? item.qty,
@@ -120,6 +134,11 @@ const RECEIPT_STYLES = `
 	.company-name { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
 	.invoice-info { margin-bottom: 15px; font-size: 12px; }
 	.invoice-info div { display: flex; justify-content: space-between; margin-bottom: 3px; }
+	.print-details { direction: rtl; margin: 10px 0 15px; border: 1px solid #000; font-size: 11px; }
+	.print-details-row { display: flex; border-bottom: 1px solid #000; min-height: 22px; }
+	.print-details-row:last-child { border-bottom: 0; }
+	.print-details-label { width: 35%; padding: 4px 6px; border-left: 1px solid #000; font-weight: bold; text-align: right; }
+	.print-details-value { flex: 1; padding: 4px 6px; text-align: center; word-break: break-word; }
 	.partial-status { color: #000; font-weight: bold; margin-bottom: 5px; }
 	.items-table { width: 100%; margin-bottom: 15px; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; }
 	.item-row { margin-bottom: 10px; font-size: 12px; }
@@ -157,6 +176,13 @@ const RECEIPT_STYLES = `
 export function buildReceiptHTML(invoiceData) {
 	const items = invoiceData.items || [];
 	const paidAmount = derivePaidAmount(invoiceData);
+	const printDetails = [
+		[__("رقم الهاتف"), invoiceData.moh_customer_phone],
+		[__("الممشى"), invoiceData.moh_vehicle_mileage],
+		[__("نوع السيارة"), invoiceData.moh_vehicle_type],
+		[__("رقم اللوحة"), invoiceData.moh_vehicle_plate_number],
+		[__("رقم الهيكل"), invoiceData.moh_vehicle_chassis_number],
+	].filter(([, value]) => value);
 	const itemsHtml = items
 		.map((item) => {
 			const hasDiscount =
@@ -202,7 +228,7 @@ export function buildReceiptHTML(invoiceData) {
 	return `
 			<div class="receipt">
 				<div class="header">
-					<div class="company-name">${invoiceData.company || "POS Next"}</div>
+					<div class="company-name">${invoiceData.company || "POS YemenFrappe"}</div>
 					<div style="font-size: 12px;">${invoiceData.header || __("TAX INVOICE")}</div>
 				</div>
 
@@ -231,6 +257,17 @@ export function buildReceiptHTML(invoiceData) {
 							: ""
 					}
 				</div>
+
+				${
+					printDetails.length
+						? `<div class="print-details">${printDetails
+								.map(
+									([label, value]) =>
+										`<div class="print-details-row"><div class="print-details-label">${escapeHTML(label)}</div><div class="print-details-value">${escapeHTML(value)}</div></div>`
+								)
+								.join("")}</div>`
+						: ""
+				}
 
 				<div class="items-table">
 					${itemsHtml}
@@ -309,11 +346,6 @@ export function buildReceiptHTML(invoiceData) {
 
 				<div class="footer">
 					<div style="margin-bottom: 5px;">${invoiceData.footer || __("Thank you for your business!")}</div>
-					${
-						invoiceData.footer
-							? ""
-							: `<div style="font-size: 10px;">Powered by <a href="https://nexus.brainwise.me" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: 600;">BrainWise</a></div>`
-					}
 				</div>
 			</div>`;
 }

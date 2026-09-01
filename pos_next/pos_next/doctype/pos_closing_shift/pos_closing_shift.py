@@ -198,9 +198,7 @@ class POSClosingShift(Document):
 			if currency:
 				row["currencies"][currency] += flt(amount)
 
-		cash_mode_of_payment = (
-			frappe.db.get_value("POS Profile", self.pos_profile, "posa_cash_mode_of_payment") or "Cash"
-		)
+		cash_mode_of_payment = _get_cash_mode_of_payment(self.pos_profile)
 
 		for row in self.get("pos_transactions", []):
 			invoice = row.get("sales_invoice") or row.get("pos_invoice")
@@ -398,11 +396,27 @@ def get_payments_entries(pos_opening_shift):
 def _get_cash_mode_of_payment(pos_profile):
 	"""Get the cash mode of payment for a POS profile."""
 	cash_mode = frappe.get_value("POS Profile", pos_profile, "posa_cash_mode_of_payment")
-	return cash_mode or "Cash"
+	if cash_mode and frappe.db.exists("Mode of Payment", cash_mode):
+		return cash_mode
+
+	profile_methods = frappe.get_all(
+		"POS Payment Method",
+		filters={"parent": pos_profile},
+		fields=["mode_of_payment", "default"],
+		order_by="`default` desc, idx asc",
+	)
+	for method in profile_methods:
+		if frappe.db.exists("Mode of Payment", method.mode_of_payment):
+			return method.mode_of_payment
+
+	return None
 
 
 def _aggregate_payment(payments, mode_of_payment, amount, opening_amount=0):
 	"""Add or update payment amount for a mode of payment."""
+	if not mode_of_payment:
+		return
+
 	for pay in payments:
 		if pay.mode_of_payment == mode_of_payment:
 			pay.expected_amount += flt(amount)

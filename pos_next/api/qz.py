@@ -46,13 +46,16 @@ def _key_path():
 
 @frappe.whitelist()
 def get_certificate():
-	"""Return the public certificate PEM text for QZ Tray signing."""
+	"""Return the public certificate PEM text for QZ Tray signing.
+
+	This endpoint is used as a quiet capability probe by the POS frontend and
+	QZ Tray handshake. Missing certificates should not surface as HTTP 417
+	console errors during normal cashier work; explicit download/sign actions
+	still raise clear setup errors when the certificate is required.
+	"""
 	path = _cert_path()
 	if not os.path.exists(path):
-		frappe.throw(
-			_("QZ Tray certificate not found. Ask an administrator to run Setup QZ Certificate."),
-			title=_("QZ Certificate Missing"),
-		)
+		return None
 
 	with open(path) as f:
 		return f.read()

@@ -8,7 +8,7 @@
 						<Input
 							v-model="searchTerm"
 							type="text"
-							:placeholder="__('Search by invoice number or customer...')"
+							:placeholder="__('Search by invoice number, customer, or phone...')"
 							@input="searchInvoices"
 						>
 							<template #prefix>
@@ -256,6 +256,7 @@ const searchTerm = ref("");
 const page = ref(0);
 const pageSize = 20;
 const hasMore = ref(true);
+let searchTimer = null;
 
 // Return dialog state
 const showReturnDialog = ref(false);
@@ -272,6 +273,7 @@ const invoicesResource = createResource({
 			pos_profile: props.posProfile,
 			start: page.value * pageSize,
 			limit: pageSize,
+			search_term: searchTerm.value,
 		};
 	},
 	auto: false,
@@ -327,12 +329,19 @@ const filteredInvoices = computed(() => {
 	if (!searchTerm.value) return invoices.value;
 
 	const term = searchTerm.value.toLowerCase();
-	return invoices.value.filter(
-		(inv) =>
-			inv.name?.toLowerCase().includes(term) ||
-			inv.customer_name?.toLowerCase().includes(term)
-	);
+	return invoices.value.filter((inv) => invoiceMatchesSearch(inv, term));
 });
+
+function invoiceMatchesSearch(invoice, term) {
+	return [
+		invoice.name,
+		invoice.customer,
+		invoice.customer_name,
+		invoice.moh_customer_phone,
+		invoice.contact_mobile,
+		invoice.customer_mobile,
+	].some((value) => String(value || "").toLowerCase().includes(term));
+}
 
 function formatPaymentModes(invoice) {
 	const payments = Array.isArray(invoice?.payments) ? invoice.payments : [];
@@ -372,7 +381,14 @@ function loadMore() {
 }
 
 function searchInvoices() {
-	// Debounced search - already filtered by computed property
+	clearTimeout(searchTimer);
+	searchTimer = setTimeout(() => {
+		page.value = 0;
+		isLoadingMore.value = false;
+		if (props.posProfile) {
+			invoicesResource.reload();
+		}
+	}, 300);
 }
 
 function viewInvoice(invoice) {

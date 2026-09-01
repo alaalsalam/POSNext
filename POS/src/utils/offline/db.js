@@ -62,8 +62,9 @@ const CURRENT_SCHEMA = {
 	// Sales persons cache
 	sales_persons: "&name, pos_profile",
 
-	// Payment queue for offline payments
-	payment_queue: "++id, timestamp, synced",
+	// Payment queue for offline partial/credit invoice payments
+	// offline_id is used as the Payment Entry reference_no for idempotent sync
+	payment_queue: "++id, &offline_id, invoice_name, timestamp, synced",
 
 	// Drafts (already handled by draftManager, but keeping for consistency)
 	drafts: "++id, draft_id, timestamp",

@@ -100,6 +100,7 @@
 						<span>{{ __("Invoice History") }}</span>
 					</button>
 					<button
+						data-testid="offline-operations-menu-button"
 						v-if="offlineStore.pendingInvoicesCount > 0"
 						@click="
 							uiStore.showOfflineInvoicesDialog = true;
@@ -120,7 +121,7 @@
 								d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 							/>
 						</svg>
-						<span>{{ __("Offline Invoices") }}</span>
+						<span>{{ __("Offline Operations") }}</span>
 						<span
 							class="ms-auto text-xs bg-orange-600 text-white px-1.5 py-0.5 rounded-full"
 						>
@@ -462,7 +463,7 @@
 						</svg>
 					</div>
 					<h3 class="mt-4 text-lg font-medium text-gray-900">
-						{{ __("Welcome to POS Next") }}
+						{{ __("Welcome to POS YemenFrappe") }}
 					</h3>
 					<p class="mt-2 text-sm text-gray-500">
 						{{ __("Please open a shift to start making sales") }}
@@ -621,6 +622,7 @@
 				:is-syncing="offlineStore.isSyncing"
 				:currency="shiftStore.profileCurrency"
 				@sync-all="handleSyncAll"
+				@retry-failed="handleRetryFailedOperations"
 				@delete-invoice="handleDeleteOfflineInvoice"
 				@edit-invoice="handleEditOfflineInvoice"
 				@print-invoice="handlePrintInvoice"
@@ -822,7 +824,7 @@
 								{{ __("Sign Out?") }}
 							</h3>
 							<p class="text-sm text-gray-600">
-								{{ __("You will be logged out of POS Next") }}
+								{{ __("You will be logged out of POS YemenFrappe") }}
 							</p>
 						</div>
 
@@ -2075,6 +2077,7 @@ async function handlePaymentCompleted(paymentData) {
 				is_credit_sale: paymentData.is_credit_sale ? 1 : 0,
 				receivable_account: paymentData.receivable_account || null,
 				edited_from: editingOfflineContext?.originalOfflineId || null,
+				...(paymentData.print_details || {}),
 			};
 
 			// Save to the offline queue first so we can use the worker's
@@ -2114,6 +2117,7 @@ async function handlePaymentCompleted(paymentData) {
 				posting_date: new Date().toISOString().slice(0, 10),
 				company: shiftStore.profileCompany || undefined,
 				customer_name: customerLabel,
+				...(paymentData.print_details || {}),
 				items: preparedItems.map((item) => ({
 					...item,
 					quantity: item.qty ?? item.quantity,
@@ -2169,6 +2173,7 @@ async function handlePaymentCompleted(paymentData) {
 			const result = await cartStore.submitInvoice({
 				isCreditSale: Boolean(paymentData.is_credit_sale),
 				receivableAccount: paymentData.receivable_account || null,
+				printDetails: paymentData.print_details || {},
 			});
 
 			if (result) {
@@ -2544,6 +2549,13 @@ async function handleCustomerUpdated(updatedCustomer) {
 }
 
 async function handleRefresh() {
+	if (offlineStore.isOffline) {
+		const stats = await offlineWorker.getCacheStats().catch(() => null);
+		if (stats) itemStore.cacheStats = stats;
+		showWarning(__("Offline mode: using cached POS data. Connect to refresh from server."));
+		return;
+	}
+
 	try {
 		log.info("Manual refresh initiated (items, customers, stock)");
 
@@ -2572,6 +2584,13 @@ function handleClearCache() {
 }
 
 async function confirmClearCache() {
+	if (offlineStore.isOffline) {
+		showWarning(__("Cannot clear offline cache while offline. Connect first so POS can rebuild the cache safely."));
+		showClearCacheDialog.value = false;
+		if (clearCacheOverlayRef.value) clearCacheOverlayRef.value.reset();
+		return;
+	}
+
 	try {
 		// Keep overlay open to show clearing animation
 		log.info("Clearing cached data...");
@@ -2706,7 +2725,29 @@ async function handleSyncClick() {
 		return;
 	}
 
-	showSuccess(__("No pending invoices to sync"));
+	showSuccess(__("No pending offline operations to sync"));
+}
+
+async function handleRetryFailedOperations() {
+	if (offlineStore.isOffline) {
+		showWarning(__("Cannot retry while offline"));
+		return;
+	}
+
+	try {
+		const result = await offlineStore.retryFailedPending();
+		await offlineStore.loadPendingInvoices();
+		if (result.success > 0) {
+			showSuccess(__("{0} failed offline operation(s) retried successfully", [result.success]));
+		}
+		if (result.failed > 0) {
+			showWarning(__("{0} offline operation(s) still failed", [result.failed]));
+		}
+	} catch (error) {
+		log.error("Retry failed operations error:", error);
+		const errorContext = parseError(error);
+		uiStore.showError(errorContext.title, errorContext.message, errorContext.technicalDetails, "sync");
+	}
 }
 
 async function handleSyncAll() {
@@ -2717,6 +2758,7 @@ async function handleSyncAll() {
 
 	try {
 		const result = await offlineStore.syncAllPending();
+		await offlineStore.loadPendingInvoices();
 
 		// Refresh stock after successful sync (when online)
 		if (result.success > 0 && itemsSelectorRef.value) {
@@ -2730,15 +2772,15 @@ async function handleSyncAll() {
 			uiStore.showError(
 				errorContext.title,
 				__(
-					"Failed to sync invoice for {0}\n\n${1}\n\nYou can delete this invoice from the offline queue if you don't need it.",
-					[firstError.customer, errorContext.message]
+					"Failed to sync offline operation for {0}\n\n{1}\n\nReview it from Offline Operations.",
+					[firstError.customer || firstError.invoiceName || firstError.offlineId || firstError.id || __("Unknown"), errorContext.message]
 				),
-				errorContext.technicalDetails || __("Invoice ID: {0}", [firstError.invoiceId]),
+				errorContext.technicalDetails || __("Operation ID: {0}", [firstError.invoiceId || firstError.id || firstError.offlineId || __("Unknown")]),
 				"sync",
 				{ failedInvoiceId: firstError.invoiceId }
 			);
 		} else if (result.failed > 0) {
-			showWarning(__("{0} invoice(s) failed to sync", [result.failed]));
+			showWarning(__("{0} offline operation(s) failed to sync", [result.failed]));
 		}
 	} catch (error) {
 		log.error("Sync error:", error);
@@ -2965,9 +3007,15 @@ async function handlePrintInvoice(invoiceData) {
 		if (invoiceData.items && Array.isArray(invoiceData.items)) {
 			await printInvoice(invoiceData);
 		} else {
-			// If it's just an invoice object with name, fetch and print
-			// printInvoiceByName will automatically fetch the print format from the invoice's POS Profile
-			await printInvoiceByName(invoiceData.name);
+			const cachedInvoices = await getCachedInvoiceHistory(shiftStore.profileName, { limit: 200 }).catch(() => []);
+			const cachedInvoice = (cachedInvoices || []).find((invoice) => invoice.name === invoiceData.name);
+			if (cachedInvoice?.items?.length > 0) {
+				await printInvoice(cachedInvoice);
+			} else {
+				// If it's just an invoice object with name, fetch and print
+				// printInvoiceByName will automatically fetch the print format from the invoice's POS Profile
+				await printInvoiceByName(invoiceData.name);
+			}
 		}
 	} catch (error) {
 		log.error("Error printing invoice:", error);

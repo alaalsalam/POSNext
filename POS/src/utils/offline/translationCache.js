@@ -36,11 +36,11 @@ const pendingRefreshes = new Map();
  */
 
 /**
- * Normalizes locale codes to lowercase, defaulting to "en".
+ * Normalizes locale codes to lowercase, defaulting to "ar".
  * @param {string|null|undefined} locale - Raw locale code
  * @returns {string} Normalized lowercase locale
  */
-const normalizeLocale = (locale) => (locale || "en").toLowerCase();
+const normalizeLocale = (locale) => (locale || "ar").toLowerCase();
 
 /**
  * Persists translation entry to both memory and IndexedDB.

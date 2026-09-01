@@ -3,13 +3,13 @@ import { translationVersion } from "../utils/translation";
 import { call } from "../utils/apiWrapper";
 import { offlineState } from "../utils/offline/offlineState";
 import { logger } from "../utils/logger";
-import { useBootstrapStore } from "../stores/bootstrap";
 
 const log = logger.create("Locale");
 
 // Reactive locale state (shared across all components)
-const currentLocale = ref("en");
-const currentDir = ref("ltr");
+const DEFAULT_LOCALE = "ar";
+const currentLocale = ref(DEFAULT_LOCALE);
+const currentDir = ref("rtl");
 const allowedLocales = ref(null); // null = not fetched yet, array = fetched from server
 const PREFARED_LANGUAGE_KEY = "pos_next_language";
 const ALLOWED_LOCALES_KEY = "pos_next_allowed_locales";
@@ -98,30 +98,7 @@ function getCachedAllowedLocales() {
  * @returns {Promise<string|null>} Language code or null if fetch fails
  */
 async function fetchLanguageFromServer() {
-	// OPTIMIZATION: Check if bootstrap has preloaded the locale
-	try {
-		const bootstrapStore = useBootstrapStore();
-		const preloadedLocale = bootstrapStore.getPreloadedLocale();
-		if (preloadedLocale && SUPPORTED_LOCALES[preloadedLocale]) {
-			log.info(`Using preloaded language from bootstrap: ${preloadedLocale}`);
-			return preloadedLocale;
-		}
-	} catch (error) {
-		// Bootstrap store may not be available yet, fall through to API call
-		log.debug("Bootstrap store not available, fetching language from API");
-	}
-
-	// Fallback to direct API call
-	try {
-		const response = await call("pos_next.api.localization.get_user_language", {});
-		if (response?.locale && SUPPORTED_LOCALES[response.locale]) {
-			log.info(`Fetched language from server: ${response.locale}`);
-			return response.locale;
-		}
-	} catch (error) {
-		log.warn("Failed to fetch language from server", error);
-	}
-	return null;
+	return DEFAULT_LOCALE;
 }
 
 /**
@@ -130,28 +107,7 @@ async function fetchLanguageFromServer() {
  * @returns {string} Language code
  */
 function detectCachedLanguage() {
-	// 1. Check Frappe boot data (user's saved preference)
-	if (typeof window !== "undefined" && window.frappe?.boot?.lang) {
-		const lang = window.frappe.boot.lang.toLowerCase();
-		if (SUPPORTED_LOCALES[lang]) {
-			return lang;
-		}
-	}
-
-	// 2. Check localStorage
-	const stored = localStorage.getItem(PREFARED_LANGUAGE_KEY);
-	if (stored && SUPPORTED_LOCALES[stored]) {
-		return stored;
-	}
-
-	// 3. Check browser language
-	const browserLang = navigator.language.split("-")[0].toLowerCase();
-	if (SUPPORTED_LOCALES[browserLang]) {
-		return browserLang;
-	}
-
-	// 4. Default to English
-	return "en";
+	return DEFAULT_LOCALE;
 }
 
 /**
@@ -164,7 +120,7 @@ export function useLocale() {
 	const dir = computed(() => currentDir.value);
 	const isRTL = computed(() => currentDir.value === "rtl");
 	const localeConfig = computed(() => {
-		const config = SUPPORTED_LOCALES[locale.value] || SUPPORTED_LOCALES.en;
+		const config = SUPPORTED_LOCALES[locale.value] || SUPPORTED_LOCALES[DEFAULT_LOCALE];
 		return {
 			...config,
 			flagUrl: getFlagUrl(config.countryCode),
@@ -178,6 +134,8 @@ export function useLocale() {
 	 * @param {string} newLocale - Language code (e.g., 'ar', 'en', 'fr')
 	 */
 	async function changeLocale(newLocale) {
+		newLocale = DEFAULT_LOCALE;
+
 		if (!SUPPORTED_LOCALES[newLocale]) {
 			console.warn(`Locale ${newLocale} not supported`);
 			return;
@@ -292,11 +250,9 @@ export function useLocale() {
 	// Build supported locales with flag URLs, filtered by allowed locales from POS Settings
 	const supportedLocales = computed(() => {
 		const result = {};
-		const allowed = allowedLocales.value;
 
 		for (const [code, config] of Object.entries(SUPPORTED_LOCALES)) {
-			// If allowed locales are set, filter by them; otherwise show all
-			if (allowed === null || allowed.length === 0 || allowed.includes(code)) {
+			if (code === DEFAULT_LOCALE) {
 				result[code] = {
 					...config,
 					flagUrl: getFlagUrl(config.countryCode),
