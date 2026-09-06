@@ -445,6 +445,43 @@
 						</template>
 					</div>
 
+					<!-- Customer details and app-provided payment fields -->
+					<div
+						v-if="!isSalesOrder && (paymentCustomer.name || paymentFormContext.extensions.length)"
+						class="bg-sky-50 border border-sky-200 rounded-lg p-2"
+					>
+						<div v-if="paymentCustomer.name" class="mb-2">
+							<div class="text-xs font-semibold text-sky-800 mb-1">
+								{{ __("بيانات العميل") }}
+							</div>
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-sky-900">
+								<div><span class="font-medium">{{ __("الاسم") }}:</span> {{ paymentCustomer.customer_name || paymentCustomer.name }}</div>
+								<div v-if="paymentCustomer.mobile_no"><span class="font-medium">{{ __("الهاتف") }}:</span> {{ paymentCustomer.mobile_no }}</div>
+								<div v-if="paymentCustomer.tax_id"><span class="font-medium">{{ __("الرقم الضريبي") }}:</span> {{ paymentCustomer.tax_id }}</div>
+								<div v-if="paymentCustomerAddress" class="sm:col-span-2"><span class="font-medium">{{ __("العنوان") }}:</span> {{ paymentCustomerAddress }}</div>
+							</div>
+						</div>
+
+						<div
+							v-for="extension in paymentFormContext.extensions"
+							:key="extension.id"
+							class="border-t border-sky-200 pt-2 mt-2"
+						>
+							<div class="text-xs font-semibold text-sky-800 mb-1.5">{{ __(extension.title) }}</div>
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+								<div v-for="field in extension.fields" :key="field.fieldname">
+									<label class="block text-[11px] text-sky-700 mb-0.5">{{ __(field.label) }}</label>
+									<input
+										v-model.trim="paymentExtensionValues[extension.id][field.fieldname]"
+										type="text"
+										:inputmode="field.fieldname === 'mileage' ? 'numeric' : 'text'"
+										class="h-8 w-full border border-sky-200 rounded-lg px-2 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+									/>
+								</div>
+							</div>
+						</div>
+					</div>
+
 					<!-- Outstanding Balance Row (full width, two columns) -->
 					<div
 						v-if="customerCreditEnabled && totalAvailableCredit !== 0"
@@ -2129,6 +2166,46 @@ const customerBalance = ref({
 	net_balance: 0,
 });
 const loadingCredit = ref(false);
+const paymentFormContext = ref({ customer: {}, extensions: [] });
+const paymentExtensionValues = ref({});
+
+const paymentCustomer = computed(() => paymentFormContext.value.customer || {});
+const paymentCustomerAddress = computed(() => {
+	const address = paymentCustomer.value.address || {};
+	return [
+		address.address_line1,
+		address.building_number,
+		address.district,
+		address.city,
+		address.postal_code,
+	]
+		.filter(Boolean)
+		.join("، ");
+});
+
+const paymentFormContextResource = createResource({
+	url: "pos_next.api.customers.get_payment_form_context",
+	makeParams: () => ({
+		pos_profile: props.posProfile,
+		customer: props.customer?.name || props.customer || "",
+	}),
+	auto: false,
+	onSuccess: (data) => {
+		paymentFormContext.value = data || { customer: {}, extensions: [] };
+		paymentExtensionValues.value = Object.fromEntries(
+			(paymentFormContext.value.extensions || []).map((extension) => [
+				extension.id,
+				Object.fromEntries(
+					(extension.fields || []).map((field) => [
+						field.fieldname,
+						extension.values?.[field.fieldname] || "",
+					])
+				),
+			])
+		);
+	},
+	onError: (error) => log.error("Failed to load payment form context", error),
+});
 
 // Wallet state
 const walletInfo = ref({
@@ -2956,6 +3033,14 @@ watch(show, (newVal) => {
 		mobileCustomAmount.value = "";
 		lastSelectedMethod.value = null;
 		selectedReceivableAccount.value = "";
+		paymentFormContext.value = {
+			customer: typeof props.customer === "object" ? props.customer || {} : {},
+			extensions: [],
+		};
+		paymentExtensionValues.value = {};
+		if (!props.isOffline && props.posProfile && props.customer) {
+			paymentFormContextResource.fetch();
+		}
 		customerCredit.value = [];
 		// Refetch credit sources every time the dialog opens. The pre-fetch
 		// watcher only fires when customer/company changes, so reopening the
@@ -3356,6 +3441,8 @@ function addCreditAccountPayment() {
 		is_credit_sale: true, // Mark as credit sale
 		paid_amount: 0,
 		outstanding_amount: props.grandTotal,
+		extension_data: getPaymentExtensionData(),
+		invoice_fields: getPaymentInvoiceFields(),
 	};
 
 	log.debug("[PaymentDialog] Emitting credit sale payment-completed:", paymentData);
@@ -3366,6 +3453,23 @@ function addCreditAccountPayment() {
 function clearAll() {
 	paymentEntries.value = [];
 	customAmount.value = "";
+}
+
+function getPaymentExtensionData() {
+	return JSON.parse(JSON.stringify(paymentExtensionValues.value || {}));
+}
+
+function getPaymentInvoiceFields() {
+	const invoiceFields = {};
+	for (const extension of paymentFormContext.value.extensions || []) {
+		const values = paymentExtensionValues.value[extension.id] || {};
+		for (const field of extension.fields || []) {
+			if (field.invoice_field) {
+				invoiceFields[field.invoice_field] = values[field.fieldname] || "";
+			}
+		}
+	}
+	return invoiceFields;
 }
 
 function completePayment() {
@@ -3414,6 +3518,8 @@ function completePayment() {
 		// the allow_credit_sale gate).
 		receivable_account: receivableAccount,
 		is_credit_sale: !!receivableAccount && paymentEntries.value.length === 0,
+		extension_data: getPaymentExtensionData(),
+		invoice_fields: getPaymentInvoiceFields(),
 	};
 
 	log.debug("[PaymentDialog] Emitting payment-completed:", paymentData);

@@ -8,6 +8,17 @@ import { roundCurrency } from "@/utils/currency";
 
 const log = logger.create("Invoice");
 
+export function resolveTaxInclusive(taxRows, posSettings = null) {
+	if (posSettings?.tax_inclusive !== undefined && posSettings?.tax_inclusive !== null) {
+		return [true, 1, "1"].includes(posSettings.tax_inclusive);
+	}
+	const applicableRows = (taxRows || []).filter((row) => row.charge_type !== "Actual");
+	return (
+		applicableRows.length > 0 &&
+		applicableRows.every((row) => [true, 1, "1"].includes(row.included_in_print_rate))
+	);
+}
+
 // Shared mutex for invoice submission across all useInvoice instances
 // This prevents duplicate invoice creation from rapid clicks or concurrent submissions
 const submitMutex = new CoalescingMutex({
@@ -966,7 +977,8 @@ export function useInvoice() {
 		deliveryDate = null,
 		writeOffAmount = 0,
 		isCreditSale = false,
-		receivableAccount = null
+		receivableAccount = null,
+		extensionData = null
 	) {
 		/**
 		 * Two-step submission process with mutex protection:
@@ -1017,6 +1029,9 @@ export function useInvoice() {
 					is_pos: 1,
 					update_stock: 1, // Critical: Ensures stock is updated
 				};
+				if (extensionData && Object.keys(extensionData).length > 0) {
+					invoiceData.extension_data = extensionData;
+				}
 
 				// "Pay on Receivable Account": route the invoice's debit_to to a chosen AR
 				if (receivableAccount) {
@@ -1236,10 +1251,7 @@ export function useInvoice() {
 			const result = await getTaxesResource.submit({ pos_profile: profileName });
 			taxRules.value = result?.data || result || [];
 
-			// Load tax inclusive setting from POS Settings if provided
-			if (posSettings && posSettings.tax_inclusive !== undefined) {
-				taxInclusive.value = posSettings.tax_inclusive || false;
-			}
+			taxInclusive.value = resolveTaxInclusive(taxRules.value, posSettings);
 
 			// Recalculate all items with new tax rules and tax inclusive setting
 			invoiceItems.value.forEach((item) => recalculateItem(item));

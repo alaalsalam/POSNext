@@ -15,6 +15,40 @@ from pos_next.api.party_contacts import require_mobile_no
 
 SAUDI_ARABIA = "Saudi Arabia"
 ARABIC_DIGIT_TRANSLATION = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+SAUDI_CITY_ALIASES = {
+	"الريا ض": "الرياض",
+	"الياض": "الرياض",
+	"جده": "جدة",
+	"مكه": "مكة المكرمة",
+	"المدينه المنوره": "المدينة المنورة",
+	"الاحساء": "الأحساء",
+	"الضهران": "الظهران",
+}
+SAUDI_MAIN_CITIES = (
+	"الرياض",
+	"جدة",
+	"مكة المكرمة",
+	"المدينة المنورة",
+	"الدمام",
+	"الخبر",
+	"الظهران",
+	"الأحساء",
+	"الطائف",
+	"تبوك",
+	"أبها",
+	"خميس مشيط",
+	"بريدة",
+	"عنيزة",
+	"حائل",
+	"الجبيل",
+	"ينبع",
+	"نجران",
+	"جازان",
+	"سكاكا",
+	"عرعر",
+	"حفر الباطن",
+	"الباحة",
+)
 
 
 def _resolve_customer_context(pos_profile=None, company=None):
@@ -45,22 +79,202 @@ def _validate_tax_id(company, tax_id, customer_type):
 	return tax_id
 
 
-def _get_customer_form_extensions(pos_profile, company):
+def _normalize_digits(value):
+	return (value or "").translate(ARABIC_DIGIT_TRANSLATION).strip()
+
+
+def _validate_customer_address(
+	company,
+	customer_type,
+	address_line1=None,
+	building_number=None,
+	city=None,
+	district=None,
+	postal_code=None,
+):
+	"""Validate the standard Saudi national-address fields when required."""
+	country = frappe.db.get_value("Company", company, "country")
+	address = {
+		"address_line1": (address_line1 or "").strip(),
+		"building_number": _normalize_digits(building_number),
+		"city": (city or "").strip(),
+		"district": (district or "").strip(),
+		"postal_code": _normalize_digits(postal_code),
+		"country": country,
+	}
+
+	if country == SAUDI_ARABIA and customer_type == "Company":
+		missing = [
+			label
+			for fieldname, label in (
+				("address_line1", _("Street Address")),
+				("building_number", _("Building Number")),
+				("city", _("City")),
+				("district", _("District")),
+				("postal_code", _("Postal Code")),
+			)
+			if not address[fieldname]
+		]
+		if missing:
+			frappe.throw(_("Please complete the Saudi national address: {0}").format(", ".join(missing)))
+
+	if country == SAUDI_ARABIA:
+		if address["building_number"] and not re.fullmatch(r"\d{4}", address["building_number"]):
+			frappe.throw(_("Saudi Building Number must be exactly 4 digits."))
+		if address["postal_code"] and not re.fullmatch(r"\d{5}", address["postal_code"]):
+			frappe.throw(_("Saudi Postal Code must be exactly 5 digits."))
+
+	return address
+
+
+def _get_customer_address(customer):
+	if not customer:
+		return {}
+
+	address_name = frappe.db.get_value("Customer", customer, "customer_primary_address")
+	if not address_name:
+		address_name = frappe.db.get_value(
+			"Dynamic Link",
+			{"link_doctype": "Customer", "link_name": customer, "parenttype": "Address"},
+			"parent",
+		)
+	if not address_name:
+		return {}
+
+	address = frappe.get_doc("Address", address_name)
+	return {
+		"address_line1": address.address_line1 or "",
+		"building_number": address.get("custom_building_number") or address.get("building_no") or "",
+		"city": address.city or "",
+		"district": address.get("custom_area") or address.get("district") or address.state or "",
+		"postal_code": address.pincode or "",
+		"country": address.country or "",
+	}
+
+
+def _normalize_saudi_city(city):
+	city = " ".join((city or "").split())
+	return SAUDI_CITY_ALIASES.get(city, city)
+
+
+def _get_saudi_address_options(country):
+	"""Build reusable city and district suggestions from existing Saudi addresses."""
+	if country != SAUDI_ARABIA:
+		return {"cities": [], "districts_by_city": {}}
+
+	address_meta = frappe.get_meta("Address")
+	district_field = "custom_area" if address_meta.get_field("custom_area") else "state"
+	rows = frappe.get_all(
+		"Address",
+		filters={"country": country},
+		fields=["city", district_field],
+		limit_page_length=0,
+	)
+	districts_by_city = {}
+	for row in rows:
+		city = _normalize_saudi_city(row.city)
+		district = " ".join((row.get(district_field) or "").split())
+		if not city or not district or district == "غير محدد":
+			continue
+		districts_by_city.setdefault(city, set()).add(district)
+
+	cities = sorted(set(SAUDI_MAIN_CITIES) | set(districts_by_city))
+	return {
+		"cities": cities,
+		"districts_by_city": {
+			city: sorted(districts)
+			for city, districts in districts_by_city.items()
+		},
+	}
+
+
+def _upsert_customer_address(customer, address_data):
+	if not any(address_data.get(key) for key in ("address_line1", "building_number", "city", "district", "postal_code")):
+		return
+
+	address_name = customer.customer_primary_address or frappe.db.get_value(
+		"Dynamic Link",
+		{"link_doctype": "Customer", "link_name": customer.name, "parenttype": "Address"},
+		"parent",
+	)
+	address_values = {
+		"address_title": customer.customer_name,
+		"address_type": "Billing",
+		"address_line1": address_data["address_line1"],
+		"city": address_data["city"],
+		"state": address_data["district"],
+		"country": address_data["country"],
+		"pincode": address_data["postal_code"],
+		"is_primary_address": 1,
+	}
+	address_meta = frappe.get_meta("Address")
+	for fieldname, value in (
+		("building_no", address_data["building_number"]),
+		("custom_building_number", address_data["building_number"]),
+		("street_name", address_data["address_line1"]),
+		("district", address_data["district"]),
+		("custom_area", address_data["district"]),
+	):
+		if address_meta.get_field(fieldname):
+			address_values[fieldname] = value
+
+	if address_name and frappe.db.exists("Address", address_name):
+		address = frappe.get_doc("Address", address_name)
+		address.update(address_values)
+		if not any(link.link_doctype == "Customer" and link.link_name == customer.name for link in address.links):
+			address.append("links", {"link_doctype": "Customer", "link_name": customer.name})
+		address.save(ignore_permissions=True)
+	else:
+		address = frappe.get_doc({"doctype": "Address", **address_values})
+		address.append("links", {"link_doctype": "Customer", "link_name": customer.name})
+		address.insert(ignore_permissions=True)
+
+	customer.db_set("customer_primary_address", address.name, update_modified=False)
+
+
+def _get_customer_form_extensions(pos_profile, company, customer=None):
 	"""Load optional, app-provided POS customer form extensions."""
 	extensions = []
 	for handler_path in frappe.get_hooks("pos_next_customer_form_extensions"):
 		extension = frappe.get_attr(handler_path)(pos_profile=pos_profile, company=company)
 		if extension:
 			extensions.append(extension)
+
+	if customer:
+		values = {}
+		for handler_path in frappe.get_hooks("pos_next_customer_extension_values"):
+			result = frappe.get_attr(handler_path)(
+				customer=customer,
+				pos_profile=pos_profile,
+				company=company,
+			)
+			if result:
+				values.update(result)
+		for extension in extensions:
+			extension["values"] = values.get(extension["id"], {})
 	return extensions
 
 
-def _run_customer_created_extensions(customer, pos_profile, company, extension_data):
-	"""Notify optional apps after a POS customer is safely created."""
+def _get_payment_form_extensions(pos_profile, company, customer):
+	"""Load optional fields contributed to the POS payment step by installed apps."""
+	extensions = []
+	for handler_path in frappe.get_hooks("pos_next_payment_form_extensions"):
+		extension = frappe.get_attr(handler_path)(
+			customer=customer,
+			pos_profile=pos_profile,
+			company=company,
+		)
+		if extension:
+			extensions.append(extension)
+	return extensions
+
+
+def _run_customer_extensions(hook_name, customer, pos_profile, company, extension_data):
+	"""Notify optional apps after a POS customer is safely saved."""
 	data = frappe.parse_json(extension_data) if isinstance(extension_data, str) else extension_data or {}
 	if not isinstance(data, dict):
 		frappe.throw(_("Customer extension data must be an object."))
-	for handler_path in frappe.get_hooks("pos_next_customer_created"):
+	for handler_path in frappe.get_hooks(hook_name):
 		frappe.get_attr(handler_path)(
 			customer=customer,
 			pos_profile=pos_profile,
@@ -70,14 +284,51 @@ def _run_customer_created_extensions(customer, pos_profile, company, extension_d
 
 
 @frappe.whitelist()
-def get_customer_form_context(pos_profile=None):
+def get_customer_form_context(pos_profile=None, customer=None):
 	"""Return company-localized customer fields for the active POS profile."""
 	company, country, resolved_profile = _resolve_customer_context(pos_profile=pos_profile)
+	if customer:
+		assert_company_ownership("Customer", customer)
 	return {
 		"company": company,
 		"country": country,
 		"is_saudi": country == SAUDI_ARABIA,
-		"extensions": _get_customer_form_extensions(resolved_profile, company),
+		"tax_address": _get_customer_address(customer),
+		"address_options": _get_saudi_address_options(country),
+		"extensions": _get_customer_form_extensions(resolved_profile, company, customer),
+	}
+
+
+@frappe.whitelist()
+def get_payment_form_context(pos_profile, customer=None):
+	"""Return customer summary and app-provided fields for the payment dialog."""
+	company, country, resolved_profile = _resolve_customer_context(pos_profile=pos_profile)
+	customer_name = customer.get("name") if isinstance(customer, dict) else customer
+	if not customer_name:
+		return {
+			"company": company,
+			"country": country,
+			"customer": {},
+			"extensions": [],
+		}
+
+	assert_company_ownership("Customer", customer_name)
+	customer_values = frappe.db.get_value(
+		"Customer",
+		customer_name,
+		["name", "customer_name", "mobile_no", "tax_id", "customer_type"],
+		as_dict=True,
+	) or {}
+	customer_values["address"] = _get_customer_address(customer_name)
+	return {
+		"company": company,
+		"country": country,
+		"customer": customer_values,
+		"extensions": _get_payment_form_extensions(
+			resolved_profile,
+			company,
+			customer_name,
+		),
 	}
 
 
@@ -165,7 +416,11 @@ def create_customer(
 	tax_id=None,
 	custom_commercial_registration=None,
 	customer_type=None,
-	customer_address=None,
+	tax_address_line1=None,
+	tax_building_number=None,
+	tax_city=None,
+	tax_district=None,
+	tax_postal_code=None,
 	extension_data=None,
 ):
 	"""
@@ -184,7 +439,7 @@ def create_customer(
 	    tax_id (str): VAT / Tax registration number (optional)
 	    custom_commercial_registration (str): Commercial Registration CR number (optional)
 	    customer_type (str): Individual or Company (default: Individual)
-	    customer_address (str): Street address (optional)
+	    tax_address_line1 (str): Street address for the Saudi national address
 
 	Returns:
 	    dict: Created customer document
@@ -221,6 +476,15 @@ def create_customer(
 
 	resolved_customer_type = customer_type if customer_type in ("Individual", "Company") else "Individual"
 	tax_id = _validate_tax_id(company, tax_id, resolved_customer_type)
+	address_data = _validate_customer_address(
+		company,
+		resolved_customer_type,
+		tax_address_line1,
+		tax_building_number,
+		tax_city,
+		tax_district,
+		tax_postal_code,
+	)
 
 	customer_data = {
 		"doctype": "Customer",
@@ -254,11 +518,82 @@ def create_customer(
 		# cashier.  The POS endpoint has already resolved and authorized the active
 		# profile/company, so skip only this duplicate check.
 		customer.insert(ignore_permissions=True)
+		_upsert_customer_address(customer, address_data)
 	finally:
 		frappe.flags.pos_next_customer_company = None
 		frappe.flags.pos_next_customer_pos_profile = None
 
-	_run_customer_created_extensions(customer, pos_profile, company, extension_data)
+	_run_customer_extensions("pos_next_customer_created", customer, pos_profile, company, extension_data)
+	return customer.as_dict()
+
+
+@frappe.whitelist()
+def update_customer(
+	name,
+	customer_name,
+	mobile_no=None,
+	customer_group=None,
+	territory=None,
+	company=None,
+	pos_profile=None,
+	custom_governorate=None,
+	custom_district=None,
+	tax_id=None,
+	custom_commercial_registration=None,
+	customer_type=None,
+	tax_address_line1=None,
+	tax_building_number=None,
+	tax_city=None,
+	tax_district=None,
+	tax_postal_code=None,
+	extension_data=None,
+):
+	"""Update a POS customer and its country-aware address and extensions."""
+	if not name or not frappe.db.exists("Customer", name):
+		frappe.throw(_("Customer is required"))
+	if not customer_name:
+		frappe.throw(_("Customer name is required"))
+
+	company, _, pos_profile = _resolve_customer_context(pos_profile=pos_profile, company=company)
+	assert_company_ownership("Customer", name)
+	customer = frappe.get_doc("Customer", name)
+	if not frappe.has_permission("Customer", "write", doc=customer):
+		frappe.throw(_("You don't have permission to update customers"), frappe.PermissionError)
+
+	require_mobile_no(mobile_no, "Customer")
+	resolved_customer_type = customer_type if customer_type in ("Individual", "Company") else "Individual"
+	tax_id = _validate_tax_id(company, tax_id, resolved_customer_type)
+	address_data = _validate_customer_address(
+		company,
+		resolved_customer_type,
+		tax_address_line1,
+		tax_building_number,
+		tax_city,
+		tax_district,
+		tax_postal_code,
+	)
+
+	values = {
+		"customer_name": customer_name,
+		"customer_type": resolved_customer_type,
+		"customer_group": customer_group or customer.customer_group,
+		"territory": territory or customer.territory,
+		"mobile_no": mobile_no or "",
+		"custom_pos_mobile_no": mobile_no or "",
+		"tax_id": tax_id,
+		"custom_governorate": custom_governorate or None,
+		"custom_district": custom_district or None,
+	}
+	meta = frappe.get_meta("Customer")
+	if meta.get_field("custom_vat_registration_number"):
+		values["custom_vat_registration_number"] = tax_id
+	if meta.get_field("custom_commercial_registration"):
+		values["custom_commercial_registration"] = custom_commercial_registration or ""
+
+	customer.update(values)
+	customer.save(ignore_permissions=True)
+	_upsert_customer_address(customer, address_data)
+	_run_customer_extensions("pos_next_customer_updated", customer, pos_profile, company, extension_data)
 	return customer.as_dict()
 
 

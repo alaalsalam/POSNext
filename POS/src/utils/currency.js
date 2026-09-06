@@ -50,7 +50,8 @@ const SYMBOLS = {
 	CNY: "¥",
 	INR: "₹",
 	EGP: "E£",
-	SAR: "\u00EA",
+	SAR: "ر.س",
+	YER: "ر.ي",
 	AED: "د.إ",
 };
 

@@ -35,6 +35,28 @@ DOCTYPE_POS_PROFILE = "POS Profile"
 DOCTYPE_COMMENT = "Comment"
 
 
+def _validate_pos_payment_reconciliation(invoice_doc):
+	"""Block unrepresented overpayments caused by a stale POS total."""
+	if invoice_doc.doctype != DOCTYPE_SALES_INVOICE or invoice_doc.get("is_return"):
+		return
+
+	total = flt(invoice_doc.rounded_total or invoice_doc.grand_total)
+	paid = flt(invoice_doc.paid_amount)
+	change = flt(invoice_doc.change_amount)
+	overpayment = paid - total
+	tolerance = 0.01
+	if overpayment > tolerance and abs(overpayment - change) > tolerance:
+		frappe.throw(
+			_(
+				"The POS payment ({0}) does not match the calculated invoice total ({1}). "
+				"Refresh POS and review the cart before submitting again."
+			).format(
+				frappe.format_value(paid, {"fieldtype": "Currency"}),
+				frappe.format_value(total, {"fieldtype": "Currency"}),
+			)
+		)
+
+
 def _require_pos_invoice_access(pos_profile, doctype, invoice_name=None, *, submitting=False):
 	"""Authorize the user before the POS flow uses internal save flags.
 
@@ -318,6 +340,33 @@ def _strip_server_managed_fields(payload):
 	# Accepting client-side packed rows can reintroduce duplicates on re-save.
 	cleaned.pop("packed_items", None)
 	return cleaned
+
+
+def _parse_invoice_extension_data(payload):
+	"""Remove and parse app extension data before constructing a Frappe document."""
+	if not isinstance(payload, dict):
+		return payload, {}
+
+	cleaned = dict(payload)
+	extension_data = cleaned.pop("extension_data", None) or {}
+	if isinstance(extension_data, str):
+		extension_data = frappe.parse_json(extension_data)
+	if not isinstance(extension_data, dict):
+		frappe.throw(_("Invoice extension data must be an object."))
+	return cleaned, extension_data
+
+
+def _apply_invoice_extensions(invoice_doc, extension_data, pos_profile, company):
+	"""Let installed apps apply their own validated invoice fields."""
+	if not extension_data:
+		return
+	for handler_path in frappe.get_hooks("pos_next_invoice_extensions"):
+		frappe.get_attr(handler_path)(
+			invoice=invoice_doc,
+			extension_data=extension_data,
+			pos_profile=pos_profile,
+			company=company,
+		)
 
 
 def get_payment_account(mode_of_payment, company):
@@ -719,6 +768,7 @@ def update_invoice(data):
 	"""Create or update invoice draft (Step 1)."""
 	try:
 		data = json.loads(data) if isinstance(data, str) else data
+		data, extension_data = _parse_invoice_extension_data(data)
 		data = _strip_server_managed_fields(data)
 
 		pos_profile = data.get("pos_profile")
@@ -1037,6 +1087,7 @@ def update_invoice(data):
 						frappe.throw(frappe.as_json({"errors": errors}), frappe.ValidationError)
 
 		# Save as draft
+		_apply_invoice_extensions(invoice_doc, extension_data, pos_profile, company)
 		invoice_doc.flags.ignore_permissions = True
 		frappe.flags.ignore_account_permission = True
 		invoice_doc.docstatus = 0
@@ -1489,6 +1540,7 @@ def submit_invoice(invoice=None, data=None):
 		invoice_doc.flags.ignore_permissions = True
 		frappe.flags.ignore_account_permission = True
 		invoice_doc.save()
+		_validate_pos_payment_reconciliation(invoice_doc)
 
 		# Submit invoice
 		invoice_doc.submit()

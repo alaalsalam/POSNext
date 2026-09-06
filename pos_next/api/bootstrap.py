@@ -80,6 +80,7 @@ def get_initial_data():
 
 	pos_profile = shift["pos_profile_doc"]
 	pos_profile_name = pos_profile.name
+	company_currency = frappe.get_cached_value("Company", pos_profile.company, "default_currency")
 
 	result["shift"] = {
 		"name": shift["name"],
@@ -91,7 +92,7 @@ def get_initial_data():
 	result["pos_profile"] = {
 		"name": pos_profile.name,
 		"company": pos_profile.company,
-		"currency": pos_profile.currency,
+		"currency": pos_profile.currency or company_currency,
 		"warehouse": pos_profile.warehouse,
 		"selling_price_list": pos_profile.selling_price_list,
 		"customer": pos_profile.customer,

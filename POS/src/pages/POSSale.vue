@@ -2609,6 +2609,8 @@ async function handlePaymentCompleted(paymentData) {
 				change_amount: paymentData.change_amount || 0,
 				is_credit_sale: paymentData.is_credit_sale ? 1 : 0,
 				receivable_account: paymentData.receivable_account || null,
+				extension_data: paymentData.extension_data || {},
+				...(paymentData.invoice_fields || {}),
 				edited_from: editingOfflineContext?.originalOfflineId || null,
 			};
 
@@ -2659,6 +2661,7 @@ async function handlePaymentCompleted(paymentData) {
 				paid_amount: paidAmount,
 				change_amount: paymentData.change_amount || 0,
 				outstanding_amount: Math.max(0, grandTotal - paidAmount),
+				...(paymentData.invoice_fields || {}),
 				status: Math.max(0, grandTotal - paidAmount) < 0.01 ? "Paid" : "Unpaid",
 				docstatus: 0,
 			};
@@ -2704,6 +2707,7 @@ async function handlePaymentCompleted(paymentData) {
 			const result = await cartStore.submitInvoice({
 				isCreditSale: Boolean(paymentData.is_credit_sale),
 				receivableAccount: paymentData.receivable_account || null,
+				extensionData: paymentData.extension_data || {},
 			});
 
 			if (result) {

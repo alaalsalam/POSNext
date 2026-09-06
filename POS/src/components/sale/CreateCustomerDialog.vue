@@ -151,21 +151,94 @@
 					</div>
 				</template>
 
+				<!-- ── Saudi national address ── -->
+				<template v-if="isSaudiCompany">
+					<SectionLabel :label="__('العنوان الوطني والضريبي')" icon="map-pin" />
+					<div class="grid grid-cols-2 gap-3 mb-4">
+						<div>
+							<FieldLabel :label="__('الدولة')" :required="isSaudiBusinessCustomer" />
+							<input
+								:value="customerFormContext.country"
+								disabled
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-600"
+							/>
+						</div>
+						<div>
+							<FieldLabel :label="__('المدينة')" :required="isSaudiBusinessCustomer" />
+							<input
+								v-model="customerData.tax_city"
+								type="text"
+								list="saudi-city-options"
+								:placeholder="__('اختر المدينة أو اكتبها')"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+							/>
+							<datalist id="saudi-city-options">
+								<option v-for="city in saudiCityOptions" :key="city" :value="city" />
+							</datalist>
+						</div>
+						<div class="col-span-2">
+							<FieldLabel :label="__('اسم الشارع / العنوان الضريبي')" :required="isSaudiBusinessCustomer" />
+							<input
+								v-model="customerData.tax_address_line1"
+								type="text"
+								:placeholder="__('اسم الشارع كما يظهر في العنوان الوطني')"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+							/>
+						</div>
+						<div>
+							<FieldLabel :label="__('رقم المبنى')" :required="isSaudiBusinessCustomer" />
+							<input
+								v-model="customerData.tax_building_number"
+								type="text"
+								inputmode="numeric"
+								maxlength="4"
+								:placeholder="__('4 أرقام')"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+								@input="normalizeSaudiAddressDigits"
+							/>
+						</div>
+						<div>
+							<FieldLabel :label="__('الرمز البريدي')" :required="isSaudiBusinessCustomer" />
+							<input
+								v-model="customerData.tax_postal_code"
+								type="text"
+								inputmode="numeric"
+								maxlength="5"
+								:placeholder="__('5 أرقام')"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+								@input="normalizeSaudiAddressDigits"
+							/>
+						</div>
+						<div class="col-span-2">
+							<FieldLabel :label="__('الحي')" :required="isSaudiBusinessCustomer" />
+							<input
+								v-model="customerData.tax_district"
+								type="text"
+								list="saudi-district-options"
+								:placeholder="__('اختر الحي أو اكتبه')"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+							/>
+							<datalist id="saudi-district-options">
+								<option v-for="district in saudiDistrictOptions" :key="district" :value="district" />
+							</datalist>
+						</div>
+					</div>
+					<p v-if="saudiAddressError" class="-mt-3 mb-4 text-xs text-red-600">{{ saudiAddressError }}</p>
+				</template>
+
 				<!-- ── Optional app-provided fields (for example, car-wash vehicles) ── -->
 				<template v-for="extension in customerFormContext.extensions" :key="extension.id">
-					<template v-if="!isEditMode">
-						<SectionLabel :label="__(extension.title)" icon="plus-circle" optional />
-						<div class="grid grid-cols-2 gap-3 mb-4">
-							<div v-for="field in extension.fields" :key="field.fieldname">
-								<FieldLabel :label="__(field.label)" :required="field.reqd" />
-								<input
-									v-model="extensionValues[extension.id][field.fieldname]"
-									type="text"
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-								/>
-							</div>
+					<SectionLabel :label="__(extension.title)" icon="plus-circle" optional />
+					<div class="grid grid-cols-2 gap-3 mb-4">
+						<div v-for="field in extension.fields" :key="field.fieldname">
+							<FieldLabel :label="__(field.label)" :required="field.reqd" />
+							<input
+								v-model="extensionValues[extension.id][field.fieldname]"
+								type="text"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+							/>
 						</div>
-					</template>
+					</div>
 				</template>
 
 				<!-- ── Section: Address ── -->
@@ -173,7 +246,7 @@
 				<div class="grid grid-cols-2 gap-3 mb-4">
 
 					<!-- Governorate -->
-					<div>
+					<div v-if="!isSaudiCompany">
 						<FieldLabel :label="__('City / Governorate')" />
 						<select
 							v-model="customerData.custom_governorate"
@@ -185,7 +258,7 @@
 					</div>
 
 					<!-- District -->
-					<div>
+					<div v-if="!isSaudiCompany">
 						<FieldLabel :label="__('District / Neighbourhood')" />
 						<select
 							v-model="customerData.custom_district"
@@ -257,7 +330,7 @@
 					variant="solid"
 					@click="handleCreate"
 					:loading="createCustomerResource.loading || updateCustomerResource.loading || checkingPermission"
-					:disabled="!customerData.customer_name || !phoneNumber || !hasPermission || !!taxIdError"
+					:disabled="!customerData.customer_name || !phoneNumber || !hasPermission || !!taxIdError || !!saudiAddressError"
 				>
 					{{ isEditMode ? __("Save Changes") : __("Create Customer") }}
 				</Button>
@@ -358,7 +431,12 @@ const customerGroups = ref([]);
 const territories = ref([]);
 const governorates = ref([]);
 const districts = ref([]);
-const customerFormContext = ref({ country: "Yemen", is_saudi: false, extensions: [] });
+const customerFormContext = ref({
+	country: "Yemen",
+	is_saudi: false,
+	address_options: { cities: [], districts_by_city: {} },
+	extensions: [],
+});
 const extensionValues = ref({});
 
 const customerData = ref({
@@ -369,6 +447,11 @@ const customerData = ref({
 	territory: "",
 	tax_id: "",
 	custom_commercial_registration: "",
+	tax_address_line1: "",
+	tax_building_number: "",
+	tax_city: "",
+	tax_district: "",
+	tax_postal_code: "",
 	custom_governorate: "",
 	custom_district: "",
 });
@@ -380,13 +463,44 @@ const show = computed({
 });
 const isEditMode = computed(() => !!props.customer?.name);
 const isSaudiCompany = computed(() => Boolean(customerFormContext.value.is_saudi));
+const isSaudiBusinessCustomer = computed(
+	() => isSaudiCompany.value && customerData.value.customer_type === "Company"
+);
+const saudiCityOptions = computed(
+	() => customerFormContext.value.address_options?.cities || []
+);
+const saudiDistrictOptions = computed(() => {
+	const byCity = customerFormContext.value.address_options?.districts_by_city || {};
+	return byCity[customerData.value.tax_city] || [];
+});
 const taxIdError = computed(() => {
 	if (!isSaudiCompany.value || customerData.value.customer_type !== "Company") return "";
 	return /^\d{15}$/.test(customerData.value.tax_id) ? "" : __("Enter the 15-digit Saudi VAT number.");
 });
+const saudiAddressError = computed(() => {
+	if (!isSaudiBusinessCustomer.value) return "";
+	const required = [
+		customerData.value.tax_address_line1,
+		customerData.value.tax_city,
+		customerData.value.tax_district,
+		customerData.value.tax_building_number,
+		customerData.value.tax_postal_code,
+	];
+	if (required.some((value) => !String(value || "").trim())) {
+		return __("Complete all Saudi national address fields.");
+	}
+	if (!/^\d{4}$/.test(customerData.value.tax_building_number)) {
+		return __("Building Number must be exactly 4 digits.");
+	}
+	if (!/^\d{5}$/.test(customerData.value.tax_postal_code)) {
+		return __("Postal Code must be exactly 5 digits.");
+	}
+	return "";
+});
 const currentCountryCode = computed(() => {
 	const c = countriesStore.countries.find((c) => c.isd === selectedCountryCode.value);
-	return c?.code.toLowerCase() || "ye";
+	if (c?.code) return c.code.toLowerCase();
+	return selectedCountryCode.value === "+966" ? "sa" : "ye";
 });
 const filteredCountries = computed(() => {
 	if (!countrySearchQuery.value) return countriesStore.countries;
@@ -414,6 +528,13 @@ const normalizeTaxId = () => {
 		.replace(/[٠-٩]/g, (digit) => "٠١٢٣٤٥٦٧٨٩".indexOf(digit))
 		.replace(/\D/g, "");
 };
+const normalizeSaudiAddressDigits = () => {
+	for (const fieldname of ["tax_building_number", "tax_postal_code"]) {
+		customerData.value[fieldname] = customerData.value[fieldname]
+			.replace(/[٠-٩]/g, (digit) => "٠١٢٣٤٥٦٧٨٩".indexOf(digit))
+			.replace(/\D/g, "");
+	}
+};
 const handleClickOutside = (e) => {
 	if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
 		showCountryDropdown.value = false;
@@ -422,7 +543,7 @@ const handleClickOutside = (e) => {
 const setCountryFromName = (countryName) => {
 	if (!countryName) { selectedCountryCode.value = "+967"; return; }
 	const isd = countriesStore.countryNameToISDMap[countryName];
-	selectedCountryCode.value = isd || "+967";
+	selectedCountryCode.value = isd || (countryName === "Saudi Arabia" ? "+966" : "+967");
 };
 const updateTerritoryFromCountry = () => {
 	if (!territories.value.length) return;
@@ -447,6 +568,11 @@ const createCustomerResource = createResource({
 		territory: customerData.value.territory || "",
 		tax_id: customerData.value.tax_id || "",
 		custom_commercial_registration: customerData.value.custom_commercial_registration || "",
+		tax_address_line1: customerData.value.tax_address_line1 || "",
+		tax_building_number: customerData.value.tax_building_number || "",
+		tax_city: customerData.value.tax_city || "",
+		tax_district: customerData.value.tax_district || "",
+		tax_postal_code: customerData.value.tax_postal_code || "",
 		custom_governorate: customerData.value.custom_governorate || "",
 		custom_district: customerData.value.custom_district || "",
 		pos_profile: props.posProfile,
@@ -464,21 +590,25 @@ const createCustomerResource = createResource({
 });
 
 const updateCustomerResource = createResource({
-	url: "frappe.client.set_value",
+	url: "pos_next.api.customers.update_customer",
 	makeParams: () => ({
-		doctype: "Customer",
 		name: props.customer?.name,
-		fieldname: {
-			customer_name: customerData.value.customer_name,
-			customer_type: customerData.value.customer_type,
-			customer_group: customerData.value.customer_group || "",
-			territory: customerData.value.territory || "",
-			mobile_no: customerData.value.mobile_no || "",
-			tax_id: customerData.value.tax_id || "",
-			custom_commercial_registration: customerData.value.custom_commercial_registration || "",
-			custom_governorate: customerData.value.custom_governorate || "",
-			custom_district: customerData.value.custom_district || "",
-		},
+		customer_name: customerData.value.customer_name,
+		customer_type: customerData.value.customer_type,
+		customer_group: customerData.value.customer_group || "",
+		territory: customerData.value.territory || "",
+		mobile_no: customerData.value.mobile_no || "",
+		tax_id: customerData.value.tax_id || "",
+		custom_commercial_registration: customerData.value.custom_commercial_registration || "",
+		tax_address_line1: customerData.value.tax_address_line1 || "",
+		tax_building_number: customerData.value.tax_building_number || "",
+		tax_city: customerData.value.tax_city || "",
+		tax_district: customerData.value.tax_district || "",
+		tax_postal_code: customerData.value.tax_postal_code || "",
+		custom_governorate: customerData.value.custom_governorate || "",
+		custom_district: customerData.value.custom_district || "",
+		pos_profile: props.posProfile,
+		extension_data: extensionValues.value,
 	}),
 	onSuccess: (data) => {
 		showSuccess(__("Customer {0} updated", [data.customer_name]));
@@ -559,28 +689,49 @@ const districtsResource = createResource({
 
 const customerFormContextResource = createResource({
 	url: "pos_next.api.customers.get_customer_form_context",
-	makeParams: () => ({ pos_profile: props.posProfile }),
+	makeParams: () => ({ pos_profile: props.posProfile, customer: props.customer?.name || "" }),
 	auto: false,
 	onSuccess: (data) => {
-		customerFormContext.value = data || { country: "Yemen", is_saudi: false, extensions: [] };
+		customerFormContext.value = data || {
+			country: "Yemen",
+			is_saudi: false,
+			address_options: { cities: [], districts_by_city: {} },
+			extensions: [],
+		};
 		setCountryFromName(data?.country || "Yemen");
 		if (data?.is_saudi) selectedCountryCode.value = "+966";
+		const address = data?.tax_address || {};
+		customerData.value.tax_address_line1 = address.address_line1 || "";
+		customerData.value.tax_building_number = address.building_number || "";
+		customerData.value.tax_city = address.city || "";
+		customerData.value.tax_district = address.district || "";
+		customerData.value.tax_postal_code = address.postal_code || "";
 		extensionValues.value = Object.fromEntries(
 			(data?.extensions || []).map((extension) => [
 				extension.id,
-				Object.fromEntries((extension.fields || []).map((field) => [field.fieldname, ""])),
+				Object.fromEntries(
+					(extension.fields || []).map((field) => [
+						field.fieldname,
+						extension.values?.[field.fieldname] || "",
+					])
+				),
 			])
 		);
 	},
 	onError: () => {
-		customerFormContext.value = { country: "Yemen", is_saudi: false, extensions: [] };
+		customerFormContext.value = {
+			country: "Yemen",
+			is_saudi: false,
+			address_options: { cities: [], districts_by_city: {} },
+			extensions: [],
+		};
 		selectedCountryCode.value = "+967";
 	},
 });
 
 // ── Dialog lifecycle ────────────────────────────────────────────────────────
 const loadDialogData = async () => {
-	countriesStore.loadCountries();
+	await countriesStore.loadCountries();
 	await sellingSettingsResource.reload();
 	if (!isEditMode.value) {
 		customerData.value.customer_group = "";
@@ -608,6 +759,7 @@ const handleCreate = async () => {
 		return showError(__("Mobile Number is required"));
 	}
 	if (taxIdError.value) return showError(taxIdError.value);
+	if (saudiAddressError.value) return showError(saudiAddressError.value);
 	if (isEditMode.value) {
 		await updateCustomerResource.submit();
 	} else {
@@ -634,13 +786,18 @@ const resetForm = () => {
 		mobile_no: "",
 		tax_id: "",
 		custom_commercial_registration: "",
+		tax_address_line1: "",
+		tax_building_number: "",
+		tax_city: "",
+		tax_district: "",
+		tax_postal_code: "",
 		customer_group: pickDefault(s.customer_group, customerGroups.value),
 		territory: pickDefault(s.territory, territories.value, (l) => l.find((n) => n === "All Territories")),
 		custom_governorate: "",
 		custom_district: "",
 	});
 	districts.value = [];
-	selectedCountryCode.value = "+967";
+	selectedCountryCode.value = isSaudiCompany.value ? "+966" : "+967";
 	phoneNumber.value = "";
 	referralCode.value = "";
 	extensionValues.value = {};
@@ -663,7 +820,7 @@ watch(() => props.customer, (customer) => {
 		customerData.value.mobile_no = customer.mobile_no;
 		if (customer.mobile_no.includes("-")) {
 			const [code, ...rest] = customer.mobile_no.split("-");
-			selectedCountryCode.value = code;
+			selectedCountryCode.value = isSaudiCompany.value ? "+966" : code;
 			phoneNumber.value = rest.join("-");
 		} else {
 			phoneNumber.value = customer.mobile_no;
